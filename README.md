@@ -168,6 +168,7 @@ Available endpoints:
 - `POST /v1/verify/lean/polynomial-int-identity`
 - `POST /v1/verify/lean/request-identity`
 - `POST /v1/verify/lean/transformation`
+- `POST /v1/verify/lean/polynomial-real-derivative` (optional `candidate_derivative`)
 
 Request-bound identity and transformation checks retain request/candidate
 hashes, checker identifiers, and generated proof-source fingerprints. A
