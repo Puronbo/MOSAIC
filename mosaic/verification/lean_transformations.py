@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from mosaic.core.requests import MathRequest
 from mosaic.verification.obligations import request_fingerprint
 from mosaic.verification.lean_linear import LeanLinearCheck, verify_linear_int_identity
+from mosaic.verification.lean_polynomial import LeanPolynomialCheck, verify_polynomial_int_identity
 
 
 class LeanTransformationObligation(BaseModel):
@@ -21,7 +22,7 @@ class LeanTransformationObligation(BaseModel):
     request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     candidate_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     operation: Literal["simplify", "expand", "factor"]
-    checker_id: Literal["lean.kernel.linear_int_identity.v1"]
+    checker_id: Literal["lean.kernel.linear_int_identity.v1", "lean.kernel.polynomial_int_identity.v1"]
     proposition: str = Field(min_length=1, max_length=1100)
     variables: tuple[str, ...] = ()
     assumptions: tuple[str, ...] = ()
@@ -35,7 +36,7 @@ class LeanTransformationVerification(BaseModel):
         "KERNEL_UNAVAILABLE", "KERNEL_ERROR",
     ]
     obligation: LeanTransformationObligation | None = None
-    check: LeanLinearCheck | None = None
+    check: LeanLinearCheck | LeanPolynomialCheck | None = None
     explanation: str
 
 
@@ -55,11 +56,15 @@ def verify_request_transformation_with_lean(
         )
 
     check = verify_linear_int_identity(request.expression, result)
+    checker_id = "lean.kernel.linear_int_identity.v1"
+    if check.status == "UNSUPPORTED":
+        check = verify_polynomial_int_identity(request.expression, result)
+        checker_id = "lean.kernel.polynomial_int_identity.v1"
     if check.status == "UNSUPPORTED":
         return LeanTransformationVerification(
             status="UNSUPPORTED",
             check=check,
-            explanation="The request or proposed result is outside the restricted affine Int grammar.",
+            explanation="The request or proposed result is outside the supported affine or bounded polynomial Int grammars.",
         )
 
     request_hash = request_fingerprint(request)
@@ -72,7 +77,7 @@ def verify_request_transformation_with_lean(
         request_sha256=request_hash,
         candidate_sha256=candidate_hash,
         operation=request.operation.value,
-        checker_id="lean.kernel.linear_int_identity.v1",
+        checker_id=checker_id,
         proposition=f"{quantified}({request.expression}) = ({result})",
         variables=variables,
         assumptions=(),
@@ -82,7 +87,11 @@ def verify_request_transformation_with_lean(
         obligation=obligation,
         check=check,
         explanation=(
-            "Lean kernel-checked the proposed affine result as equivalent to the exact request input over all integer assignments."
+            (
+                "Lean kernel-checked the proposed polynomial result using pinned Mathlib."
+                if checker_id == "lean.kernel.polynomial_int_identity.v1"
+                else "Lean kernel-checked the proposed affine result using omega."
+            )
             if check.status == "FORMALLY_VERIFIED"
             else check.explanation
         ),
