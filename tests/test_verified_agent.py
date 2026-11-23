@@ -63,7 +63,8 @@ def test_verified_agent_revises_rejected_candidate_then_accepts(monkeypatch):
             explanation="accepted",
         ),
     ])
-    from mosaic.core import verified_agent\n    monkeypatch.setattr(verified_agent, "evaluate_model_candidate", lambda submission: next(checks))
+    from mosaic.core import verified_agent
+    monkeypatch.setattr(verified_agent, "evaluate_model_candidate", lambda submission: next(checks))
     provider = SequenceProvider(["not json", identity_candidate()])
     result = asyncio.run(run_verified_agent(
         MathRequest(operation="verify_identity", expression="x + 1", rhs="1 + x"),
@@ -94,7 +95,8 @@ def test_verified_agent_stops_on_kernel_outage(monkeypatch):
             explanation="Lean unavailable",
         )
 
-    from mosaic.core import verified_agent\n    monkeypatch.setattr(verified_agent, "evaluate_model_candidate", unavailable)
+    from mosaic.core import verified_agent
+    monkeypatch.setattr(verified_agent, "evaluate_model_candidate", unavailable)
     provider = SequenceProvider([identity_candidate(), identity_candidate()])
     result = asyncio.run(run_verified_agent(
         MathRequest(operation="verify_identity", expression="x + 1", rhs="1 + x"),
@@ -120,7 +122,8 @@ def test_verified_agent_bounds_revision_count(monkeypatch):
             explanation="mismatch",
         )
 
-    from mosaic.core import verified_agent\n    monkeypatch.setattr(verified_agent, "evaluate_model_candidate", rejected)
+    from mosaic.core import verified_agent
+    monkeypatch.setattr(verified_agent, "evaluate_model_candidate", rejected)
     provider = SequenceProvider([identity_candidate()] * 5)
     result = asyncio.run(run_verified_agent(
         MathRequest(operation="verify_identity", expression="x + 1", rhs="1 + x"),
