@@ -44,3 +44,31 @@ The project targets Python 3.11+ and uses exact arithmetic wherever practical. S
 ## License
 
 License selection is pending. Until a license is added, standard copyright restrictions apply; no open-source license is granted by this repository.
+
+
+## Run the prototype
+
+Create a virtual environment, install the package and development dependencies, then start the API:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+uvicorn mosaic.api:app --reload
+```
+
+On Windows PowerShell, activate with `.venv\\Scripts\\Activate.ps1`.
+
+The health endpoint is `GET /health`. Mathematical requests use `POST /v1/math`. For example:
+
+```json
+{
+  "schema_version": "1.0",
+  "operation": "expand",
+  "expression": "(x+1)**2"
+}
+```
+
+Run the test suite with `python -m pytest`. The Python client is available as `mosaic.client.MosaicClient`.
+
+The current implementation is intentionally small. The HTTP service is a prototype and should not be exposed to untrusted public traffic without the additional isolation and resource controls described in [SECURITY.md](SECURITY.md).
