@@ -22,7 +22,7 @@ MOSAIC separates an untrusted proposal/execution layer from trusted verification
 
 ## Trust and status policy
 
-The general identity and transformation routines remain EXPERIMENTAL even when symbolic recomputation succeeds. A narrow optional endpoint, POST /v1/verify/lean/closed-nat-equality, can return FORMALLY_VERIFIED only for closed natural-number equalities in a bounded arithmetic grammar when a configured Lean executable accepts MOSAIC-generated proof source. It is not a general proof backend: variables, assumptions, rational domains, arbitrary Lean source, and user-supplied tactics are not supported. If Lean is unavailable, the result says so and never falls back to experimental evidence.
+The general identity and transformation routines remain EXPERIMENTAL even when symbolic recomputation succeeds. The optional endpoint POST /v1/verify/lean/closed-nat-equality can return FORMALLY_VERIFIED only for closed natural-number equalities in a bounded arithmetic grammar when a configured Lean executable accepts MOSAIC-generated proof source. The request-bound endpoint POST /v1/verify/lean/request-identity derives an assumption-free identity obligation from the exact MathRequest and binds it to the request fingerprint; it currently supports only verify_identity requests. Neither endpoint is a general proof backend: variables, rational domains, arbitrary Lean source, and user-supplied tactics are not supported. If Lean is unavailable, the result says so and never falls back to experimental evidence.
 
 Agent outputs are untrusted proposals. Agreement between agents is not verification; disagreement triggers review rather than an automatic verdict. See [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
 
