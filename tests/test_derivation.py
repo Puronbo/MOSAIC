@@ -71,3 +71,14 @@ def test_leaf_request_is_a_valid_complete_tree():
     assert tree.node_count == 1
     assert tree.root.rule_id is None
     assert validate_derivation_tree(simple, tree)
+
+
+def test_registered_rule_exposes_its_own_child_expander():
+    from mosaic.verification.decomposition import (
+        get_decomposition_rule,
+        registered_decomposition_rules,
+    )
+
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    assert rule in registered_decomposition_rules()
+    assert rule.children(request()).__len__() == 3
