@@ -1,0 +1,49 @@
+name: Lean kernel integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lean-toolchain"
+      - "mosaic/verification/lean_kernel.py"
+      - "tests/test_lean_kernel.py"
+      - ".github/workflows/lean-kernel.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "lean-toolchain"
+      - "mosaic/verification/lean_kernel.py"
+      - "tests/test_lean_kernel.py"
+      - ".github/workflows/lean-kernel.yml"
+  workflow_dispatch:
+
+jobs:
+  lean-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Lean toolchain
+        uses: leanprover/lean-action@v1
+        with:
+          auto-config: false
+          use-github-cache: false
+      - name: Verify Lean installation
+        run: |
+          elan toolchain install "$(cat lean-toolchain)"
+          lean --version
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install MOSAIC
+        run: python -m pip install -e .
+      - name: Exercise real Lean kernel bridge
+        run: |
+          python - <<'PY'
+          from mosaic.verification.lean_kernel import verify_closed_nat_equality
+
+          positive = verify_closed_nat_equality("(2 + 3) * 4", "20")
+          assert positive.status == "FORMALLY_VERIFIED", positive.model_dump()
+          negative = verify_closed_nat_equality("2 + 3", "6")
+          assert negative.status == "REJECTED", negative.model_dump()
+          print("Lean kernel bridge positive and negative checks passed.")
+          PY
