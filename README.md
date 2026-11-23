@@ -102,7 +102,7 @@ All symbolic outcomes remain experimental rather than formal proofs.
 
 ## AI model integration
 
-Existing AI systems can submit proposals to `POST /v1/ai/candidate`. MOSAIC
+Existing AI systems can register the portable function tool from `GET /v1/ai/tool-schema` and submit proposals to `POST /v1/ai/candidate`. MOSAIC
 validates the candidate against the unchanged mathematical request, checks
 supported semantic conditions, and invokes a request-bound Lean checker where
 available. The response distinguishes formal verification from rejected,
