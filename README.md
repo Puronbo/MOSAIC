@@ -33,13 +33,14 @@ The current Python prototype includes:
 - a provider-neutral asynchronous model adapter protocol, explicit provider registry, timeout and payload bounds, and prompt/output hashes;
 - a deterministic agent graph runner with explicit provider assignments, dependency-output handoff, failure isolation, and execution provenance;
 - an opt-in OpenAI-compatible HTTP chat provider with HTTPS/loopback policy, redirect rejection, sanitized errors, and injectable test transport;
+- a structured identity-claim boundary that validates model JSON, rejects unsupported syntax, and records experimental symbolic-check results with provenance hashes;
 - regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
 
 ## Planned work
 
-Lean-kernel integration, independently checked canonical certificates, additional vendor-specific provider implementations, parallel scheduling, retries, durable execution storage, MCP adapter, stronger resource isolation, domain-aware semantics, and formal proof workflows are not implemented yet. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
+Lean-kernel integration, independently checked canonical certificates, task-bound claim verification, additional vendor-specific provider implementations, parallel scheduling, retries, durable execution storage, MCP adapter, stronger resource isolation, domain-aware semantics, and formal proof workflows are not implemented yet. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
 
 ## Repository status
 
