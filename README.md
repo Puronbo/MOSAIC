@@ -46,7 +46,7 @@ See [recursive derivation trees](docs/RECURSIVE_DERIVATION_TREES.md) and [deriva
 
 ## Planned work
 
-Lean-kernel integration, independently checked canonical certificates, additional task-bound operation coverage, additional vendor-specific provider implementations, parallel scheduling, retries, durable execution storage, MCP adapter, stronger resource isolation, domain-aware semantics, and formal proof workflows are not implemented yet. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
+Independently checked canonical certificates, broader task-bound operation coverage, additional vendor-specific provider implementations, parallel scheduling, retries, durable execution storage, an MCP adapter, stronger resource isolation, richer domain-aware semantics, and broader formal proof workflows remain future work. Lean-kernel integration and the initial provider-neutral AI candidate gateway are implemented for the bounded operations documented below. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
 
 ## Repository status
 
