@@ -262,3 +262,33 @@ def test_gateway_does_not_run_lean_for_wrong_derivative_candidate(monkeypatch):
     result = evaluate_model_candidate(submission)
     assert result.status == "REJECTED"
     assert result.lean_check is None
+
+
+
+def test_gateway_keeps_other_derivative_variables_experimental(monkeypatch):
+    from mosaic.core import model_gateway
+
+    monkeypatch.setattr(
+        model_gateway, "verify_task_bound_candidate",
+        lambda request, candidate: _task_check(equal=True),
+    )
+    monkeypatch.setattr(
+        model_gateway, "verify_polynomial_real_derivative",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("unsupported variable must not reach Lean")),
+    )
+    submission = ModelCandidateSubmission(
+        request=MathRequest(
+            operation="differentiate",
+            expression="y^3 + 2*y",
+            variable="y",
+        ),
+        candidate=json.dumps({
+            "operation": "differentiate",
+            "expression": "y^3 + 2*y",
+            "variable": "y",
+            "result": "3*y^2 + 2",
+        }),
+    )
+    result = evaluate_model_candidate(submission)
+    assert result.status == "EXPERIMENTAL"
+    assert result.lean_check is None
