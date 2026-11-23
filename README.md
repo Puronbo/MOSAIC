@@ -31,13 +31,14 @@ The current Python prototype includes:
 - a Python HTTP client;
 - typed agent task/proposal contracts with dependency graph validation;
 - a provider-neutral asynchronous model adapter protocol, explicit provider registry, timeout and payload bounds, and prompt/output hashes;
+- a deterministic agent graph runner with explicit provider assignments, dependency-output handoff, failure isolation, and execution provenance;
 - regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
 
 ## Planned work
 
-Lean-kernel integration, independently checked canonical certificates, live hosted-model provider implementations, a scheduler, MCP adapter, stronger resource isolation, domain-aware semantics, and formal proof workflows are not implemented yet. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
+Lean-kernel integration, independently checked canonical certificates, live hosted-model provider implementations, parallel scheduling, retries, durable execution storage, MCP adapter, stronger resource isolation, domain-aware semantics, and formal proof workflows are not implemented yet. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
 
 ## Repository status
 
