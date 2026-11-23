@@ -4,6 +4,8 @@ A timestamp is a coordinate supplied by a clock, not a definition of time.
 This module compares coordinates only within the same declared clock and
 keeps causal dependency separate from temporal ordering.
 """
+from __future__ import annotations
+
 from decimal import Decimal
 from enum import StrEnum
 
