@@ -20,22 +20,28 @@ MOSAIC distinguishes computation, independently checked certificates, and formal
 
 Use explicit statuses where applicable: `DEFINITION`, `ASSUMPTION`, `CONJECTURE`, `EXPERIMENTAL`, `CONDITIONAL`, `PROVED`, `FORMALLY_VERIFIED`, `REFUTED`, `INCOMPLETE`, `STALE`, `INVALID_CERTIFICATE`, and `UNSUPPORTED`.
 
-## Initial implementation direction
+## Implemented prototype
 
-The first prototype is a deliberately restricted mathematical service with:
+The current Python prototype includes:
 
-- a versioned JSON request/response contract;
-- a safe expression parser with resource limits;
-- exact symbolic algebra and calculus operations;
-- independent checking for supported identities and certificates;
-- an HTTP interface, Python client, and MCP adapter;
-- tests for correctness, rejection behavior, and certificate validation.
+- a versioned Pydantic request/response contract and FastAPI endpoints;
+- an allow-listed expression parser for a restricted symbolic algebra grammar;
+- SymPy-backed simplify, expand, factor, differentiate, and integrate operations;
+- an experimental identity candidate checker (not a proof checker);
+- a Python HTTP client;
+- typed agent task/proposal contracts with dependency graph validation;
+- a provider-neutral asynchronous model adapter protocol, explicit provider registry, timeout and payload bounds, and prompt/output hashes;
+- regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
-The initial operation registry is expected to cover `simplify`, `expand`, `factor`, `differentiate`, `integrate`, `verify_identity`, `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`. Unsupported operations must return an explicit status rather than silently guessing.
+Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
+
+## Planned work
+
+Lean-kernel integration, independently checked canonical certificates, live hosted-model provider implementations, a scheduler, MCP adapter, stronger resource isolation, domain-aware semantics, and formal proof workflows are not implemented yet. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
 
 ## Repository status
 
-This repository is the starting point for the MOSAIC prototype. Architecture notes and interfaces are specifications until implemented and tested; do not interpret a design document or example as evidence that a component is complete.
+MOSAIC is an early research prototype. Symbolic computation and model responses are candidates, not trusted proofs. The current provider adapter defines an integration contract but does not call any external model. See the architecture and security documents for the trust boundaries and remaining work.
 
 ## Development
 
