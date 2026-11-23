@@ -69,8 +69,8 @@ def verify_side_condition_contract(
     )
 
 
-def _is_nonnegative_integer_power_of_polynomial(request: MathRequest) -> bool:
-    """Recognize a polynomial power whose real-domain preconditions are decidable."""
+def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[str, ...]]:
+    """Recognize rational expressions while retaining every syntactic exclusion."""
     try:
         tree = ast.parse(request.expression, mode="eval")
         root = tree.body
@@ -82,24 +82,73 @@ def _is_nonnegative_integer_power_of_polynomial(request: MathRequest) -> bool:
             and not isinstance(root.right.value, bool)
             and root.right.value >= 0
         ):
+            return False, ()
+
+        constraints: list[str] = []
+
+        def supported(node: ast.AST) -> bool:
+            if isinstance(node, ast.Name):
+                return True
+            if isinstance(node, ast.Constant):
+                return isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+            if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+                return supported(node.operand)
+            if isinstance(node, ast.BinOp):
+                if not (supported(node.left) and supported(node.right)):
+                    return False
+                if isinstance(node.op, (ast.Add, ast.Sub, ast.Mult)):
+                    return True
+                if isinstance(node.op, ast.Div):
+                    denominator = parse_expression(ast.unparse(node.right))
+                    symbols = tuple(sorted(denominator.free_symbols, key=str))
+                    if symbols and not denominator.is_polynomial(*symbols):
+                        return False
+                    if not symbols and not denominator.is_number:
+                        return False
+                    if denominator == 0:
+                        return False
+                    constraints.append(sp.sstr(denominator))
+                    return True
+                if isinstance(node.op, ast.Pow):
+                    if not (
+                        isinstance(node.right, ast.Constant)
+                        and isinstance(node.right.value, int)
+                        and not isinstance(node.right.value, bool)
+                    ):
+                        return False
+                    if node.right.value < 0:
+                        base = parse_expression(ast.unparse(node.left))
+                        constraints.append(sp.sstr(base))
+                    return True
             return False
+
+        if not supported(root.left):
+            return False, ()
         inner = parse_expression(ast.unparse(root.left))
         whole = parse_expression(request.expression)
         symbols = tuple(sorted(inner.free_symbols | whole.free_symbols, key=str))
-        if symbols and (
-            not inner.is_polynomial(*symbols)
-            or not whole.is_polynomial(*symbols)
-        ):
-            return False
-        if not symbols and (not inner.is_number or not whole.is_number):
-            return False
+        if symbols:
+            if not inner.is_rational_function(*symbols) or not whole.is_rational_function(*symbols):
+                return False, ()
+        elif not inner.is_number or not whole.is_number:
+            return False, ()
         variable = sp.Symbol(request.variable or "x")
         sp.diff(inner, variable)
         sp.diff(whole, variable)
-        return True
+        return True, tuple(dict.fromkeys(constraints))
     except (SyntaxError, ExpressionError, sp.PolynomialError, TypeError, ValueError):
-        return False
+        return False, ()
 
+
+def domain_constraints_for_request(request: MathRequest) -> tuple[str, ...]:
+    """Return preserved nonzero constraints for supported rational chain rules."""
+    supported, constraints = _rational_domain_analysis(request)
+    return constraints if supported else ()
+
+
+def _is_nonnegative_integer_power_of_polynomial(request: MathRequest) -> bool:
+    supported, _ = _rational_domain_analysis(request)
+    return supported
 
 def evaluate_side_condition(
     request: MathRequest,
