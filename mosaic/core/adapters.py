@@ -123,3 +123,32 @@ async def invoke_provider(
         elapsed_ms=max(0, int((loop.time() - started) * 1000)),
         mathematical_status="EXPERIMENTAL",
     )
+
+
+class CallableModelProvider:
+    """Adapt an application's existing sync or async model SDK to MOSAIC.
+
+    Synchronous callbacks run in a worker thread so they do not block the
+    verified-agent event loop. The callback returns raw model text only; all
+    output validation and mathematical checking remain in MOSAIC.
+    """
+
+    def __init__(self, capability: ModelCapability, generate):
+        if not callable(generate):
+            raise TypeError("generate must be callable")
+        self._capability = capability
+        self._generate = generate
+
+    @property
+    def capability(self) -> ModelCapability:
+        return self._capability
+
+    async def generate(self, request: ModelRequest) -> str:
+        import inspect
+
+        if inspect.iscoroutinefunction(self._generate):
+            return await self._generate(request)
+        result = await asyncio.to_thread(self._generate, request)
+        if inspect.isawaitable(result):
+            return await result
+        return result
