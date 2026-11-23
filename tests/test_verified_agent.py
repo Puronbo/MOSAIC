@@ -132,3 +132,18 @@ def test_verified_agent_bounds_revision_count(monkeypatch):
     assert result.status == "REJECTED"
     assert len(result.attempts) == 2
     assert len(provider.prompts) == 2
+
+
+
+def test_identity_prompt_does_not_request_nonexistent_result_field():
+    from mosaic.core.verified_agent import _revision_prompt
+
+    prompt = _revision_prompt(
+        MathRequest(operation="verify_identity", expression="x + 1", rhs="1 + x"),
+        None,
+    )
+    payload = json.loads(prompt)
+    shape = payload["required_candidate_json_shape"]
+    assert set(shape) == {"operation", "expression", "rhs"}
+    assert "result" not in shape
+    assert any("identity claims" in item for item in payload["instructions"])
