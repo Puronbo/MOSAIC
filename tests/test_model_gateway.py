@@ -52,6 +52,8 @@ def test_gateway_requires_task_bound_and_lean_acceptance(monkeypatch):
     assert result.provider_id == "test-provider"
     assert result.request_sha256 == "a" * 64
     assert result.candidate_sha256 == "b" * 64
+    serialized = result.model_dump(mode="json")
+    assert serialized["lean_check"]["status"] == "FORMALLY_VERIFIED"
 
 
 def test_gateway_never_promotes_failed_task_bound_candidate(monkeypatch):
