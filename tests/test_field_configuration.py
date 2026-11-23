@@ -59,7 +59,7 @@ def test_sample_counts_must_match():
 
 
 def test_nonfinite_samples_are_rejected():
-    with pytest.raises(ValidationError, match="finite Decimals"):
+    with pytest.raises(ValidationError, match="finite number"):
         config(field_values=(Decimal("0"), Decimal("NaN"), Decimal("2")))
 
 
