@@ -198,3 +198,26 @@ def test_verification_session_enforces_revision_limit(tmp_path, monkeypatch):
         "candidate": candidate
     })
     assert second.status_code == 409
+
+
+def test_lean_closed_nat_endpoint_returns_explicit_kernel_status(monkeypatch):
+    from mosaic import api as api_module
+    from mosaic.verification.lean_kernel import LeanKernelCheck
+    monkeypatch.setattr(api_module, "verify_closed_nat_equality", lambda lhs, rhs: LeanKernelCheck(
+        status="KERNEL_UNAVAILABLE",
+        lhs_sha256="a" * 64,
+        rhs_sha256="b" * 64,
+        explanation="Lean was not found; no formal verification was performed.",
+    ))
+    response = client.post("/v1/verify/lean/closed-nat-equality", json={
+        "lhs": "2 + 3", "rhs": "5"
+    })
+    assert response.status_code == 200
+    assert response.json()["status"] == "KERNEL_UNAVAILABLE"
+
+
+def test_lean_closed_nat_endpoint_rejects_unexpected_fields():
+    response = client.post("/v1/verify/lean/closed-nat-equality", json={
+        "lhs": "2 + 3", "rhs": "5", "lean_source": "sorry"
+    })
+    assert response.status_code == 422
