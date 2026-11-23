@@ -91,3 +91,38 @@ def test_input_limit_is_enforced():
 def test_empty_output_is_rejected():
     with pytest.raises(ProviderError, match="empty"):
         asyncio.run(invoke_provider(FakeProvider(output="  "), request()))
+
+
+def test_callable_provider_adapts_sync_sdk_callback_off_event_loop():
+    from mosaic.core.adapters import CallableModelProvider
+
+    seen = {}
+
+    def existing_sdk(request):
+        seen["thread"] = __import__("threading").current_thread().name
+        return "candidate result"
+
+    provider = CallableModelProvider(FakeProvider().capability, existing_sdk)
+    response = asyncio.run(invoke_provider(provider, request()))
+    assert response.output == "candidate result"
+    assert seen["thread"] != "MainThread"
+    assert response.mathematical_status == "EXPERIMENTAL"
+
+
+def test_callable_provider_adapts_async_sdk_callback():
+    from mosaic.core.adapters import CallableModelProvider
+
+    async def existing_async_sdk(request):
+        await asyncio.sleep(0)
+        return "async candidate"
+
+    provider = CallableModelProvider(FakeProvider().capability, existing_async_sdk)
+    response = asyncio.run(invoke_provider(provider, request()))
+    assert response.output == "async candidate"
+
+
+def test_callable_provider_rejects_non_callable_callback():
+    from mosaic.core.adapters import CallableModelProvider
+
+    with pytest.raises(TypeError, match="must be callable"):
+        CallableModelProvider(FakeProvider().capability, None)
