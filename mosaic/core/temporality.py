@@ -79,6 +79,90 @@ class StateTransition(BaseModel):
         return self
 
 
+class PartialOrderRelation(StrEnum):
+    BEFORE = "BEFORE"
+    AFTER = "AFTER"
+    SAME_EVENT = "SAME_EVENT"
+    INCOMPARABLE = "INCOMPARABLE"
+
+
+class EventOrderGraph(BaseModel):
+    """A finite partial order over events, independent of clock coordinates.
+
+    An edge (A, B) asserts A precedes B. Transitive consequences are inferred;
+    missing paths mean incomparable, not simultaneous.
+    """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_ids: tuple[str, ...] = Field(min_length=1, max_length=500)
+    precedes: tuple[tuple[str, str], ...] = Field(default=(), max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_partial_order(self):
+        nodes = set(self.event_ids)
+        if len(nodes) != len(self.event_ids):
+            raise ValueError("event_ids must be unique")
+        adjacency = {node: set() for node in nodes}
+        for source, target in self.precedes:
+            if source not in nodes or target not in nodes:
+                raise ValueError("precedence edge references an unknown event")
+            if source == target:
+                raise ValueError("an event cannot precede itself")
+            adjacency[source].add(target)
+
+        temporary = set()
+        permanent = set()
+
+        def visit(node):
+            if node in permanent:
+                return
+            if node in temporary:
+                raise ValueError("precedence graph contains a cycle")
+            temporary.add(node)
+            for target in adjacency[node]:
+                visit(target)
+            temporary.remove(node)
+            permanent.add(node)
+
+        for node in nodes:
+            visit(node)
+        return self
+
+
+def compare_event_order(
+    graph: EventOrderGraph, left_event_id: str, right_event_id: str
+) -> PartialOrderRelation:
+    """Return the relation implied by graph reachability, not timestamps."""
+    nodes = set(graph.event_ids)
+    if left_event_id not in nodes or right_event_id not in nodes:
+        raise ValueError("both event IDs must belong to the order graph")
+    if left_event_id == right_event_id:
+        return PartialOrderRelation.SAME_EVENT
+
+    adjacency = {node: set() for node in nodes}
+    for source, target in graph.precedes:
+        adjacency[source].add(target)
+
+    def reachable(source, target):
+        pending = [source]
+        visited = set()
+        while pending:
+            current = pending.pop()
+            if current == target:
+                return True
+            if current in visited:
+                continue
+            visited.add(current)
+            pending.extend(adjacency[current] - visited)
+        return False
+
+    if reachable(left_event_id, right_event_id):
+        return PartialOrderRelation.BEFORE
+    if reachable(right_event_id, left_event_id):
+        return PartialOrderRelation.AFTER
+    return PartialOrderRelation.INCOMPARABLE
+
+
 class CausalLink(BaseModel):
     """A directed causal/dependency claim, not a timestamp comparison."""
     model_config = ConfigDict(extra="forbid", frozen=True)
