@@ -406,3 +406,44 @@ def duration_bounds(start: TemporalPoint, end: TemporalPoint) -> DurationBounds:
         minimum_seconds=minimum,
         maximum_seconds=maximum,
     )
+
+
+
+class EventOccurrence(BaseModel):
+    """A claim about when an event happened, independent of its observation."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: str = Field(min_length=1, max_length=120)
+    occurred_during: TemporalInterval
+    description: str = Field(default="", max_length=500)
+
+
+class EventObservation(BaseModel):
+    """An observer's measurement and subsequent recording of an event.
+
+    measurement_at is when the observer/instrument registered evidence;
+    recorded_at is when that evidence entered the record. Neither is silently
+    substituted for the event's occurrence interval.
+    """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    observation_id: str = Field(min_length=1, max_length=120)
+    event_id: str = Field(min_length=1, max_length=120)
+    observer_id: str = Field(min_length=1, max_length=120)
+    measurement_at: TemporalPoint
+    recorded_at: TemporalPoint
+    evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class EventKnowledge(BaseModel):
+    """A record that a recipient learned of an event at a particular clock point.
+
+    Learning time is an epistemic timestamp. It is not an occurrence time and
+    need not share a clock with the event or its measurement.
+    """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: str = Field(min_length=1, max_length=120)
+    recipient_id: str = Field(min_length=1, max_length=120)
+    learned_at: TemporalPoint
+    source_observation_id: str = Field(min_length=1, max_length=120)
