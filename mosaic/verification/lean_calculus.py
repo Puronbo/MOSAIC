@@ -254,10 +254,6 @@ def _proof(node: ast.AST) -> str:
     raise _Unsupported("unsupported polynomial syntax")
 
 
-class _CandidateMismatch(ValueError):
-    pass
-
-
 def _source(raw: str, candidate_derivative: str | None = None) -> tuple[str, str]:
     tree = _parse(raw)
     expression = _render(tree, "t")
