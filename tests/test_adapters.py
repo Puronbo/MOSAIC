@@ -67,9 +67,14 @@ def test_unsupported_role_is_rejected_before_call():
         asyncio.run(invoke_provider(FakeProvider(), bad))
 
 
+class TimeoutProvider(FakeProvider):
+    async def generate(self, request):
+        raise asyncio.TimeoutError()
+
+
 def test_timeout_is_bounded():
     with pytest.raises(ProviderError, match="timed out"):
-        asyncio.run(invoke_provider(FakeProvider(delay=0.05), request(timeout_seconds=1)))
+        asyncio.run(invoke_provider(TimeoutProvider(), request()))
 
 
 def test_output_limit_is_enforced():
