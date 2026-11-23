@@ -6,7 +6,11 @@ on:
     paths:
       - "lean-toolchain"
       - "mosaic/verification/lean_kernel.py"
+      - "mosaic/verification/lean_linear.py"
+      - "mosaic/verification/lean_obligations.py"
       - "tests/test_lean_kernel.py"
+      - "tests/test_lean_linear.py"
+      - "tests/test_lean_obligations.py"
       - ".github/workflows/lean-kernel.yml"
   pull_request:
     branches: [main]
@@ -47,6 +51,7 @@ jobs:
           from mosaic.core.requests import MathRequest
           from mosaic.core.types import Operation
           from mosaic.verification.lean_kernel import verify_closed_nat_equality
+          from mosaic.verification.lean_linear import verify_linear_int_identity
           from mosaic.verification.lean_obligations import verify_request_identity_with_lean
 
           positive = verify_closed_nat_equality("(2 + 3) * 4", "20")
@@ -62,5 +67,19 @@ jobs:
           assert bound.status == "FORMALLY_VERIFIED", bound.model_dump()
           assert bound.obligation.request_sha256
           assert bound.obligation.assumptions == ()
-          print("Lean kernel bridge and request-bound obligation checks passed.")
+          symbolic = verify_linear_int_identity("x + y", "y + x")
+          assert symbolic.status == "FORMALLY_VERIFIED", symbolic.model_dump()
+          assert symbolic.variables == ("x", "y")
+          symbolic_negative = verify_linear_int_identity("x + y", "x + z")
+          assert symbolic_negative.status == "REJECTED", symbolic_negative.model_dump()
+          symbolic_request = MathRequest(
+              operation=Operation.VERIFY_IDENTITY,
+              expression="x + y",
+              rhs="y + x",
+          )
+          symbolic_bound = verify_request_identity_with_lean(symbolic_request)
+          assert symbolic_bound.status == "FORMALLY_VERIFIED", symbolic_bound.model_dump()
+          assert symbolic_bound.obligation.checker_id == "lean.kernel.linear_int_identity.v1"
+          assert symbolic_bound.obligation.variables == ("x", "y")
+          print("Closed and symbolic Lean kernel obligation checks passed.")
           PY
