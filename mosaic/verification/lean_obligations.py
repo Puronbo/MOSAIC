@@ -11,6 +11,7 @@ from mosaic.core.requests import MathRequest
 from mosaic.verification.obligations import request_fingerprint
 from mosaic.verification.lean_kernel import LeanKernelCheck, verify_closed_nat_equality
 from mosaic.verification.lean_linear import LeanLinearCheck
+from mosaic.verification.lean_polynomial import LeanPolynomialCheck, verify_polynomial_int_identity
 
 
 class LeanIdentityObligation(BaseModel):
@@ -18,7 +19,7 @@ class LeanIdentityObligation(BaseModel):
 
     obligation_id: str = Field(min_length=1, max_length=120)
     request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    checker_id: Literal["lean.kernel.closed_nat_equality.v1", "lean.kernel.linear_int_identity.v1"]
+    checker_id: Literal["lean.kernel.closed_nat_equality.v1", "lean.kernel.linear_int_identity.v1", "lean.kernel.polynomial_int_identity.v1"]
     proposition: str = Field(min_length=1, max_length=1100)
     assumptions: tuple[str, ...] = ()
     variables: tuple[str, ...] = ()
@@ -32,7 +33,7 @@ class LeanIdentityVerification(BaseModel):
         "KERNEL_UNAVAILABLE", "KERNEL_ERROR",
     ]
     obligation: LeanIdentityObligation | None = None
-    check: LeanKernelCheck | LeanLinearCheck | None = None
+    check: LeanKernelCheck | LeanLinearCheck | LeanPolynomialCheck | None = None
     explanation: str
 
 
@@ -72,6 +73,27 @@ def verify_request_identity_with_lean(request: MathRequest) -> LeanIdentityVerif
                     "The exact request identity was translated to a universally quantified affine Int proposition and checked by Lean."
                     if linear_check.status == "FORMALLY_VERIFIED"
                     else linear_check.explanation
+                ),
+            )
+        polynomial_check = verify_polynomial_int_identity(
+            request.expression, request.rhs
+        )
+        if polynomial_check.status != "UNSUPPORTED":
+            binders = " ".join(f"({name} : Int)" for name in polynomial_check.variables)
+            quantified = f"∀ {binders}, " if binders else ""
+            obligation = obligation.model_copy(update={
+                "checker_id": "lean.kernel.polynomial_int_identity.v1",
+                "proposition": f"{quantified}({request.expression}) = ({request.rhs})",
+                "variables": polynomial_check.variables,
+            })
+            return LeanIdentityVerification(
+                status=polynomial_check.status,
+                obligation=obligation,
+                check=polynomial_check,
+                explanation=(
+                    "The exact request identity was compiled to a bounded polynomial proposition and checked by the pinned Mathlib ring tactic."
+                    if polynomial_check.status == "FORMALLY_VERIFIED"
+                    else polynomial_check.explanation
                 ),
             )
     return LeanIdentityVerification(
