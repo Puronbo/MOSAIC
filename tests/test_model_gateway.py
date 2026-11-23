@@ -52,6 +52,7 @@ def test_gateway_requires_task_bound_and_lean_acceptance(monkeypatch):
     assert result.provider_id == "test-provider"
     assert result.request_sha256 == "a" * 64
     assert result.candidate_sha256 == "b" * 64
+    assert result.feedback == ()
     serialized = result.model_dump(mode="json")
     assert serialized["lean_check"]["status"] == "FORMALLY_VERIFIED"
 
@@ -78,6 +79,8 @@ def test_gateway_never_promotes_failed_task_bound_candidate(monkeypatch):
     result = evaluate_model_candidate(submission)
     assert result.status == "REJECTED"
     assert result.lean_check is None
+    assert result.feedback[0].code == "ALGEBRAIC_MISMATCH"
+    assert result.feedback[0].retryable is True
 
 
 def test_ai_candidate_endpoint_rejects_unknown_fields():
@@ -126,6 +129,7 @@ def test_gateway_keeps_kernel_unavailable_distinct_from_proof(monkeypatch):
     result = evaluate_model_candidate(submission)
     assert result.status == "KERNEL_UNAVAILABLE"
     assert result.status != "FORMALLY_VERIFIED"
+    assert result.feedback[0].code == "FORMAL_CHECK_UNAVAILABLE"
 
 
 def test_gateway_formally_checks_domain_preserving_transformation(monkeypatch):
