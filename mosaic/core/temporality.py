@@ -153,6 +153,92 @@ class TemporalPoint(BaseModel):
         return self.coordinate_seconds + self.uncertainty_seconds
 
 
+class IntervalRelation(StrEnum):
+    BEFORE = "BEFORE"
+    MEETS = "MEETS"
+    OVERLAPS = "OVERLAPS"
+    STARTS = "STARTS"
+    DURING = "DURING"
+    FINISHES = "FINISHES"
+    EQUALS = "EQUALS"
+    FINISHED_BY = "FINISHED_BY"
+    CONTAINS = "CONTAINS"
+    STARTED_BY = "STARTED_BY"
+    OVERLAPPED_BY = "OVERLAPPED_BY"
+    MET_BY = "MET_BY"
+    AFTER = "AFTER"
+    INDETERMINATE = "INDETERMINATE"
+
+
+class TemporalInterval(BaseModel):
+    """A closed interval on one clock, with uncertainty at each endpoint."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    start: TemporalPoint
+    end: TemporalPoint
+
+    @model_validator(mode="after")
+    def validate_interval(self):
+        if self.start.clock_id != self.end.clock_id:
+            raise ValueError("interval endpoints must use the same clock")
+        if self.start.coordinate_seconds > self.end.coordinate_seconds:
+            raise ValueError("interval start cannot follow its end")
+        return self
+
+
+def compare_temporal_intervals(
+    left: TemporalInterval, right: TemporalInterval
+) -> IntervalRelation:
+    """Apply Allen-style interval relations when justified by clock readings.
+
+    Strictly separated uncertainty bounds prove BEFORE/AFTER. For relations
+    involving endpoint coincidence or overlap, all four endpoints must be
+    exact; otherwise the result is conservatively INDETERMINATE.
+    """
+    if left.start.clock_id != right.start.clock_id:
+        raise ValueError("intervals from different clocks are not directly comparable")
+
+    if left.end.upper_bound < right.start.lower_bound:
+        return IntervalRelation.BEFORE
+    if right.end.upper_bound < left.start.lower_bound:
+        return IntervalRelation.AFTER
+
+    points = (left.start, left.end, right.start, right.end)
+    if any(point.uncertainty_seconds != 0 for point in points):
+        return IntervalRelation.INDETERMINATE
+
+    a, b = left.start.coordinate_seconds, left.end.coordinate_seconds
+    c, d = right.start.coordinate_seconds, right.end.coordinate_seconds
+
+    if a == c and b == d:
+        return IntervalRelation.EQUALS
+    if b == c:
+        return IntervalRelation.MEETS
+    if d == a:
+        return IntervalRelation.MET_BY
+    if a == c and b < d:
+        return IntervalRelation.STARTS
+    if a == c and b > d:
+        return IntervalRelation.STARTED_BY
+    if a > c and b < d:
+        return IntervalRelation.DURING
+    if a < c and b > d:
+        return IntervalRelation.CONTAINS
+    if b == d and a > c:
+        return IntervalRelation.FINISHES
+    if b == d and a < c:
+        return IntervalRelation.FINISHED_BY
+    if a < c < b < d:
+        return IntervalRelation.OVERLAPS
+    if c < a < d < b:
+        return IntervalRelation.OVERLAPPED_BY
+    if b < c:
+        return IntervalRelation.BEFORE
+    if d < a:
+        return IntervalRelation.AFTER
+    return IntervalRelation.INDETERMINATE
+
+
 class DurationBounds(BaseModel):
     """A nonnegative duration interval derived from two readings of one clock."""
     model_config = ConfigDict(extra="forbid", frozen=True)
