@@ -41,7 +41,7 @@ def _candidate(expression: str, result: str) -> str:
 def test_task_bound_endpoint_returns_versioned_domain_certificate():
     response = client.post("/v1/verify/task-bound", json={
         "request": {"operation": "simplify", "expression": "(x**2 - 1)/(x - 1)"},
-        "candidate": _candidate("(x**2 - 1)/(x - 1)", "x + 1"),
+        "candidate": _candidate("(x**2 - 1)/(x - 1)", "(x + 1)*(x - 1)/(x - 1)"),
     })
     assert response.status_code == 200
     body = response.json()
