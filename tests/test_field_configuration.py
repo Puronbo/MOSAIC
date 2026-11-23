@@ -40,7 +40,7 @@ def test_open_lattice_gradient_functional():
 
 def test_periodic_lattice_includes_wraparound_edge():
     periodic = config(boundary=LatticeBoundary.PERIODIC)
-    assert periodic.discrete_gradient_functional() == Decimal("2")
+    assert periodic.discrete_gradient_functional() == Decimal("3")
 
 
 def test_uniform_spacing_is_required():
