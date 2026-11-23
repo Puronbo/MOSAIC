@@ -75,6 +75,8 @@ def test_direct_execution_reports_rational_domain_constraints():
     assert restrictions[0].predicate == "nonzero"
     assert restrictions[0].expression == "x - 1"
     assert restrictions[0].source_kind == "division_denominator"
-    assert restrictions[0].request_sha256 == request("((x+1)/(x-1))**2").model_dump_json()[:0] or len(restrictions[0].request_sha256) == 64
+    assert len(restrictions[0].request_sha256) == 64
+    assert restrictions[0].line == 1
+    assert restrictions[0].column > 0
     assert execution.graph_result.status == "EXPERIMENTAL"
 
