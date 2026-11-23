@@ -21,6 +21,7 @@ from mosaic.verification.graph import (
     evaluate_obligation_graph,
 )
 from mosaic.verification.obligations import obligations_for_request
+from mosaic.verification.side_conditions import RuleSideCondition
 
 
 def _leaf_requests(node: DerivationNode) -> tuple[MathRequest, ...]:
@@ -94,6 +95,34 @@ def compile_derivation_obligation_graph(
     )
     return ObligationGraph(nodes=nodes)
 
+
+
+def side_conditions_for_derivation_tree(
+    request: MathRequest,
+    tree: DerivationTree,
+) -> tuple[RuleSideCondition, ...]:
+    """Collect every registered rule precondition in a validated derivation.
+
+    The returned contracts may be UNSUPPORTED. Collection does not discharge
+    them and does not alter the status of the executable obligation graph.
+    """
+    if not validate_derivation_tree(request, tree):
+        raise ExpressionError("Cannot inspect side conditions for an invalid derivation tree.")
+
+    collected: list[RuleSideCondition] = []
+
+    def visit(node: DerivationNode) -> None:
+        if node.rule_id is not None:
+            rule = get_decomposition_rule(node.rule_id)
+            collected.extend(rule.side_conditions(node.request))
+        for child in node.children:
+            visit(child)
+
+    visit(tree.root)
+    by_id = {item.condition_id: item for item in collected}
+    if len(by_id) != len(collected):
+        raise ExpressionError("Duplicate side-condition identifier in derivation tree.")
+    return tuple(by_id[key] for key in sorted(by_id))
 
 
 def evaluate_derivation_tree(
