@@ -39,6 +39,7 @@ class LeanPolynomialDerivativeCheck(BaseModel):
     derivative_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     proof_source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     lean_version: str | None = None
+    diagnostics: str | None = Field(default=None, max_length=2000)
     mathlib_revision: Literal[
         "fc4f59e577feb1a4956671bc04ac18aaaf8cd842"
     ] = "fc4f59e577feb1a4956671bc04ac18aaaf8cd842"
@@ -354,6 +355,7 @@ def verify_polynomial_real_derivative(
             derivative_sha256=derivative_hash,
             proof_source_sha256=proof_hash,
             lean_version=version,
+            diagnostics=((result.stderr or result.stdout).strip()[-2000:] or None),
             explanation="Lean rejected the internally generated derivative theorem.",
         )
     except subprocess.TimeoutExpired:
