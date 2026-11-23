@@ -81,7 +81,9 @@ def _linear_form(node: ast.AST) -> dict[str, int]:
         left, right = _linear_form(node.left), _linear_form(node.right)
         left_is_constant = not any(key for key in left)
         right_is_constant = not any(key for key in right)
-        if left_is_constant == right_is_constant:
+        if left_is_constant and right_is_constant:
+            return {"": left.get("", 0) * right.get("", 0)}
+        if not left_is_constant and not right_is_constant:
             raise _Unsupported("multiplication must have an integer literal factor")
         scalar = left.get("", 0) if left_is_constant else right.get("", 0)
         form = right if left_is_constant else left
