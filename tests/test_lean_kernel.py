@@ -37,7 +37,7 @@ def test_lean_kernel_success_uses_only_generated_closed_theorem(monkeypatch):
         if args[-1] == "--version":
             return SimpleNamespace(returncode=0, stdout="Lean version test", stderr="")
         source = Path(args[1]).read_text(encoding="utf-8")
-        assert source == "theorem mosaic_certificate : (((2 + 3) : Nat)) = (5 : Nat) := by decide\n"
+        assert source == "theorem mosaic_certificate : ((2 + 3) : Nat) = (5 : Nat) := by decide\n"
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(lean_kernel.subprocess, "run", fake_run)
