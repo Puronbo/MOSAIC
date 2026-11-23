@@ -173,7 +173,8 @@ def verify_linear_int_identity(
     if executable is None:
         return LeanLinearCheck(
             status="KERNEL_UNAVAILABLE", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            variables=variables, explanation="Lean was not found; no formal verification was performed.",
+            proof_source_sha256=proof_hash, variables=variables,
+            explanation="Lean was not found; no formal verification was performed.",
         )
 
     try:
