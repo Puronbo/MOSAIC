@@ -251,3 +251,11 @@ def test_domain_preservation_rejects_unsupported_candidate_grammar():
     req = request("((x + 1)/(x - 1))**2")
     result = check_domain_preservation(req, "sin(x)")
     assert result.status == "UNSUPPORTED"
+
+
+
+def test_domain_comparison_reports_unsupported_non_rational_expression():
+    from mosaic.verification.side_conditions import check_domain_preservation
+
+    result = check_domain_preservation(request("sin(x)"), "sin(x)")
+    assert result.status == "UNSUPPORTED"
