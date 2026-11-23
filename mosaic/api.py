@@ -24,7 +24,7 @@ from mosaic.verification.sessions import (
 )
 
 
-app = FastAPI(title="MOSAIC API", version="0.8.0")
+app = FastAPI(title="MOSAIC API", version="0.9.0")
 session_store = SessionStore()
 
 
