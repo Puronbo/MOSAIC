@@ -33,12 +33,12 @@ The current Python prototype includes:
 - a provider-neutral asynchronous model adapter protocol, explicit provider registry, timeout and payload bounds, and prompt/output hashes;
 - a deterministic agent graph runner with explicit provider assignments, dependency-output handoff, failure isolation, and execution provenance;
 - an opt-in OpenAI-compatible HTTP chat provider with HTTPS/loopback policy, redirect rejection, sanitized errors, and injectable test transport;
-- a structured identity-claim boundary, task-bound candidate verification, and first-class verification obligations and dependency-aware DAG execution and a deterministic, allow-listed decomposition-rule registry (currently including a chain-rule decomposer) that binds explicit checker contracts to request fingerprints;
+- a structured identity-claim boundary, task-bound candidate verification, and first-class verification obligations and dependency-aware DAG execution a deterministic, allow-listed decomposition-rule registry, and bounded recursive derivation trees that validate complete expansion relative to registered rules;
 - regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
 
-## Planned work
+See [recursive derivation trees](docs/RECURSIVE_DERIVATION_TREES.md) for the current bounded tree contract and its trust limitations.\n\n## Planned work
 
 Lean-kernel integration, independently checked canonical certificates, additional task-bound operation coverage, additional vendor-specific provider implementations, parallel scheduling, retries, durable execution storage, MCP adapter, stronger resource isolation, domain-aware semantics, and formal proof workflows are not implemented yet. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
 
