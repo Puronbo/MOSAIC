@@ -4,7 +4,9 @@ Providers are untrusted proposal generators. This module does not verify math.
 """
 import asyncio
 import hashlib
+import inspect
 import json
+from collections.abc import Awaitable, Callable
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -133,7 +135,11 @@ class CallableModelProvider:
     output validation and mathematical checking remain in MOSAIC.
     """
 
-    def __init__(self, capability: ModelCapability, generate):
+    def __init__(
+        self,
+        capability: ModelCapability,
+        generate: Callable[[ModelRequest], str | Awaitable[str]],
+    ):
         if not callable(generate):
             raise TypeError("generate must be callable")
         self._capability = capability
@@ -144,8 +150,6 @@ class CallableModelProvider:
         return self._capability
 
     async def generate(self, request: ModelRequest) -> str:
-        import inspect
-
         if inspect.iscoroutinefunction(self._generate):
             return await self._generate(request)
         result = await asyncio.to_thread(self._generate, request)
