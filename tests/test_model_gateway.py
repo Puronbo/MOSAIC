@@ -191,13 +191,28 @@ def test_ai_tool_schema_is_portable_and_restricts_unknown_fields():
 
 
 
-def test_gateway_keeps_differentiation_experimental_until_derivative_checker_exists(monkeypatch):
+def test_gateway_formally_checks_request_bound_derivative_candidate(monkeypatch):
     from mosaic.core import model_gateway
+    from mosaic.verification.lean_calculus import LeanPolynomialDerivativeCheck
 
     monkeypatch.setattr(
         model_gateway, "verify_task_bound_candidate",
         lambda request, candidate: _task_check(equal=True),
     )
+    seen = {}
+
+    def fake_lean(expression, *, candidate_derivative):
+        seen["expression"] = expression
+        seen["candidate_derivative"] = candidate_derivative
+        return LeanPolynomialDerivativeCheck(
+            status="FORMALLY_VERIFIED",
+            expression_sha256="a" * 64,
+            derivative_sha256="b" * 64,
+            proof_source_sha256="c" * 64,
+            explanation="Lean accepted the candidate derivative theorem",
+        )
+
+    monkeypatch.setattr(model_gateway, "verify_polynomial_real_derivative", fake_lean)
     submission = ModelCandidateSubmission(
         request=MathRequest(
             operation="differentiate",
@@ -212,7 +227,38 @@ def test_gateway_keeps_differentiation_experimental_until_derivative_checker_exi
         }),
     )
     result = evaluate_model_candidate(submission)
-    assert result.status == "EXPERIMENTAL"
+    assert result.status == "FORMALLY_VERIFIED"
+    assert seen == {
+        "expression": "x^3 + 2*x",
+        "candidate_derivative": "3*x^2 + 2",
+    }
+    assert result.lean_check.status == "FORMALLY_VERIFIED"
+
+
+def test_gateway_does_not_run_lean_for_wrong_derivative_candidate(monkeypatch):
+    from mosaic.core import model_gateway
+
+    monkeypatch.setattr(
+        model_gateway, "verify_task_bound_candidate",
+        lambda request, candidate: _task_check(equal=False),
+    )
+    monkeypatch.setattr(
+        model_gateway, "verify_polynomial_real_derivative",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("Lean must not run")),
+    )
+    submission = ModelCandidateSubmission(
+        request=MathRequest(
+            operation="differentiate",
+            expression="x^3 + 2*x",
+            variable="x",
+        ),
+        candidate=json.dumps({
+            "operation": "differentiate",
+            "expression": "x^3 + 2*x",
+            "variable": "x",
+            "result": "3*x^2 + 3",
+        }),
+    )
+    result = evaluate_model_candidate(submission)
+    assert result.status == "REJECTED"
     assert result.lean_check is None
-    assert result.feedback[0].code == "REVIEW_RESULT"
-    assert result.feedback[0].retryable is False
