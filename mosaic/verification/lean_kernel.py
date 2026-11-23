@@ -21,6 +21,16 @@ _MAX_AST_NODES = 64
 _MAX_LITERAL = 1_000_000
 _MAX_EXPONENT = 12
 _MAX_RESULT_BITS = 4096
+_LEAN_ENV_KEYS = (
+    "PATH", "HOME", "ELAN_HOME", "LEAN_SYSROOT", "LEAN_PATH",
+    "LEAN_SRC_PATH", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
+    "TMPDIR", "TEMP", "TMP", "XDG_CACHE_HOME",
+)
+
+
+def _lean_environment() -> dict[str, str]:
+    """Pass toolchain configuration without forwarding unrelated secrets."""
+    return {key: os.environ[key] for key in _LEAN_ENV_KEYS if key in os.environ}
 
 
 class LeanKernelCheck(BaseModel):
@@ -129,7 +139,7 @@ def verify_closed_nat_equality(
                 [executable, str(source_path)],
                 capture_output=True, text=True, timeout=timeout_seconds,
                 check=False, cwd=directory,
-                env=os.environ.copy(),
+                env=_lean_environment(),
             )
         version = None
         try:
