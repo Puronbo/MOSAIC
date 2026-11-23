@@ -1,11 +1,12 @@
-"""Append-only SQLite ledger for task-bound candidate revision sessions."""
+"""Append-only SQLite ledger and progress assessment for verification sessions."""
+import hashlib
 import json
 import os
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -17,6 +18,20 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+class RevisionAssessment(BaseModel):
+    """Conservative progress signal derived only from checker outputs."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    trajectory: Literal[
+        "FIRST_ATTEMPT", "IMPROVED", "REGRESSED", "UNCHANGED", "CHANGED_UNRESOLVED"
+    ]
+    recommendation: Literal[
+        "CONTINUE", "STOP_REVIEW", "STOP_NO_PROGRESS",
+        "STOP_NONRETRYABLE", "STOP_REVISION_LIMIT"
+    ]
+    explanation: str
+
+
 class VerificationRevision(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -24,6 +39,7 @@ class VerificationRevision(BaseModel):
     candidate: str
     check: TaskBoundCheck
     feedback: tuple[dict[str, Any], ...]
+    assessment: RevisionAssessment
     created_at: str
 
 
@@ -37,15 +53,79 @@ class VerificationSession(BaseModel):
     revisions: tuple[VerificationRevision, ...] = ()
 
 
+class RevisionLimitReached(Exception):
+    """Raised when a session has reached its configured revision bound."""
+
+
+def _is_experimentally_consistent(check: TaskBoundCheck) -> bool:
+    return (
+        check.status == "EXPERIMENTAL"
+        and check.equal is True
+        and check.domain_status in {"PRESERVED", "NOT_CHECKED"}
+    )
+
+
+def _assessment(
+    check: TaskBoundCheck,
+    feedback: tuple[dict[str, Any], ...],
+    revision: int,
+    max_revisions: int,
+    previous: sqlite3.Row | None,
+    repeated: bool,
+) -> RevisionAssessment:
+    passed = _is_experimentally_consistent(check)
+    if previous is None:
+        trajectory = "FIRST_ATTEMPT"
+    else:
+        prior = TaskBoundCheck.model_validate(json.loads(previous["check_json"]))
+        prior_passed = _is_experimentally_consistent(prior)
+        if repeated:
+            trajectory = "UNCHANGED"
+        elif passed and not prior_passed:
+            trajectory = "IMPROVED"
+        elif prior_passed and not passed:
+            trajectory = "REGRESSED"
+        elif (
+            prior.status == check.status
+            and prior.equal == check.equal
+            and prior.domain_status == check.domain_status
+        ):
+            trajectory = "UNCHANGED"
+        else:
+            trajectory = "CHANGED_UNRESOLVED"
+
+    if passed:
+        recommendation = "STOP_REVIEW"
+        explanation = (
+            "The latest candidate passed available experimental checks. Stop automated retries "
+            "and retain the result for human or formal review; this is not a proof."
+        )
+    elif repeated:
+        recommendation = "STOP_NO_PROGRESS"
+        explanation = "The exact candidate was already submitted in this session; another identical attempt adds no information."
+    elif revision >= max_revisions:
+        recommendation = "STOP_REVISION_LIMIT"
+        explanation = "The session reached its configured revision limit; escalate or start a deliberately new task."
+    elif not any(item.get("retryable") is True for item in feedback):
+        recommendation = "STOP_NONRETRYABLE"
+        explanation = "The latest checker feedback provides no retryable correction; stop and escalate to a suitable checker or reviewer."
+    else:
+        recommendation = "CONTINUE"
+        explanation = "The checker supplied retryable feedback. Revise only the candidate while keeping the original request fixed."
+
+    return RevisionAssessment(
+        trajectory=trajectory, recommendation=recommendation, explanation=explanation
+    )
+
+
 class SessionStore:
-    """Small SQLite-backed append-only session store.
+    """SQLite-backed append-only session store with bounded revision histories."""
 
-    Each operation opens its own connection so FastAPI worker threads do not
-    share sqlite connection state. The request row is never updated.
-    """
-
-    def __init__(self, database: str | Path | None = None):
+    def __init__(self, database: str | Path | None = None, max_revisions: int = 20):
+        if max_revisions < 1:
+            raise ValueError("max_revisions must be positive")
         self.database = str(database or os.environ.get("MOSAIC_SESSION_DB", "mosaic_sessions.sqlite3"))
+        self.max_revisions = max_revisions
         if self.database != ":memory:":
             Path(self.database).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
@@ -87,6 +167,13 @@ class SessionStore:
                     SELECT RAISE(ABORT, 'verification revisions are append-only');
                 END;
             """)
+            columns = {
+                row["name"] for row in db.execute("PRAGMA table_info(verification_revisions)")
+            }
+            if "assessment_json" not in columns:
+                db.execute(
+                    "ALTER TABLE verification_revisions ADD COLUMN assessment_json TEXT"
+                )
 
     @staticmethod
     def _now() -> str:
@@ -95,7 +182,6 @@ class SessionStore:
     def create(self, request: MathRequest) -> VerificationSession:
         session_id = str(uuid.uuid4())
         request_json = _canonical(request.model_dump(mode="json"))
-        import hashlib
         request_hash = hashlib.sha256(request_json.encode("utf-8")).hexdigest()
         created_at = self._now()
         with self._connect() as db:
@@ -119,20 +205,36 @@ class SessionStore:
             ).fetchone()
             if exists is None:
                 return None
-            revision = db.execute(
-                "SELECT COALESCE(MAX(revision), 0) + 1 FROM verification_revisions WHERE session_id = ?",
+            previous = db.execute(
+                "SELECT * FROM verification_revisions WHERE session_id = ? ORDER BY revision DESC LIMIT 1",
                 (session_id,),
-            ).fetchone()[0]
+            ).fetchone()
+            revision = (previous["revision"] + 1) if previous else 1
+            if revision > self.max_revisions:
+                raise RevisionLimitReached(
+                    f"Session revision limit ({self.max_revisions}) has been reached."
+                )
+            candidate_hash = hashlib.sha256(candidate.encode("utf-8")).hexdigest()
+            repeated = db.execute(
+                "SELECT 1 FROM verification_revisions WHERE session_id = ? AND check_json LIKE ? LIMIT 1",
+                (session_id, f'%"candidate_sha256":"{candidate_hash}"%'),
+            ).fetchone() is not None
+            assessment = _assessment(
+                check, feedback, revision, self.max_revisions, previous, repeated
+            )
             created_at = self._now()
             db.execute(
-                "INSERT INTO verification_revisions VALUES (?, ?, ?, ?, ?, ?)",
+                """INSERT INTO verification_revisions
+                   (session_id, revision, candidate, check_json, feedback_json, created_at, assessment_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (session_id, revision, candidate,
                  _canonical(check.model_dump(mode="json")),
-                 _canonical(list(feedback)), created_at),
+                 _canonical(list(feedback)), created_at,
+                 _canonical(assessment.model_dump(mode="json"))),
             )
         return VerificationRevision(
             revision=revision, candidate=candidate, check=check,
-            feedback=feedback, created_at=created_at,
+            feedback=feedback, assessment=assessment, created_at=created_at,
         )
 
     def get(self, session_id: str) -> VerificationSession | None:
@@ -152,6 +254,13 @@ class SessionStore:
                 revision=row["revision"], candidate=row["candidate"],
                 check=TaskBoundCheck.model_validate(json.loads(row["check_json"])),
                 feedback=tuple(json.loads(row["feedback_json"])),
+                assessment=(
+                    RevisionAssessment.model_validate(json.loads(row["assessment_json"]))
+                    if row["assessment_json"] else RevisionAssessment(
+                        trajectory="FIRST_ATTEMPT", recommendation="CONTINUE",
+                        explanation="Legacy revision predates progress assessment.",
+                    )
+                ),
                 created_at=row["created_at"],
             )
             for row in rows
