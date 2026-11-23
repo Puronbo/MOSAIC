@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from mosaic.core.requests import MathRequest
 from mosaic.verification.obligations import request_fingerprint
 from mosaic.verification.lean_kernel import LeanKernelCheck, verify_closed_nat_equality
+from mosaic.verification.lean_linear import LeanLinearCheck
 
 
 class LeanIdentityObligation(BaseModel):
@@ -20,6 +21,7 @@ class LeanIdentityObligation(BaseModel):
     checker_id: Literal["lean.kernel.closed_nat_equality.v1", "lean.kernel.linear_int_identity.v1"]
     proposition: str = Field(min_length=1, max_length=1100)
     assumptions: tuple[str, ...] = ()
+    variables: tuple[str, ...] = ()
 
 
 class LeanIdentityVerification(BaseModel):
@@ -30,7 +32,7 @@ class LeanIdentityVerification(BaseModel):
         "KERNEL_UNAVAILABLE", "KERNEL_ERROR",
     ]
     obligation: LeanIdentityObligation | None = None
-    check: LeanKernelCheck | object | None = None
+    check: LeanKernelCheck | LeanLinearCheck | None = None
     explanation: str
 
 
@@ -55,8 +57,12 @@ def verify_request_identity_with_lean(request: MathRequest) -> LeanIdentityVerif
         from mosaic.verification.lean_linear import verify_linear_int_identity
         linear_check = verify_linear_int_identity(request.expression, request.rhs)
         if linear_check.status != "UNSUPPORTED":
+            binders = " ".join(f"({name} : Int)" for name in linear_check.variables)
+            quantified = f"∀ {binders}, " if binders else ""
             obligation = obligation.model_copy(update={
                 "checker_id": "lean.kernel.linear_int_identity.v1",
+                "proposition": f"{quantified}({request.expression}) = ({request.rhs})",
+                "variables": linear_check.variables,
             })
             return LeanIdentityVerification(
                 status=linear_check.status,
