@@ -92,6 +92,66 @@ def _validate(node: ast.AST) -> int:
     raise _Unsupported("division, modulo, calls, and unsupported operators are rejected")
 
 
+def _polynomial(node: ast.AST) -> dict[int, int]:
+    """Bound intermediate coefficients and term count independently of Lean."""
+    literal = _integer(node)
+    if literal is not None:
+        result = {0: literal} if literal else {}
+    elif isinstance(node, ast.Name):
+        if node.id != "x":
+            raise _Unsupported("only the variable x is supported")
+        result = {1: 1}
+    elif isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        child = _polynomial(node.operand)
+        result = child if isinstance(node.op, ast.UAdd) else {power: -coefficient for power, coefficient in child.items()}
+    elif isinstance(node, ast.BinOp):
+        left = _polynomial(node.left)
+        if isinstance(node.op, (ast.Pow, ast.BitXor)):
+            exponent = _integer(node.right)
+            if exponent is None or exponent < 0 or exponent > _MAX_EXPONENT:
+                raise _Unsupported("powers must be bounded nonnegative integer literals")
+            result = {0: 1}
+            for _ in range(exponent):
+                result = _multiply_polynomials(result, left)
+        else:
+            right = _polynomial(node.right)
+            if isinstance(node.op, ast.Add):
+                result = dict(left)
+                for power, coefficient in right.items():
+                    result[power] = result.get(power, 0) + coefficient
+            elif isinstance(node.op, ast.Sub):
+                result = dict(left)
+                for power, coefficient in right.items():
+                    result[power] = result.get(power, 0) - coefficient
+            elif isinstance(node.op, ast.Mult):
+                result = _multiply_polynomials(left, right)
+            else:
+                raise _Unsupported("unsupported polynomial operator")
+    else:
+        raise _Unsupported("unsupported polynomial syntax")
+    result = {power: coefficient for power, coefficient in result.items() if coefficient}
+    if len(result) > 128:
+        raise _Unsupported("polynomial exceeds the 128-term bound")
+    if any(abs(coefficient).bit_length() > 256 for coefficient in result.values()):
+        raise _Unsupported("polynomial coefficient exceeds the 256-bit bound")
+    if any(power > _MAX_TOTAL_DEGREE for power in result):
+        raise _Unsupported("polynomial exceeds the total-degree bound")
+    return result
+
+
+def _multiply_polynomials(left: dict[int, int], right: dict[int, int]) -> dict[int, int]:
+    result: dict[int, int] = {}
+    for left_power, left_coefficient in left.items():
+        for right_power, right_coefficient in right.items():
+            power = left_power + right_power
+            result[power] = result.get(power, 0) + left_coefficient * right_coefficient
+            if abs(result[power]).bit_length() > 256:
+                raise _Unsupported("polynomial coefficient exceeds the 256-bit bound")
+            if len(result) > 128:
+                raise _Unsupported("polynomial exceeds the 128-term bound")
+    return {power: coefficient for power, coefficient in result.items() if coefficient}
+
+
 def _parse(raw: str) -> ast.AST:
     if not isinstance(raw, str) or not raw.strip() or len(raw) > _MAX_INPUT_CHARS:
         raise _Unsupported("expression must be non-empty and within 512 characters")
@@ -99,6 +159,7 @@ def _parse(raw: str) -> ast.AST:
     if sum(1 for _ in ast.walk(tree)) > _MAX_AST_NODES:
         raise _Unsupported("expression exceeds the syntax-node bound")
     _validate(tree.body)
+    _polynomial(tree.body)
     return tree.body
 
 
