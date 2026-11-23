@@ -67,6 +67,6 @@ def test_direct_execution_includes_and_checks_rule_preconditions():
 
 
 def test_direct_execution_does_not_silently_accept_log_domain_conditions():
-    execution = execute_power_chain_rule(request("(sqrt(x))**2"))
+    execution = execute_power_chain_rule(request("((x+1)/(x-1))**2"))
     assert all(item.status == "UNSUPPORTED" for item in execution.graph_result.side_condition_results)
     assert execution.graph_result.status == "UNSUPPORTED"
