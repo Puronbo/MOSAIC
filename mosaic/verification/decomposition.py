@@ -26,6 +26,7 @@ class DecompositionRule:
     decompose: Callable[[MathRequest], object]
     verify: Callable[[MathRequest, object], bool]
     execute: Callable[[MathRequest], object]
+    dependency_policy: Callable[[int], tuple[tuple[int, tuple[int, ...]], ...]]
 
 
 def _matches_power_chain(request: MathRequest) -> bool:
@@ -46,6 +47,12 @@ def _matches_power_chain(request: MathRequest) -> bool:
     )
 
 
+def _chain_rule_dependencies(child_count: int) -> tuple[tuple[int, tuple[int, ...]], ...]:
+    if child_count != 3:
+        raise ExpressionError("The chain-rule obligation contract requires three child branches.")
+    return ((2, (0, 1)),)
+
+
 def _verify_chain_plan(request: MathRequest, plan: object) -> bool:
     if not isinstance(plan, ChainRulePlan):
         return False
@@ -61,6 +68,7 @@ _RULES: tuple[DecompositionRule, ...] = (
         decompose=decompose_power_chain_rule,
         verify=_verify_chain_plan,
         execute=execute_power_chain_rule,
+        dependency_policy=_chain_rule_dependencies,
     ),
 )
 _RULES_BY_ID = {rule.rule_id: rule for rule in _RULES}
