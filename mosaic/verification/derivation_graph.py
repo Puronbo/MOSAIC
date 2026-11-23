@@ -13,7 +13,7 @@ from mosaic.verification.derivation import (
     DerivationTree,
     validate_derivation_tree,
 )
-from mosaic.verification.graph import ObligationGraph, ObligationNode
+from mosaic.verification.graph import (\n    ObligationGraph,\n    ObligationNode,\n    ObligationGraphResult,\n    evaluate_obligation_graph,\n)
 from mosaic.verification.obligations import obligations_for_request
 
 
@@ -82,3 +82,19 @@ def compile_derivation_obligation_graph(
         for key in sorted(requests_by_id)
     )
     return ObligationGraph(nodes=nodes)
+
+
+
+def evaluate_derivation_tree(
+    request: MathRequest,
+    tree: DerivationTree,
+    candidates: dict[str, str],
+) -> ObligationGraphResult:
+    """Compile a validated derivation and evaluate its complete leaf graph.
+
+    Missing candidates remain INCOMPLETE and prevent dependent composition
+    checks from running. The aggregate status is governed by the existing
+    obligation graph evaluator and cannot exceed its checker guarantees.
+    """
+    graph = compile_derivation_obligation_graph(request, tree)
+    return evaluate_obligation_graph(graph, candidates)
