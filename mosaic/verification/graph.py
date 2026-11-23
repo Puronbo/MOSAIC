@@ -8,10 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from mosaic.core.requests import MathRequest
 from mosaic.verification.obligations import (
-    TaskBoundCheck,
     VerificationObligation,
     verify_obligation_candidate,
 )
+from mosaic.verification.task_bound import TaskBoundCheck
 
 
 class ObligationNode(BaseModel):
