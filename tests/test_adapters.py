@@ -29,12 +29,13 @@ class FakeProvider:
 
 
 def request(**kwargs):
-    return ModelRequest(
-        role=AgentRole.SOLVER,
-        system_instruction="Propose, do not claim proof.",
-        prompt="Factor x^2+x",
-        **kwargs,
-    )
+    values = {
+        "role": AgentRole.SOLVER,
+        "system_instruction": "Propose, do not claim proof.",
+        "prompt": "Factor x^2+x",
+    }
+    values.update(kwargs)
+    return ModelRequest(**values)
 
 
 def test_provider_registry_is_explicit_and_rejects_duplicates():
