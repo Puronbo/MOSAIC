@@ -46,3 +46,31 @@ def test_obligation_rejects_extra_fields_and_bad_hash():
             operation="verify_identity", checker_id="mosaic.symbolic_identity.v1",
             statement="Check equality.", injected=True,
         )
+
+
+
+def test_obligation_gate_delegates_to_the_named_registered_checker():
+    from mosaic.verification.obligations import verify_obligation_candidate
+    req = request("expand", "(x+1)**2")
+    (obligation,) = obligations_for_request(req)
+    raw = '{"operation":"expand","expression":"(x+1)**2","variable":"x","result":"x**2+2*x+1"}'
+    result = verify_obligation_candidate(req, obligation, raw)
+    assert result.status == "EXPERIMENTAL"
+    assert result.equal is True
+
+
+def test_stale_obligation_cannot_be_reused_for_another_request():
+    from mosaic.verification.obligations import verify_obligation_candidate
+    original = request("expand", "(x+1)**2")
+    changed = request("expand", "(x+2)**2")
+    (obligation,) = obligations_for_request(original)
+    result = verify_obligation_candidate(changed, obligation, "{}")
+    assert result.status == "INVALID_CERTIFICATE"
+
+
+def test_unsupported_obligation_never_invokes_a_checker():
+    from mosaic.verification.obligations import verify_obligation_candidate
+    req = request("integrate", "x**2")
+    (obligation,) = obligations_for_request(req)
+    result = verify_obligation_candidate(req, obligation, "{}")
+    assert result.status == "UNSUPPORTED"
