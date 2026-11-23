@@ -52,3 +52,23 @@ def test_derivative_reports_kernel_unavailable_without_lean():
     assert len(result.expression_sha256) == 64
     assert len(result.derivative_sha256) == 64
     assert len(result.proof_source_sha256) == 64
+
+
+
+def test_candidate_derivative_is_bound_to_the_generated_polynomial():
+    source, derivative = _source("x^3 + 2*x", "3*x^2 + 2")
+    assert "HasDerivAt (fun t : ℝ" in source
+    assert "(3 : ℝ)" in source
+    assert "convert h using 1 <;> ring" in source
+    assert derivative == "(((3 : ℝ) * (t ^ 2)) + (2 : ℝ))"
+
+
+def test_wrong_candidate_derivative_is_rejected_before_kernel_execution():
+    result = verify_polynomial_real_derivative(
+        "x^3 + 2*x",
+        candidate_derivative="3*x^2 + 3",
+        lake_executable="missing-lake",
+    )
+    assert result.status == "REJECTED"
+    assert result.proof_source_sha256 is None
+    assert len(result.derivative_sha256) == 64
