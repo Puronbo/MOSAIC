@@ -16,8 +16,11 @@ class ExpressionError(ValueError):
 def parse_expression(source: str) -> sp.Expr:
     if not isinstance(source, str) or not source or len(source) > 2000:
         raise ExpressionError("Expression must contain 1–2000 characters.")
+    # Accept conventional mathematical exponent notation as well as Python's
+    # ** operator. XOR is not part of MOSAIC's expression language.
+    normalized_source = source.replace("^", "**")
     try:
-        tree = ast.parse(source, mode="eval")
+        tree = ast.parse(normalized_source, mode="eval")
     except SyntaxError as exc:
         raise ExpressionError("Invalid expression syntax.") from exc
     nodes = list(ast.walk(tree))
