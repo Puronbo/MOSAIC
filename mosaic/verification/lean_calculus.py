@@ -235,14 +235,14 @@ def _proof(node: ast.AST) -> str:
         return "hasDerivAt_id' x"
     if isinstance(node, ast.UnaryOp):
         child = _proof(node.operand)
-        return child if isinstance(node.op, ast.UAdd) else f"({child}).neg"
+        return child if isinstance(node.op, ast.UAdd) else f"HasDerivAt.neg ({child})"
     if isinstance(node, ast.BinOp):
         left = _proof(node.left)
         if isinstance(node.op, (ast.Pow, ast.BitXor)):
             exponent = _integer(node.right)
             if exponent is None or exponent < 0 or exponent > _MAX_EXPONENT:
                 raise _Unsupported("invalid exponent")
-            return f"({left}).pow {exponent}"
+            return f"HasDerivAt.pow ({left}) {exponent}"
         right = _proof(node.right)
         method = {
             ast.Add: "add",
@@ -250,7 +250,7 @@ def _proof(node: ast.AST) -> str:
             ast.Mult: "mul",
         }.get(type(node.op))
         if method is not None:
-            return f"({left}).{method} ({right})"
+            return f"HasDerivAt.{method} ({left}) ({right})"
     raise _Unsupported("unsupported polynomial syntax")
 
 
