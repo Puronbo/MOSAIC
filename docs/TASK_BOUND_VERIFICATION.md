@@ -50,3 +50,10 @@ For simplify, expand, and factor claims, task-bound verification also compares t
 - UNSUPPORTED: the domain grammar is outside the checker, so the transformation is not accepted as verified.
 
 A rejected domain change returns INCOMPLETE; an unsupported domain comparison returns UNSUPPORTED. Differentiation is deliberately not subjected to equality of input/output domains: its domain semantics require a separate derivative-specific contract. These checks compare rational-function exclusions only; they do not solve the excluded sets or establish a formal proof.
+
+
+## Domain preservation certificate
+
+When a supported rational rewrite is checked, the returned TaskBoundCheck includes a structured DomainPreservationCertificate. It binds the comparison to both the canonical request SHA-256 and the raw candidate SHA-256, identifies the checker version, and records the normalized original and candidate nonzero factors, missing factors, additional factors, status, and explanation.
+
+The certificate is a reproducible checker report, not a proof that each predicate holds at a particular input. Its hashes establish which inputs were checked, not mathematical truth. Consumers should retain the certificate with the candidate and independently rerun the named checker when higher assurance is required.
