@@ -1,79 +1,86 @@
-# Lean polynomial backend: dependency decision
+# Lean polynomial backend
 
 ## Status
 
-A separate Mathlib proof project and real-kernel CI workflow now exist. The
-Python/API polynomial adapter is not yet enabled; nonlinear user requests
-remain unsupported until a bounded compiler and request-bound certificate
-path are implemented and tested.
+The first bounded Mathlib-backed polynomial checker is implemented and
+integrated with request-bound identity and transformation verification. The
+pinned real-kernel CI workflow has passed the positive, negative, unsupported,
+and request-bound checks.
 
-## Finding
+The Python/API adapter is deliberately narrower than a general computer
+algebra system. It proves only universally quantified polynomial identities
+over `Int`.
 
-Lean's core arithmetic tactic `omega` is suitable for the existing affine
-integer checker, but it is not a polynomial-ring decision procedure.
-The commonly used `ring` tactic is supplied by Mathlib, not by core Lean.
-Consequently, adding `ring` to the current generated source while continuing
-to invoke the standalone `lean` executable would create a false assumption
-about the installed environment.
+## Reproducible proof environment
 
-References:
+- Lean toolchain: `leanprover/lean4:v4.36.0`
+- Mathlib release: `v4.36.0`
+- Mathlib commit: `fc4f59e577feb1a4956671bc04ac18aaaf8cd842`
+- Lake project: `formal/polynomial/`
+- Import: `Mathlib.Tactic.Ring`
+- CI: `.github/workflows/lean-polynomial.yml`
 
-- [Mathlib introduction and tactic requirements](https://lean4.dev/tactics/mathlib/intro)
-- [Mathlib ring tactic documentation](https://academy.lean4.dev/tactics/mathlib/ring)
-- [Mathlib Ring tactic reference](https://leanprover-community.github.io/mathlib4_docs/tactics.html)
+The project includes fixed regression theorems and a Python adapter that
+generates a theorem for each supported equality. The adapter runs
+`lake env lean` inside the pinned project. The generated theorem is accepted
+only when Lean exits successfully; Python polynomial expansion is used only
+to enforce input/resource bounds, never to award formal status.
 
-## Chosen boundary
+## Supported expression language
 
-A future polynomial checker will be a separate optional backend, not an
-expansion of the affine checker. It will:
+- Variables: `x`, `y`, and `z` (at most three distinct variables).
+- Integer literals bounded by 1,000,000 in absolute value.
+- Unary plus and minus.
+- Addition, subtraction, and multiplication.
+- Nonnegative integer powers up to exponent 8.
+- Input length at most 512 characters and AST size at most 64 nodes.
+- Polynomial total degree at most 12.
+- At most 128 monomials.
+- Intermediate integer coefficients limited to 256 bits.
 
-1. Accept only a bounded AST grammar: integer literals, declared variables,
-   unary signs, addition, subtraction, multiplication, and nonnegative
-   integer powers under explicit size and degree limits.
-2. Compile AST nodes to Lean syntax itself. Caller-provided Lean source,
-   imports, binders, tactics, macros, and assumptions will never be accepted.
-3. Generate universally quantified identities over `Int` (or a separately
-   specified semiring), with variables sorted deterministically.
-4. Use a pinned Mathlib revision and the `Mathlib.Tactic.Ring` import in an
-   isolated Lake project. The Mathlib version must match the Lean toolchain.
-5. Run `lake env lean` in that project and record the Lean version, Mathlib
-   revision, generated source hash, request hash, candidate hash, and checker
-   identifier in the result.
-6. Return `KERNEL_UNAVAILABLE` or `KERNEL_ERROR` if the pinned project is
-   unavailable or fails to build. It must never silently fall back to a
-   Python coefficient comparison and report formal verification.
-7. Treat a successful `ring` proof as a kernel-checked equality of
-   polynomials over the selected type. It does not prove rational-function
-   equivalence, denominator nonzeroness, inequalities, or domain preservation.
+Both `^` (mathematical notation) and `**` (Python notation) are accepted as
+power syntax. Division, modulo, function calls, unknown identifiers, negative
+powers, assumptions, and arbitrary Lean source are rejected as unsupported.
 
-## Resource limits
+## Integration surfaces
 
-The parser must bound input length, AST node count, integer literal size,
-maximum exponent, polynomial total degree, number of monomials, and
-intermediate coefficient bit length. The Lake process needs wall-clock and
-memory limits at the deployment boundary. A subprocess timeout alone is not
-a complete sandbox.
+- `POST /v1/verify/lean/polynomial-int-identity` checks a bounded raw equality.
+- `POST /v1/verify/lean/request-identity` derives an identity from a
+  `verify_identity` MathRequest. The route tries the closed-Nat checker,
+  affine-Int checker, and then this polynomial checker.
+- `POST /v1/verify/lean/transformation` binds a proposed simplify/expand/factor
+  result to the exact request and uses the affine or polynomial checker.
 
-## Acceptance tests
+Results expose the checker ID, request/candidate hashes where applicable,
+generated proof-source hash, variables, Lean version, and pinned Mathlib
+revision. If the Lake project or executable is unavailable, the checker
+returns `KERNEL_UNAVAILABLE`; timeouts or execution failures return
+`KERNEL_ERROR`. Neither status is upgraded using symbolic computation.
 
-Before this backend can be enabled, CI must use the pinned toolchain and
-Mathlib revision to verify all of the following with the real kernel:
+## Trust boundary and limitations
+
+A successful `ring` proof is checked by Lean's kernel and establishes equality
+for every assignment of the bound integer variables. It does not establish
+rational-function equivalence, denominator nonzeroness, domain preservation,
+inequalities, or canonical-form properties. No user-supplied imports, binders,
+tactics, macros, or Lean source are accepted.
+
+The subprocess timeout and parser limits reduce accidental resource use, but
+they are not a complete operating-system sandbox. Public deployments should
+run Lake/Lean with process, memory, filesystem, and network restrictions.
+
+## Real-kernel acceptance tests
+
+CI checks the following with the pinned Lean/Mathlib environment:
 
 - `(x + 1)^2 = x^2 + 2*x + 1` is accepted.
-- `(x + 1)^2 = x^2 + 1` is rejected.
 - `(x + y)*(x - y) = x^2 - y^2` is accepted.
-- Non-polynomial syntax, negative exponents, division, unknown variables,
-  excessive degree, and oversized expressions are unsupported.
-- No request field can inject Lean source or select a tactic.
-- The exact generated source hash is returned even when the kernel is
-  unavailable.
+- `x^2 + 1 = x^2 + 2` is rejected.
+- Division and other non-polynomial syntax are unsupported.
+- A request-bound nonlinear identity is formally verified by the polynomial
+  checker and records its obligation/checker metadata.
+- A false identity is not marked formally verified.
 
-The adapter is limited to universally quantified polynomial identities over
-`Int`. Its initial grammar supports variables `x`, `y`, and `z`, bounded
-integer literals, unary signs, addition, subtraction, multiplication, and
-nonnegative integer powers. It rejects division and unsupported syntax.
-Request-bound identity verification tries the closed-Nat checker, then the
-affine checker, then this polynomial checker. Each checker retains its own
-checker ID and generated-source fingerprint. The fixed Lean examples remain
-regression probes; the Python adapter is the bounded route for user-supplied
-expressions.
+The standalone Python suite additionally covers expression bounds, unsafe
+syntax, source generation, unavailable-kernel fingerprints, timeouts, and
+API input validation.
