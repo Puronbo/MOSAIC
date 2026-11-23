@@ -31,6 +31,7 @@ The current Python prototype includes:
 - a Python HTTP client;
 - typed agent task/proposal contracts with dependency graph validation;
 - a provider-neutral asynchronous model adapter protocol, explicit provider registry, timeout and payload bounds, and prompt/output hashes;
+- a model-facing candidate gateway that combines strict task binding with optional request-bound Lean verification;
 - a deterministic agent graph runner with explicit provider assignments, dependency-output handoff, failure isolation, and execution provenance;
 - an opt-in OpenAI-compatible HTTP chat provider with HTTPS/loopback policy, redirect rejection, sanitized errors, and injectable test transport;
 - a structured identity-claim boundary, task-bound candidate verification, and first-class verification obligations and dependency-aware DAG execution;
@@ -98,6 +99,18 @@ certificate. See [the API contract](docs/TASK_BOUND_API.md).
 
 Python callers can use `MosaicClient.verify_candidate(request, candidate)`.
 All symbolic outcomes remain experimental rather than formal proofs.
+
+## AI model integration
+
+Existing AI systems can submit proposals to `POST /v1/ai/candidate`. MOSAIC
+validates the candidate against the unchanged mathematical request, checks
+supported semantic conditions, and invokes a request-bound Lean checker where
+available. The response distinguishes formal verification from rejected,
+incomplete, unsupported, kernel-unavailable, and experimental outcomes.
+Provider identity is provenance only; models cannot supply Lean source or
+upgrade their own claims. Python callers can use
+`MosaicClient.verify_model_candidate(...)`. See the
+[AI integration contract](docs/MODEL_INTEGRATION.md).
 
 ## Persistent verification sessions
 
