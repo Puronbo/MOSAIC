@@ -98,3 +98,14 @@ certificate. See [the API contract](docs/TASK_BOUND_API.md).
 
 Python callers can use `MosaicClient.verify_candidate(request, candidate)`.
 All symbolic outcomes remain experimental rather than formal proofs.
+
+## Persistent verification sessions
+
+MOSAIC can retain an immutable mathematical request and an append-only history
+of candidate revisions using its SQLite session API. Create a session with
+`POST /v1/verification-sessions`, append candidates at
+`POST /v1/verification-sessions/{session_id}/revisions`, and retrieve the
+history with `GET /v1/verification-sessions/{session_id}`. See
+[the session contract](docs/TASK_BOUND_API.md#persistent-verification-sessions).
+Configure storage with `MOSAIC_SESSION_DB`; add authentication and deployment
+hardening before exposing it beyond a trusted environment.
