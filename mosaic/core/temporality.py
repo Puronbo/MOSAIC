@@ -10,6 +10,54 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+
+
+class ClockKind(StrEnum):
+    """Semantic role of a clock; kinds are not interchangeable."""
+    MONOTONIC = "MONOTONIC"
+    CIVIL = "CIVIL"
+    PROPER = "PROPER"
+    COORDINATE = "COORDINATE"
+
+
+class ClockDefinition(BaseModel):
+    """Declared semantics for a clock that supplies TemporalPoint readings.
+
+    Metadata describes the measurement context; it does not certify clock
+    calibration, synchronization, or a physical reference frame.
+    """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    clock_id: str = Field(min_length=1, max_length=120)
+    kind: ClockKind
+    unit: str = Field(default="seconds", pattern=r"^seconds$")
+    reference_frame: str | None = Field(default=None, min_length=1, max_length=120)
+    worldline_id: str | None = Field(default=None, min_length=1, max_length=120)
+    timezone: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @model_validator(mode="after")
+    def validate_clock_semantics(self):
+        if self.kind == ClockKind.COORDINATE and self.reference_frame is None:
+            raise ValueError("coordinate time requires an explicit reference_frame")
+        if self.kind == ClockKind.PROPER and self.worldline_id is None:
+            raise ValueError("proper time requires an explicit worldline_id")
+        if self.kind != ClockKind.COORDINATE and self.reference_frame is not None:
+            raise ValueError("reference_frame is only valid for coordinate time")
+        if self.kind != ClockKind.PROPER and self.worldline_id is not None:
+            raise ValueError("worldline_id is only valid for proper time")
+        if self.kind == ClockKind.CIVIL and self.timezone is None:
+            raise ValueError("civil time requires an explicit timezone")
+        if self.kind != ClockKind.CIVIL and self.timezone is not None:
+            raise ValueError("timezone is only valid for civil time")
+        return self
+
+
+def validate_clock_point(point: TemporalPoint, clock: ClockDefinition) -> None:
+    """Check that a reading names the clock whose semantics are declared."""
+    if point.clock_id != clock.clock_id:
+        raise ValueError("temporal point clock_id does not match clock definition")
+
+
 class TemporalOrder(StrEnum):
     BEFORE = "BEFORE"
     AFTER = "AFTER"
