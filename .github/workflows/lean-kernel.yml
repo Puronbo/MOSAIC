@@ -31,6 +31,11 @@ jobs:
         run: |
           elan toolchain install "$(cat lean-toolchain)"
           lean --version
+          cat > /tmp/MosaicOmegaProbe.lean <<'LEAN'
+          import Lean
+          theorem mosaic_omega_probe (x y : Nat) : x + y = y + x := by omega
+          LEAN
+          lean /tmp/MosaicOmegaProbe.lean
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
