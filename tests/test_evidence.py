@@ -60,7 +60,8 @@ def test_algebraic_failure_is_not_hidden_by_domain_support():
     })
     bundle = evidence_from_check(verify_task_bound_candidate(request, raw))
     assert bundle.assessment.status == "REFUTED_BY_CHECKER"
-    assert bundle.assessment.independent_support_count == 0
+    assert bundle.assessment.independent_support_count == 1
+    assert bundle.assessment.independent_refutation_groups == ("sympy_symbolic_runtime",)
     assert any(item.finding == "refutes" for item in bundle.items)
 
 
