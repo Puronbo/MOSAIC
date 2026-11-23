@@ -70,7 +70,7 @@ def test_potential_integral_uses_open_trapezoidal_weights():
         terms=(PolynomialTerm(coefficient=Decimal("3"), power=0),),
     )
     result = assess_discrete_field_energy(
-        make_config(field_values=(Decimal("0"),) * 3),
+        make_config(field_values=(Decimal("0"),) * 3, potential_id="constant-density"),
         constant,
         kinetic_coefficient=Decimal("1"),
         kinetic_coefficient_unit="declared-unit",
