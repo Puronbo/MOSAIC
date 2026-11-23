@@ -62,7 +62,7 @@ jobs:
           from mosaic.core.model_gateway import ModelCandidateSubmission, evaluate_model_candidate
           import json
 
-          positive = verify_polynomial_int_identity("(x + 1)^2", "x^2 + 2*x + 1")
+          positive = verify_polynomial_int_identity("(x + 1)**2", "x**2 + 2*x + 1")
           assert positive.status == "FORMALLY_VERIFIED", positive.model_dump()
           assert positive.variables == ("x",)
           assert positive.proof_source_sha256
@@ -74,8 +74,8 @@ jobs:
           assert unsupported.status == "UNSUPPORTED", unsupported.model_dump()
           request = MathRequest(
               operation=Operation.VERIFY_IDENTITY,
-              expression="(x + 1)^2",
-              rhs="x^2 + 2*x + 1",
+              expression="(x + 1)**2",
+              rhs="x**2 + 2*x + 1",
           )
           bound = verify_request_identity_with_lean(request)
           assert bound.status == "FORMALLY_VERIFIED", bound.model_dump()
@@ -86,10 +86,10 @@ jobs:
 
           transform_request = MathRequest(
               operation=Operation.EXPAND,
-              expression="(x + 1)^2",
+              expression="(x + 1)**2",
           )
           transformed = verify_request_transformation_with_lean(
-              transform_request, "x^2 + 2*x + 1"
+              transform_request, "x**2 + 2*x + 1"
           )
           assert transformed.status == "FORMALLY_VERIFIED", transformed.model_dump()
           assert transformed.obligation.checker_id == "lean.kernel.polynomial_int_identity.v1"
@@ -99,8 +99,8 @@ jobs:
               request=request,
               candidate=json.dumps({
                   "operation": "verify_identity",
-                  "expression": "(x + 1)^2",
-                  "rhs": "x^2 + 2*x + 1",
+                  "expression": "(x + 1)**2",
+                  "rhs": "x**2 + 2*x + 1",
               }),
               provider_id="ci-provider",
               model_id="ci-model",
@@ -112,9 +112,9 @@ jobs:
               request=transform_request,
               candidate=json.dumps({
                   "operation": "expand",
-                  "expression": "(x + 1)^2",
+                  "expression": "(x + 1)**2",
                   "variable": "x",
-                  "result": "x^2 + 2*x + 1",
+                  "result": "x**2 + 2*x + 1",
               }),
           ))
           assert gateway_transform.status == "FORMALLY_VERIFIED", gateway_transform.model_dump()
