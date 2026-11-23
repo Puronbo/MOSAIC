@@ -192,3 +192,15 @@ The current Lean grammar still supports only closed natural-number arithmetic;
 identities containing variables or rational-domain conditions remain
 unsupported. This endpoint does not upgrade the general task-bound result or
 the evidence bundle.
+
+
+### Symbolic affine identities
+
+For symbolic linear identities, the request-bound endpoint can derive an
+assumption-free universally quantified proposition over `Int`, using only
+the allow-listed variables `x`, `y`, and `z`. The affine compiler accepts
+addition, subtraction, and multiplication by constants; it rejects products
+of variables, division, and powers. The response identifies the linear
+checker, quantified variables, request fingerprint, and generated theorem
+source hash. A kernel-accepted affine identity is not a proof of rational
+domain preservation and does not discharge calculus side conditions.
