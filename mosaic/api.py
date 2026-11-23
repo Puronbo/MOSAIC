@@ -10,7 +10,7 @@ from mosaic.core.types import Status
 from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
 from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_candidate
-from mosaic.verification.sessions import SessionStore, VerificationSession, VerificationRevision
+from mosaic.verification.sessions import (\n    RevisionLimitReached, SessionStore, VerificationSession, VerificationRevision,\n)
 
 
 app = FastAPI(title="MOSAIC API", version="0.4.0")
@@ -132,10 +132,13 @@ def append_verification_revision(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     feedback = _candidate_feedback(check)
-    revision = session_store.append(
-        session_id, payload.candidate, check,
-        tuple(item.model_dump(mode="json") for item in feedback),
-    )
+    try:
+        revision = session_store.append(
+            session_id, payload.candidate, check,
+            tuple(item.model_dump(mode="json") for item in feedback),
+        )
+    except RevisionLimitReached as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if revision is None:
         raise HTTPException(status_code=404, detail="Verification session not found.")
     return revision
