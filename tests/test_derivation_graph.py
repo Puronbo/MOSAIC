@@ -105,7 +105,7 @@ def test_unresolved_preconditions_cap_aggregate_status_after_leaf_checks():
     assert result.status == "EXPERIMENTAL"
     assert len(result.side_condition_results) == 6
     assert all(item.status == "EXPERIMENTAL" for item in result.side_condition_results)
-    assert all(item.checker_id == "calculus.real_polynomial_domain.v1" for item in result.side_condition_results)
+    assert all(item.checker_id == "calculus.rational_domain_constraints.v1" for item in result.side_condition_results)
     assert all(item.status == "EXPERIMENTAL" for item in result.results)
 
 
