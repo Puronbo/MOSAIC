@@ -135,3 +135,14 @@ If Lean is unavailable, the response explicitly reports
 `KERNEL_UNAVAILABLE`. This narrow bridge does not yet prove general symbolic
 identities or transformations. See [the architecture](docs/ARCHITECTURE.md)
 and [security limitations](SECURITY.md).
+
+
+### Request-bound Lean identity checks
+
+MOSAIC also exposes `POST /v1/verify/lean/request-identity`. Unlike the
+low-level closed-equality endpoint, this route accepts a normal mathematical
+request and derives the proposition from its exact `expression` and `rhs`.
+It currently supports only `verify_identity` requests whose expressions fit
+the closed-natural-number grammar. The response includes a request fingerprint
+and an explicit assumption-free obligation. It does not yet formally verify
+general symbolic transformations.
