@@ -115,7 +115,10 @@ hardening before exposing it beyond a trusted environment.
 ## Evidence provenance
 
 Task-bound checks now return provenance-labelled evidence findings alongside
-the result. Checker identities and independence groups are registered in code;
-related checks using the same symbolic runtime count as one source. Model
-opinions are not checker evidence. See
+the result. For simplify/expand/factor, a bounded exact rational-polynomial
+checker using Python AST parsing and Fraction arithmetic independently checks
+equivalence without SymPy. Checker identities and independence groups are
+registered in code; related checks using the same symbolic runtime count as
+one source. Model opinions are not checker evidence. This cross-check remains
+experimental and is not a formal proof. See
 [the evidence and independence contract](docs/TASK_BOUND_API.md#evidence-provenance-and-independence).
