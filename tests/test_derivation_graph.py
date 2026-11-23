@@ -89,18 +89,17 @@ def test_unresolved_preconditions_cap_aggregate_status_after_leaf_checks():
                 "expression": node.request.expression,
                 "rhs": node.request.rhs,
             })
-        elif node.request.operation == Operation.EXPAND:
-            from mosaic.engines.algebra import run_algebra
-            checked = run_algebra(node.request)
-            candidates[node.obligation.obligation_id] = json.dumps({
-                "operation": "expand",
-                "expression": node.request.expression,
-                "variable": node.request.variable,
-                "result": checked.result,
-            })
         else:
-            # The current derivation compiler emits only these supported leaf types.
-            raise AssertionError(f"unexpected leaf operation: {node.request.operation}")
+            from mosaic.engines.algebra import run_algebra
+            operation = node.request.operation.value
+            variable = node.request.variable or "x"
+            expected = run_algebra(operation, node.request.expression, variable)
+            candidates[node.obligation.obligation_id] = json.dumps({
+                "operation": operation,
+                "expression": node.request.expression,
+                "variable": variable,
+                "result": str(expected),
+            })
 
     result = evaluate_derivation_tree(source, tree, candidates)
     assert result.status == "UNSUPPORTED"
