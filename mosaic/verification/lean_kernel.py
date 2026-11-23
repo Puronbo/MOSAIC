@@ -121,18 +121,18 @@ def verify_closed_nat_equality(
             explanation="The Lean wall-clock limit must be between 0 and 30 seconds.",
         )
 
+    source = (
+        "theorem mosaic_certificate : "
+        f"({rendered_lhs} : Nat) = ({rendered_rhs} : Nat) := by decide\\n"
+    )
+    proof_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
     executable = shutil.which(lean_executable)
     if executable is None:
         return LeanKernelCheck(
             status="KERNEL_UNAVAILABLE", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
+            proof_source_sha256=proof_hash,
             explanation="Lean was not found; no formal verification was performed.",
         )
-
-    source = (
-        "theorem mosaic_certificate : "
-        f"({rendered_lhs} : Nat) = ({rendered_rhs} : Nat) := by decide\n"
-    )
-    proof_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
     try:
         with tempfile.TemporaryDirectory(prefix="mosaic-lean-") as directory:
             source_path = Path(directory) / "Certificate.lean"
