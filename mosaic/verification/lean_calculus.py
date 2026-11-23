@@ -226,7 +226,7 @@ def _derivative(node: ast.AST) -> str:
 def _proof(node: ast.AST) -> str:
     literal = _integer(node)
     if literal is not None:
-        return "hasDerivAt_const"
+        return f"hasDerivAt_const x {_real_literal(literal)}"
     if isinstance(node, ast.Name):
         return "hasDerivAt_id' x"
     if isinstance(node, ast.UnaryOp):
