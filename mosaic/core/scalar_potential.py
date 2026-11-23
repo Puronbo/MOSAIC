@@ -78,7 +78,10 @@ class ScalarPotential(BaseModel):
                     continue
                 coefficient *= power * (power - 1)
                 power -= 2
-            result += coefficient * (field_value ** power)
+            if coefficient == 0:
+                continue
+            monomial_value = Decimal("1") if power == 0 else field_value ** power
+            result += coefficient * monomial_value
         if not result.is_finite():
             raise ValueError("potential evaluation exceeded Decimal range")
         return result
