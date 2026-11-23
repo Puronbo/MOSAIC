@@ -29,4 +29,6 @@ Implement `ModelProvider`, expose a `ModelCapability`, and implement asynchronou
 
 ## Current implementation boundary
 
-`mosaic.core.adapters` contains the protocol, request/response contracts, allow-list registry, and bounded invocation wrapper. No commercial or hosted provider is bundled, and no external model is called by the core package.
+`mosaic.core.adapters` contains the protocol, request/response contracts, allow-list registry, and bounded invocation wrapper. An opt-in OpenAI-compatible HTTP implementation is provided in `mosaic.core.openai_compatible`. It is not enabled automatically; applications must configure and register it explicitly. No external model is called by the core package on its own.
+
+See [OPENAI_COMPATIBLE_PROVIDER.md](OPENAI_COMPATIBLE_PROVIDER.md) for configuration, endpoint policy, and usage.
