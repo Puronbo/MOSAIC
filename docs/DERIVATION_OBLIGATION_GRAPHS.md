@@ -57,3 +57,18 @@ this same registered checker path, so it cannot bypass precondition evaluation.
 No status here is a formal proof. The rational-domain checker relies on the
 restricted parser and symbolic rational-function classification; future checkers
 must declare their supported domains and limitations explicitly.
+
+
+## Comparing domains across proposed transformations
+
+`check_domain_preservation(request, candidate_expression)` compares the
+original expression's polynomial nonzero exclusions with those syntactically
+required by a proposed rational candidate. It factors polynomial predicates
+and ignores nonzero multiplicity, so `x - 1 != 0` and
+`(x - 1)**2 != 0` have the same signature. It reports whether a candidate
+expands, narrows, changes, or preserves the represented domain.
+
+This is intentionally conservative: it supports only the restricted rational
+expression grammar and polynomial exclusion factors. A `PRESERVED` result
+means the extracted exclusion signatures match; it is not a proof of the
+transformation's algebraic correctness or a formal proof of domain equality.
