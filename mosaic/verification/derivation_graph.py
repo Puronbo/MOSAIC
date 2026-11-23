@@ -13,7 +13,12 @@ from mosaic.verification.derivation import (
     DerivationTree,
     validate_derivation_tree,
 )
-from mosaic.verification.graph import (\n    ObligationGraph,\n    ObligationNode,\n    ObligationGraphResult,\n    evaluate_obligation_graph,\n)
+from mosaic.verification.graph import (
+    ObligationGraph,
+    ObligationNode,
+    ObligationGraphResult,
+    evaluate_obligation_graph,
+)
 from mosaic.verification.obligations import obligations_for_request
 
 
