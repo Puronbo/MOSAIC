@@ -12,7 +12,7 @@ def test_derivative_source_uses_real_has_deriv_at_and_kernel_proof():
     source, derivative = _source("(x + 1)^3")
     assert "HasDerivAt (fun t : ℝ" in source
     assert "hasDerivAt_id' x" in source
-    assert ".pow 3" in source
+    assert "HasDerivAt.pow" in source
     assert "by\n  exact" in source
     assert "Lean" not in derivative
 
