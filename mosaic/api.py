@@ -13,6 +13,9 @@ from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_can
 from mosaic.verification.evidence import EvidenceBundle, evidence_from_check
 from mosaic.verification.lean_kernel import LeanKernelCheck, verify_closed_nat_equality
 from mosaic.verification.lean_obligations import LeanIdentityVerification, verify_request_identity_with_lean
+from mosaic.verification.lean_transformations import (
+    LeanTransformationVerification, verify_request_transformation_with_lean,
+)
 from mosaic.verification.sessions import (
     RevisionLimitReached, SessionStore, VerificationSession, VerificationRevision,
 )
@@ -103,6 +106,12 @@ class LeanEqualityVerificationRequest(BaseModel):
     rhs: str = Field(min_length=1, max_length=512)
 
 
+class LeanTransformationVerificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    request: MathRequest
+    result: str = Field(min_length=1, max_length=512)
+
+
 class VerificationSessionCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     request: MathRequest
@@ -167,6 +176,12 @@ def verify_lean_closed_nat_equality(payload: LeanEqualityVerificationRequest):
 def verify_lean_request_identity(payload: VerificationSessionCreateRequest):
     """Formally check only the exact identity encoded in the supplied request."""
     return verify_request_identity_with_lean(payload.request)
+
+
+@app.post("/v1/verify/lean/transformation", response_model=LeanTransformationVerification)
+def verify_lean_transformation(payload: LeanTransformationVerificationRequest):
+    """Kernel-check a bounded affine result against its exact request input."""
+    return verify_request_transformation_with_lean(payload.request, payload.result)
 
 
 @app.get("/health")
