@@ -11,6 +11,7 @@ from mosaic.verification.chain_rule import (
     ChainRulePlan,
     decompose_power_chain_rule,
     verify_chain_rule_plan,
+    execute_power_chain_rule,
 )
 
 
@@ -24,6 +25,7 @@ class DecompositionRule:
     matcher: Callable[[MathRequest], bool]
     decompose: Callable[[MathRequest], object]
     verify: Callable[[MathRequest, object], bool]
+    execute: Callable[[MathRequest], object]
 
 
 def _matches_power_chain(request: MathRequest) -> bool:
@@ -58,6 +60,7 @@ _RULES: tuple[DecompositionRule, ...] = (
         matcher=_matches_power_chain,
         decompose=decompose_power_chain_rule,
         verify=_verify_chain_plan,
+        execute=execute_power_chain_rule,
     ),
 )
 _RULES_BY_ID = {rule.rule_id: rule for rule in _RULES}
@@ -109,3 +112,64 @@ def verify_decomposition_plan(
     if not rule.matcher(request):
         return False
     return rule.verify(request, plan)
+
+
+
+def execute_decomposition(
+    request: MathRequest,
+    rule_id: str | None = None,
+) -> object:
+    """Execute a registered rule only after its generated plan passes its verifier."""
+    if rule_id is None:
+        matches = applicable_decomposition_rules(request)
+        if not matches:
+            raise ExpressionError("No registered decomposition rule matches this request.")
+        if len(matches) > 1:
+            raise ExpressionError("Multiple decomposition rules match; select a rule ID.")
+        rule = matches[0]
+    else:
+        rule = get_decomposition_rule(rule_id)
+        if not rule.matcher(request):
+            raise ExpressionError(f"Request does not match rule: {rule_id}.")
+
+    plan = rule.decompose(request)
+    if not rule.verify(request, plan):
+        raise ExpressionError(f"Generated plan failed its registered verifier: {rule.rule_id}.")
+    execution = rule.execute(request)
+    execution_plan = getattr(execution, "plan", None)
+    if execution_plan != plan:
+        raise ExpressionError(f"Execution plan differs from verified plan: {rule.rule_id}.")
+    return execution
+
+
+def verify_decomposition_execution(
+    request: MathRequest,
+    rule_id: str,
+    execution: object,
+) -> bool:
+    """Audit an execution by replaying the registered deterministic executor.
+
+    This verifies structural/result reproducibility, not a formal proof. The
+    result remains limited by the trust and status of the underlying checkers.
+    """
+    rule = get_decomposition_rule(rule_id)
+    if not rule.matcher(request):
+        return False
+    supplied_plan = getattr(execution, "plan", None)
+    if not rule.verify(request, supplied_plan):
+        return False
+    try:
+        expected = rule.execute(request)
+    except (ExpressionError, ValueError, TypeError):
+        return False
+    supplied_dump = (
+        execution.model_dump(mode="json")
+        if hasattr(execution, "model_dump")
+        else None
+    )
+    expected_dump = (
+        expected.model_dump(mode="json")
+        if hasattr(expected, "model_dump")
+        else None
+    )
+    return supplied_dump is not None and supplied_dump == expected_dump
