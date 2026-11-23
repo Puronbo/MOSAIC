@@ -59,3 +59,38 @@ def test_lean_identity_obligation_requires_rhs(monkeypatch):
     )
     result = verify_request_identity_with_lean(request)
     assert result.status == "UNSUPPORTED"
+
+
+def test_request_identity_routes_symbolic_linear_claim_to_lean(monkeypatch):
+    from mosaic.verification.lean_linear import LeanLinearCheck
+
+    captured = {}
+
+    def fake_linear(lhs, rhs):
+        captured.update(lhs=lhs, rhs=rhs)
+        return LeanLinearCheck(
+            status="FORMALLY_VERIFIED",
+            lhs_sha256="a" * 64,
+            rhs_sha256="b" * 64,
+            proof_source_sha256="c" * 64,
+            variables=("x", "y"),
+            explanation="accepted",
+        )
+
+    monkeypatch.setattr(
+        "mosaic.verification.lean_linear.verify_linear_int_identity",
+        fake_linear,
+    )
+    request = MathRequest(
+        operation=Operation.VERIFY_IDENTITY,
+        expression="x + y",
+        rhs="y + x",
+    )
+    result = verify_request_identity_with_lean(request)
+    assert result.status == "FORMALLY_VERIFIED"
+    assert captured == {"lhs": "x + y", "rhs": "y + x"}
+    assert result.obligation.checker_id == "lean.kernel.linear_int_identity.v1"
+    assert result.obligation.variables == ("x", "y")
+    assert result.obligation.proposition == "∀ (x : Int) (y : Int), (x + y) = (y + x)"
+    assert result.obligation.assumptions == ()
+    assert result.check.proof_source_sha256 == "c" * 64
