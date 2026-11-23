@@ -188,3 +188,31 @@ def test_ai_tool_schema_is_portable_and_restricts_unknown_fields():
     assert parameters["properties"]["request"]["additionalProperties"] is False
     assert "candidate" in parameters["required"]
     assert "lean_source" not in parameters["properties"]
+
+
+
+def test_gateway_keeps_differentiation_experimental_until_derivative_checker_exists(monkeypatch):
+    from mosaic.core import model_gateway
+
+    monkeypatch.setattr(
+        model_gateway, "verify_task_bound_candidate",
+        lambda request, candidate: _task_check(equal=True),
+    )
+    submission = ModelCandidateSubmission(
+        request=MathRequest(
+            operation="differentiate",
+            expression="x^3 + 2*x",
+            variable="x",
+        ),
+        candidate=json.dumps({
+            "operation": "differentiate",
+            "expression": "x^3 + 2*x",
+            "variable": "x",
+            "result": "3*x^2 + 2",
+        }),
+    )
+    result = evaluate_model_candidate(submission)
+    assert result.status == "EXPERIMENTAL"
+    assert result.lean_check is None
+    assert result.feedback[0].code == "REVIEW_RESULT"
+    assert result.feedback[0].retryable is False
