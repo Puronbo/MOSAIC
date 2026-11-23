@@ -14,3 +14,9 @@ def test_rejects_attribute_access():
 def test_rejects_unknown_function():
     with pytest.raises(ExpressionError):
         parse_expression("__import__('os')")
+
+
+def test_caret_is_mathematical_exponent_not_xor():
+    assert str(parse_expression("(x + 1)^2")) == "x**2 + 2*x + 1"
+    assert str(parse_expression("-x^2")) == "-x**2"
+    assert str(run_algebra("expand", "(x + 1)^2")) == "x**2 + 2*x + 1"
