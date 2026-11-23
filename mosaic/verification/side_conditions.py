@@ -1,18 +1,17 @@
-"""Explicit rule preconditions whose mathematical checkers are not yet available.
-
-These records expose assumptions that must not be silently accepted. They are
-contracts only; an UNSUPPORTED condition is not evidence that it holds.
-"""
+"""Explicit, request-bound rule preconditions and conservative checkers."""
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
 from typing import Literal
 
+import sympy as sp
 from pydantic import BaseModel, ConfigDict, Field
 
 from mosaic.core.requests import MathRequest
+from mosaic.engines.algebra import ExpressionError, parse_expression
 from mosaic.verification.obligations import request_fingerprint
 
 
@@ -67,4 +66,54 @@ def verify_side_condition_contract(
         and supplied in expected
         and supplied.status == "UNSUPPORTED"
         and supplied.checker_id == "none"
+    )
+
+
+def _is_nonnegative_integer_power_of_polynomial(request: MathRequest) -> bool:
+    """Recognize a polynomial power whose real-domain preconditions are decidable."""
+    try:
+        tree = ast.parse(request.expression, mode="eval")
+        root = tree.body
+        if not (
+            isinstance(root, ast.BinOp)
+            and isinstance(root.op, ast.Pow)
+            and isinstance(root.right, ast.Constant)
+            and isinstance(root.right.value, int)
+            and not isinstance(root.right.value, bool)
+            and root.right.value >= 0
+        ):
+            return False
+        inner = parse_expression(ast.unparse(root.left))
+        whole = parse_expression(request.expression)
+        sp.Poly(inner)
+        sp.Poly(whole)
+        variable = sp.Symbol(request.variable or "x")
+        sp.diff(inner, variable)
+        sp.diff(whole, variable)
+        return True
+    except (SyntaxError, ExpressionError, sp.PolynomialError, TypeError, ValueError):
+        return False
+
+
+def evaluate_side_condition(
+    request: MathRequest,
+    condition: RuleSideCondition,
+) -> tuple[str, str, str]:
+    """Evaluate a narrow checker without upgrading its result to formal proof."""
+    if (
+        condition.rule_id == "calculus.chain_rule.integer_power.v1"
+        and condition.predicate in {
+            "inner_differentiability", "domain_definedness", "domain_preservation"
+        }
+        and _is_nonnegative_integer_power_of_polynomial(request)
+    ):
+        return (
+            "EXPERIMENTAL",
+            "calculus.real_polynomial_domain.v1",
+            "Recognized a nonnegative integer power of a polynomial; the expression and its derivatives are defined and differentiable over the real domain.",
+        )
+    return (
+        "UNSUPPORTED",
+        "none",
+        "No registered checker can establish this precondition for the supplied expression and domain.",
     )
