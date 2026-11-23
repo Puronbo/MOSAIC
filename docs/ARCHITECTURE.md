@@ -22,7 +22,7 @@ MOSAIC separates an untrusted proposal/execution layer from trusted verification
 
 ## Trust and status policy
 
-The general identity and transformation routines remain EXPERIMENTAL even when symbolic recomputation succeeds. The optional endpoint POST /v1/verify/lean/closed-nat-equality can return FORMALLY_VERIFIED only for closed natural-number equalities in a bounded arithmetic grammar when a configured Lean executable accepts MOSAIC-generated proof source. The request-bound endpoint POST /v1/verify/lean/request-identity derives an assumption-free identity obligation from the exact MathRequest and binds it to the request fingerprint; it currently supports only verify_identity requests. Neither endpoint is a general proof backend: variables, rational domains, arbitrary Lean source, and user-supplied tactics are not supported. If Lean is unavailable, the result says so and never falls back to experimental evidence.
+The general identity and transformation routines remain EXPERIMENTAL even when symbolic recomputation succeeds. The Lean endpoints can return FORMALLY_VERIFIED only when the configured Lean kernel accepts MOSAIC-generated proof source. Closed-Nat and affine-Int checkers use the core Lean toolchain; the separate polynomial-Int checker uses a pinned Mathlib Lake project. The request-bound identity route derives an assumption-free obligation from the exact MathRequest and tries these checkers in sequence. The transformation route binds both the request and candidate hashes and supports the affine or bounded polynomial grammars. Rational-domain preservation, arbitrary Lean source, and user-supplied tactics remain unsupported. If a proof environment is unavailable, the result says so and never falls back to experimental evidence.
 
 Agent outputs are untrusted proposals. Agreement between agents is not verification; disagreement triggers review rather than an automatic verdict. See [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
 
@@ -35,20 +35,18 @@ Agent outputs are untrusted proposals. Agreement between agents is not verificat
 5. Expand the restricted Lean bridge into request-bound proof obligations with explicit assumptions and a reproducible Lean toolchain.
 6. Add provider adapters, sandboxed execution, provenance logging, retries, and budget-aware scheduling.
 
-Nonlinear polynomial verification is deliberately deferred to a separate, optional Mathlib-backed Lake project. The dependency decision, proof scope, resource bounds, and real-kernel acceptance tests are documented in [LEAN_POLYNOMIAL_BACKEND.md](LEAN_POLYNOMIAL_BACKEND.md). Lean core's `omega` checker must not be confused with Mathlib's `ring` tactic.
+Nonlinear polynomial verification is implemented in a separate, optional Mathlib-backed Lake project. Its pinned dependency, supported grammar, resource bounds, API routes, and real-kernel acceptance tests are documented in [LEAN_POLYNOMIAL_BACKEND.md](LEAN_POLYNOMIAL_BACKEND.md). Lean core's `omega` checker remains separate from Mathlib's `ring` tactic.
 
 The request-bound Lean bridge now supports a second, distinct checker for
 universally quantified affine identities over `Int`. A restricted AST
 compiler permits only `x`, `y`, and `z`, bounded integer constants,
 addition, subtraction, and multiplication by a constant. It emits explicit
 `Int` binders and uses Lean's `omega` tactic; generated proof source is
-fingerprinted. Nonlinear expressions, division, domain assumptions, and
-arbitrary source remain unsupported. The theorem proves equality for every
+fingerprinted. Nonlinear expressions, division, domain assumptions, and arbitrary source
+remain outside the affine checker. The theorem proves equality for every
 integer assignment and must not be interpreted as a rational-domain proof.
 
 A further route, POST /v1/verify/lean/transformation, binds a proposed result
-to a specific simplify/expand/factor request and checks affine equivalence
-over Int. The obligation binds both request and candidate hashes. This narrow
-check is not a general transformation verifier: nonlinear expressions,
-division, rational-domain preservation, and canonical-form properties are
-outside its scope.
+to a specific simplify/expand/factor request and checks affine or bounded polynomial equivalence over Int. The
+obligation binds both request and candidate hashes. It does not establish
+rational-domain preservation or canonical-form properties.
