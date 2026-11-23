@@ -39,9 +39,11 @@ The current Python prototype includes:
 - a deterministic, allow-listed decomposition-rule registry;
 - bounded recursive derivation trees that validate complete expansion relative to registered rules;
 - compilation of validated derivation trees into dependency-aware obligation DAGs;
-- typed scoped absence claims, model-relative vacuum states, and particle-like excitation records;\n- model-bound physical state transitions and exact Decimal energy-ledger checks;
+- typed scoped absence claims, model-relative vacuum states, and particle-like excitation records;
+- model-bound physical state transitions and exact Decimal energy-ledger checks;
 - model-relative vacuum stability assessments and evidence-typed vacuum transition records;
-- vacuum-referenced particle-production records that enforce model and reference-state consistency;\n- regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
+- vacuum-referenced particle-production records that enforce model and reference-state consistency;
+- regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
 
