@@ -124,46 +124,43 @@ experimental and is not a formal proof. See
 [the evidence and independence contract](docs/TASK_BOUND_API.md#evidence-provenance-and-independence).
 
 
-## Optional Lean kernel check
+## Optional Lean kernel verification
 
-When a Lean 4 executable is installed and available on PATH, MOSAIC exposes
-`POST /v1/verify/lean/closed-nat-equality`. It accepts only bounded, closed
-natural-number arithmetic expressions; MOSAIC generates the Lean theorem
-rather than accepting source code or tactics from the caller. A successful
-kernel check is reported as `FORMALLY_VERIFIED` for that exact equality only.
-If Lean is unavailable, the response explicitly reports
-`KERNEL_UNAVAILABLE`. This narrow bridge does not yet prove general symbolic
-identities or transformations. See [the architecture](docs/ARCHITECTURE.md)
-and [security limitations](SECURITY.md).
+MOSAIC includes three separate Lean-backed checkers:
 
+- Closed natural-number equalities, using the pinned core Lean toolchain.
+- Universally quantified affine integer identities, using Lean's `omega`
+  tactic.
+- Bounded polynomial integer identities, using a separate pinned Mathlib
+  Lake project and `Mathlib.Tactic.Ring`.
 
-### Request-bound Lean identity checks
+The polynomial checker accepts variables `x`, `y`, and `z`; bounded integer
+literals; unary signs; addition, subtraction, multiplication; and
+nonnegative integer powers. Both `^` and `**` are accepted for powers.
+Division, negative powers, function calls, unknown variables, oversized
+expressions, and caller-supplied Lean source are unsupported.
 
-MOSAIC also exposes `POST /v1/verify/lean/request-identity`. Unlike the
-low-level closed-equality endpoint, this route accepts a normal mathematical
-request and derives the proposition from its exact `expression` and `rhs`.
-It currently supports only `verify_identity` requests whose expressions fit
-the closed-natural-number grammar. The response includes a request fingerprint
-and an explicit assumption-free obligation. It does not yet formally verify
-general symbolic transformations.
+Available endpoints:
 
+- `POST /v1/verify/lean/closed-nat-equality`
+- `POST /v1/verify/lean/polynomial-int-identity`
+- `POST /v1/verify/lean/request-identity`
+- `POST /v1/verify/lean/transformation`
 
-### Symbolic affine identity checks
+Request-bound identity and transformation checks retain request/candidate
+hashes, checker identifiers, and generated proof-source fingerprints. A
+`FORMALLY_VERIFIED` result is returned only when the configured Lean kernel
+accepts MOSAIC-generated source. If the proof environment is unavailable, the
+response says so; experimental symbolic computation is never substituted for
+a formal proof.
 
-The request-bound Lean identity route now has a second, narrowly scoped path
-for affine identities over integers. It accepts only variables `x`, `y`,
-and `z`; integer literals; addition and subtraction; and multiplication
-where at least one factor is constant. MOSAIC derives universally quantified
-`Int` binders and asks Lean's `omega` tactic to construct the proof. The
-generated theorem is still checked by Lean's kernel, and its source hash and
-variable list are returned. Nonlinear products, division, powers, assumptions,
-and other variables remain unsupported. This proves an identity over all
-integer assignments, not a statement about rational-function domains.
+The polynomial project pins Lean 4.36.0 and Mathlib commit
+`fc4f59e577feb1a4956671bc04ac18aaaf8cd842`. Its real-kernel CI workflow
+tests accepted identities, a rejected identity, unsupported syntax, and a
+request-bound proof. See [the polynomial backend contract](docs/LEAN_POLYNOMIAL_BACKEND.md),
+[the architecture](docs/ARCHITECTURE.md), and [security limitations](SECURITY.md).
 
-
-The additional `POST /v1/verify/lean/transformation` route accepts a normal
-`MathRequest` and a proposed result string. For `simplify`, `expand`, and
-`factor`, it can kernel-check affine integer equivalence between the exact
-request expression and result. The obligation binds both the request and
-candidate hashes. It does not establish canonical form, rational-domain
-preservation, or correctness for nonlinear expressions.
+A polynomial proof over `Int` does not establish rational-function domain
+preservation, denominator nonzeroness, inequalities, or canonical form. The
+Lean subprocess also requires deployment-level resource isolation; a timeout
+alone is not a complete sandbox.
