@@ -89,7 +89,7 @@ def test_chain_rule_declares_its_obligation_dependency_contract():
 
 
 def test_matcher_excludes_invalid_expressions_and_out_of_contract_inputs():
-    assert applicable_decomposition_rules(request("unknown_symbol**2+1**2")) == ()
+    assert applicable_decomposition_rules(request("(unknown_symbol+1)**2")) == ()
     assert applicable_decomposition_rules(request("(x+1)**101")) == ()
     unsupported_variable = MathRequest(
         operation=Operation.DIFFERENTIATE,
