@@ -86,3 +86,15 @@ The health endpoint is `GET /health`. Mathematical requests use `POST /v1/math`.
 Run the test suite with `python -m pytest`. The Python client is available as `mosaic.client.MosaicClient`.
 
 The current implementation is intentionally small. The HTTP service is a prototype and should not be exposed to untrusted public traffic without the additional isolation and resource controls described in [SECURITY.md](SECURITY.md).
+
+## Task-bound verification API
+
+External AI systems can submit a proposed result to
+`POST /v1/verify/task-bound`. The request carries the mathematical task
+separately from the untrusted candidate payload. MOSAIC binds the candidate to
+the exact task, recomputes supported operations, and returns a versioned
+machine-readable check with hashes and (where applicable) a domain-preservation
+certificate. See [the API contract](docs/TASK_BOUND_API.md).
+
+Python callers can use `MosaicClient.verify_candidate(request, candidate)`.
+All symbolic outcomes remain experimental rather than formal proofs.
