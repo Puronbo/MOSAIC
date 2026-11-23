@@ -16,7 +16,7 @@ MOSAIC separates an untrusted proposal/execution layer from trusted verification
 
 - core: operation vocabulary, versioned request/response models, and agent orchestration contracts;
 - engines: restricted parsing and SymPy-backed exact symbolic operations;
-- verification: structured and task-bound candidate checking plus typed request-bound obligations; no Lean integration yet;
+- verification: structured and task-bound candidate checking, typed request-bound obligations, and dependency-aware DAG evaluation; no Lean integration yet;
 - adapters: FastAPI endpoint; Python and MCP adapters are planned;
 - tests: regression tests for supported operations, rejected syntax, and orchestration invariants.
 
