@@ -138,7 +138,7 @@ def verify_closed_nat_equality(
             completed = subprocess.run(
                 [executable, str(source_path)],
                 capture_output=True, text=True, timeout=timeout_seconds,
-                check=False, cwd=directory,
+                check=False, cwd=Path.cwd(),
                 env=_lean_environment(),
             )
         version = None
