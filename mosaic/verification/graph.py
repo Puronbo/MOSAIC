@@ -59,7 +59,6 @@ class SideConditionResult(BaseModel):
     checker_id: str
     explanation: str
     domain_constraints: tuple[str, ...] = ()
-    domain_restrictions: tuple[DomainRestriction, ...] = ()
 
 
 class ObligationGraphResult(BaseModel):
@@ -70,6 +69,7 @@ class ObligationGraphResult(BaseModel):
     results: tuple[ObligationNodeResult, ...]
     execution_order: tuple[str, ...]
     side_condition_results: tuple[SideConditionResult, ...] = ()
+    domain_restrictions: tuple[DomainRestriction, ...] = ()
 
 
 def validate_obligation_graph(graph: ObligationGraph) -> tuple[ObligationNode, ...]:
@@ -188,7 +188,6 @@ def evaluate_obligation_graph(
             checker_id=checker_id,
             explanation=explanation,
             domain_constraints=domain_constraints_for_request(item.request),
-            domain_restrictions=domain_restrictions_for_request(item.request),
         )
         for item in graph.side_conditions
         for status, checker_id, explanation in (
@@ -210,4 +209,9 @@ def evaluate_obligation_graph(
         results=ordered_results,
         execution_order=tuple(node.obligation.obligation_id for node in ordered),
         side_condition_results=side_results,
+        domain_restrictions=tuple({
+            restriction.restriction_id: restriction
+            for item in graph.side_conditions
+            for restriction in domain_restrictions_for_request(item.request)
+        }.values()),
     )
