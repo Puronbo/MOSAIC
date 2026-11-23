@@ -137,7 +137,7 @@ def _polynomial(node: ast.AST) -> Polynomial:
 def _parse_polynomial(raw: str) -> tuple[ast.AST, tuple[str, ...]]:
     if not isinstance(raw, str) or not raw.strip() or len(raw) > _MAX_INPUT_CHARS:
         raise _Unsupported("expression must be non-empty and within the input bound")
-    tree = ast.parse(raw, mode="eval")
+    tree = ast.parse(raw.replace("^", "**"), mode="eval")
     if sum(1 for _ in ast.walk(tree)) > _MAX_AST_NODES:
         raise _Unsupported("expression exceeds the syntax-node bound")
     _polynomial(tree.body)
