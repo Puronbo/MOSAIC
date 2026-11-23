@@ -94,3 +94,62 @@ def test_request_identity_routes_symbolic_linear_claim_to_lean(monkeypatch):
     assert result.obligation.proposition == "∀ (x : Int) (y : Int), (x + y) = (y + x)"
     assert result.obligation.assumptions == ()
     assert result.check.proof_source_sha256 == "c" * 64
+
+
+def test_request_identity_routes_nonlinear_claim_to_pinned_mathlib(monkeypatch):
+    from mosaic.verification.lean_polynomial import LeanPolynomialCheck
+
+    captured = {}
+
+    def unsupported_closed(*args, **kwargs):
+        from mosaic.verification.lean_kernel import LeanKernelCheck
+        return LeanKernelCheck(
+            status="UNSUPPORTED", lhs_sha256="a" * 64, rhs_sha256="b" * 64,
+            explanation="not closed Nat",
+        )
+
+    def unsupported_linear(*args, **kwargs):
+        from mosaic.verification.lean_linear import LeanLinearCheck
+        return LeanLinearCheck(
+            status="UNSUPPORTED", lhs_sha256="a" * 64, rhs_sha256="b" * 64,
+            explanation="not affine",
+        )
+
+    def fake_polynomial(lhs, rhs):
+        captured.update(lhs=lhs, rhs=rhs)
+        return LeanPolynomialCheck(
+            status="FORMALLY_VERIFIED",
+            lhs_sha256="a" * 64,
+            rhs_sha256="b" * 64,
+            proof_source_sha256="c" * 64,
+            variables=("x",),
+            explanation="accepted by test double",
+        )
+
+    monkeypatch.setattr(
+        "mosaic.verification.lean_obligations.verify_closed_nat_equality",
+        unsupported_closed,
+    )
+    monkeypatch.setattr(
+        "mosaic.verification.lean_linear.verify_linear_int_identity",
+        unsupported_linear,
+    )
+    monkeypatch.setattr(
+        "mosaic.verification.lean_obligations.verify_polynomial_int_identity",
+        fake_polynomial,
+    )
+    request = MathRequest(
+        operation=Operation.VERIFY_IDENTITY,
+        expression="(x + 1)^2",
+        rhs="x^2 + 2*x + 1",
+    )
+    result = verify_request_identity_with_lean(request)
+    assert result.status == "FORMALLY_VERIFIED"
+    assert captured == {
+        "lhs": "(x + 1)^2",
+        "rhs": "x^2 + 2*x + 1",
+    }
+    assert result.obligation.checker_id == "lean.kernel.polynomial_int_identity.v1"
+    assert result.obligation.variables == ("x",)
+    assert result.obligation.assumptions == ()
+    assert result.check.proof_source_sha256 == "c" * 64
