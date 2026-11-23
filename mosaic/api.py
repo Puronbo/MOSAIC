@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from mosaic.core.requests import MathRequest
 from mosaic.core.model_gateway import ModelCandidateSubmission, ModelCandidateEvaluation, evaluate_model_candidate
+from mosaic.core.tool_schema import mosaic_candidate_tool
 from mosaic.core.responses import MathResponse
 from mosaic.core.types import Status
 from mosaic.engines.algebra import ExpressionError, run_algebra
@@ -128,6 +129,12 @@ class VerificationSessionRevisionRequest(BaseModel):
 def evaluate_ai_candidate(payload: ModelCandidateSubmission):
     """Evaluate an external model proposal; provider metadata is provenance only."""
     return evaluate_model_candidate(payload)
+
+
+@app.get("/v1/ai/tool-schema")
+def get_ai_candidate_tool_schema():
+    """Return a portable function-tool declaration for AI agent registration."""
+    return mosaic_candidate_tool()
 
 
 @app.post("/v1/verification-sessions", response_model=VerificationSession, status_code=201)
