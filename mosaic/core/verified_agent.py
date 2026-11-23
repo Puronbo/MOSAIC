@@ -98,8 +98,8 @@ async def run_verified_agent(
     the model again cannot repair the verifier. Lean checking runs off the event
     loop because the configured checker invokes a local process.
     """
-    if not 1 <= max_attempts <= 3:
-        raise ValueError("max_attempts must be between 1 and 3")
+    if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or not 1 <= max_attempts <= 3:
+        raise ValueError("max_attempts must be an integer between 1 and 3")
     capability = provider.capability
     if AgentRole.SOLVER not in capability.supported_roles:
         raise ProviderError("provider does not support the solver role")
