@@ -447,3 +447,60 @@ class EventKnowledge(BaseModel):
     recipient_id: str = Field(min_length=1, max_length=120)
     learned_at: TemporalPoint
     source_observation_id: str = Field(min_length=1, max_length=120)
+
+
+class CausalEvidencePolarity(StrEnum):
+    SUPPORTS = "SUPPORTS"
+    CHALLENGES = "CHALLENGES"
+
+
+class CausalEvidenceMethod(StrEnum):
+    OBSERVATIONAL = "OBSERVATIONAL"
+    INTERVENTIONAL = "INTERVENTIONAL"
+    COUNTERFACTUAL = "COUNTERFACTUAL"
+    MECHANISTIC = "MECHANISTIC"
+    OTHER = "OTHER"
+
+
+class CausalEvidence(BaseModel):
+    """A provenance-bound item bearing on a causal hypothesis.
+
+    Polarity records how the submitter interprets the evidence; it is not a
+    machine-verified conclusion. A digest protects identity, not truth.
+    """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    evidence_id: str = Field(min_length=1, max_length=120)
+    polarity: CausalEvidencePolarity
+    method: CausalEvidenceMethod
+    evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    description: str = Field(min_length=1, max_length=1000)
+    assumptions: tuple[str, ...] = Field(default=(), max_length=20)
+
+
+class CausalHypothesis(BaseModel):
+    """A falsifiable causal proposal kept distinct from temporal precedence.
+
+    Evidence may support or challenge the proposal. The model deliberately
+    does not calculate a truth value or promote a hypothesis to a proof.
+    """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    hypothesis_id: str = Field(min_length=1, max_length=120)
+    cause_event_id: str = Field(min_length=1, max_length=120)
+    effect_event_id: str = Field(min_length=1, max_length=120)
+    relation: str = Field(min_length=1, max_length=80)
+    evidence: tuple[CausalEvidence, ...] = Field(default=(), max_length=100)
+    alternative_explanations: tuple[str, ...] = Field(default=(), max_length=20)
+    proposed_counterfactual: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_hypothesis(self):
+        if self.cause_event_id == self.effect_event_id:
+            raise ValueError("a causal hypothesis must connect distinct events")
+        evidence_ids = [item.evidence_id for item in self.evidence]
+        if len(set(evidence_ids)) != len(evidence_ids):
+            raise ValueError("causal evidence IDs must be unique")
+        if any(not item.strip() for item in self.alternative_explanations):
+            raise ValueError("alternative explanations cannot be blank")
+        return self
