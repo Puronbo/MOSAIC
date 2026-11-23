@@ -53,6 +53,7 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
     if not isinstance(raw, str) or not raw.strip() or len(raw) > 10000:
         raise ValueError("candidate must be non-empty text no longer than 10000 characters")
     candidate_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    domain_check = None
 
     try:
         decoded = json.loads(raw)
@@ -79,7 +80,6 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
                     candidate_sha256=candidate_hash, explanation="The requested differentiation variable is outside the supported symbol set.")
             expected = run_algebra(claim.operation, request.expression, request.variable)
             checked = verify_identity(claim.result, str(expected))
-            domain_check = None
             if claim.operation in {"simplify", "expand", "factor"}:
                 domain_check = check_domain_preservation(request, claim.result)
                 if domain_check.status == "UNSUPPORTED":
@@ -111,13 +111,7 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
     return TaskBoundCheck(
         status=checked["status"], request_sha256=request_hash,
         candidate_sha256=candidate_hash, equal=checked["equal"],
-        domain_status=(
-            domain_check.status if "domain_check" in locals() and domain_check is not None
-            else "NOT_CHECKED"
-        ),
-        domain_explanation=(
-            domain_check.explanation if "domain_check" in locals() and domain_check is not None
-            else None
-        ),
+        domain_status=domain_check.status if domain_check is not None else "NOT_CHECKED",
+        domain_explanation=domain_check.explanation if domain_check is not None else None,
         explanation=checked["explanation"],
     )
