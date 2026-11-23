@@ -71,7 +71,9 @@ def _revision_prompt(
         "instructions": [
             "Return exactly one JSON object and no Markdown fences or extra text.",
             "Copy operation, expression, rhs (if present), and variable exactly from the request.",
-            "Propose only the result field; do not include Lean source, tactics, proof claims, or confidence-based status.",
+            "Return exactly the fields shown in the required candidate shape; copy all task-binding fields verbatim.",
+            "For identity claims, provide the exact operation, expression, and rhs fields. For transformations, provide the exact operation, expression, variable, and your proposed result.",
+            "Do not include Lean source, tactics, proof claims, or confidence-based status.",
             "The candidate will be independently checked. Never claim it is verified.",
         ],
     }
