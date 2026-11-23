@@ -62,6 +62,15 @@ A model cannot submit Lean source, choose a tactic, replace the proposition,
 or set a mathematical status. Unknown fields are rejected. Provider/model
 labels are retained only to help trace which proposal was evaluated.
 
+Every evaluation also includes a `feedback` array. Each item has a stable
+code, severity, suggested action, and `retryable` flag. For example, an
+algebraic mismatch asks the agent to recompute from the unchanged request;
+lost domain restrictions ask it to preserve the original excluded values;
+unsupported checks and experimental-only results are explicitly non-retryable
+as proof claims. A formal-kernel outage is retryable operationally, but never
+counts as a successful proof. Feedback is guidance derived from checker
+outputs, not mathematical evidence.
+
 ## Status policy
 
 - `FORMALLY_VERIFIED`: task-bound checks passed and the request-bound
