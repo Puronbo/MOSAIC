@@ -147,3 +147,15 @@ def test_identity_prompt_does_not_request_nonexistent_result_field():
     assert set(shape) == {"operation", "expression", "rhs"}
     assert "result" not in shape
     assert any("identity claims" in item for item in payload["instructions"])
+
+
+
+def test_verified_agent_rejects_non_integer_or_unbounded_attempt_budget():
+    request = MathRequest(operation="verify_identity", expression="x + 1", rhs="1 + x")
+    provider = SequenceProvider([])
+    for invalid in (True, False, 0, 4, 1.5, "2"):
+        try:
+            asyncio.run(run_verified_agent(request, provider, max_attempts=invalid))
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted invalid max_attempts: {invalid!r}")
