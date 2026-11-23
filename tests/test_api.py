@@ -300,3 +300,50 @@ def test_request_bound_lean_transformation_endpoint_rejects_extra_fields():
         "lean_source": "sorry",
     })
     assert response.status_code == 422
+
+
+
+def test_lean_real_polynomial_derivative_endpoint_passes_candidate_to_checker(monkeypatch):
+    from mosaic import api as api_module
+    from mosaic.verification.lean_calculus import LeanPolynomialDerivativeCheck
+
+    captured = {}
+
+    def fake_verify(expression, *, candidate_derivative):
+        captured["expression"] = expression
+        captured["candidate_derivative"] = candidate_derivative
+        return LeanPolynomialDerivativeCheck(
+            status="KERNEL_UNAVAILABLE",
+            expression_sha256="a" * 64,
+            derivative_sha256="b" * 64,
+            proof_source_sha256="c" * 64,
+            explanation="Pinned Mathlib is unavailable.",
+        )
+
+    monkeypatch.setattr(api_module, "verify_polynomial_real_derivative", fake_verify)
+    response = client.post("/v1/verify/lean/polynomial-real-derivative", json={
+        "expression": "x^3 + 2*x",
+        "candidate_derivative": "3*x^2 + 2",
+    })
+    assert response.status_code == 200
+    assert response.json()["status"] == "KERNEL_UNAVAILABLE"
+    assert captured == {
+        "expression": "x^3 + 2*x",
+        "candidate_derivative": "3*x^2 + 2",
+    }
+
+
+def test_lean_real_polynomial_derivative_endpoint_rejects_caller_proof_source():
+    response = client.post("/v1/verify/lean/polynomial-real-derivative", json={
+        "expression": "x^2",
+        "lean_source": "by sorry",
+    })
+    assert response.status_code == 422
+
+
+def test_lean_real_polynomial_derivative_endpoint_bounds_candidate_length():
+    response = client.post("/v1/verify/lean/polynomial-real-derivative", json={
+        "expression": "x^2",
+        "candidate_derivative": "x" * 513,
+    })
+    assert response.status_code == 422
