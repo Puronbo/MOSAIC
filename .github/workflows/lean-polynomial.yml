@@ -9,6 +9,7 @@ on:
       - "mosaic/verification/lean_obligations.py"
       - "mosaic/verification/lean_transformations.py"
       - "mosaic/core/model_gateway.py"
+      - "mosaic/core/tool_schema.py"
       - "mosaic/engines/algebra.py"
       - "tests/test_algebra.py"
       - "tests/test_model_gateway.py"
