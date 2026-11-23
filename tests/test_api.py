@@ -116,12 +116,15 @@ def test_verification_session_keeps_request_fixed_and_appends_revisions(tmp_path
     assert first.status_code == 201
     assert first.json()["revision"] == 1
     assert first.json()["check"]["domain_status"] == "PRESERVED"
+    assert first.json()["assessment"]["trajectory"] == "FIRST_ATTEMPT"
+    assert first.json()["assessment"]["recommendation"] == "STOP_REVIEW"
 
     second = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
         "candidate": _candidate("(x**2 - 1)/(x - 1)", "(x + 1)*(x - 1)/(x - 1)")
     })
     assert second.status_code == 201
     assert second.json()["revision"] == 2
+    assert second.json()["assessment"]["trajectory"] == "UNCHANGED"
 
     fetched = client.get(f"/v1/verification-sessions/{session_id}")
     assert fetched.status_code == 200
@@ -148,3 +151,45 @@ def test_verification_session_rejects_oversized_revision(tmp_path, monkeypatch):
         "candidate": "x" * 10001
     })
     assert response.status_code == 422
+
+
+
+def test_verification_session_marks_correction_as_improvement(tmp_path, monkeypatch):
+    from mosaic import api as api_module
+    monkeypatch.setattr(api_module, "session_store", SessionStore(tmp_path / "progress.sqlite3"))
+    create = client.post("/v1/verification-sessions", json={
+        "request": {"operation": "simplify", "expression": "(x + 1)**2"}
+    })
+    session_id = create.json()["session_id"]
+    bad = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
+        "candidate": _candidate("(x + 1)**2", "x + 1")
+    })
+    assert bad.status_code == 201
+    assert bad.json()["assessment"]["recommendation"] == "CONTINUE"
+
+    corrected = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
+        "candidate": _candidate("(x + 1)**2", "x**2 + 2*x + 1")
+    })
+    assert corrected.status_code == 201
+    assert corrected.json()["assessment"]["trajectory"] == "IMPROVED"
+    assert corrected.json()["assessment"]["recommendation"] == "STOP_REVIEW"
+
+
+def test_verification_session_enforces_revision_limit(tmp_path, monkeypatch):
+    from mosaic import api as api_module
+    monkeypatch.setattr(api_module, "session_store", SessionStore(
+        tmp_path / "bounded.sqlite3", max_revisions=1
+    ))
+    create = client.post("/v1/verification-sessions", json={
+        "request": {"operation": "simplify", "expression": "x"}
+    })
+    session_id = create.json()["session_id"]
+    candidate = _candidate("x", "x")
+    first = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
+        "candidate": candidate
+    })
+    assert first.status_code == 201
+    second = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
+        "candidate": candidate
+    })
+    assert second.status_code == 409
