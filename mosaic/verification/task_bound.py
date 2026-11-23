@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from mosaic.core.requests import MathRequest
 from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
-from mosaic.verification.side_conditions import check_domain_preservation
+from mosaic.verification.side_conditions import DomainPreservationResult, check_domain_preservation
 
 
 class BoundIdentityClaim(BaseModel):
@@ -26,6 +26,38 @@ class BoundTransformClaim(BaseModel):
     result: str = Field(min_length=1, max_length=2000)
 
 
+class DomainPreservationCertificate(BaseModel):
+    """Candidate-bound record of the domain comparison actually performed."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    checker_id: Literal["rational_domain_factor_comparison.v1"] = "rational_domain_factor_comparison.v1"
+    status: Literal["PRESERVED", "EXPANDED", "RESTRICTED", "CHANGED", "UNSUPPORTED"]
+    original_nonzero_factors: tuple[str, ...] = ()
+    candidate_nonzero_factors: tuple[str, ...] = ()
+    missing_factors: tuple[str, ...] = ()
+    additional_factors: tuple[str, ...] = ()
+    explanation: str
+
+
+def _domain_certificate(
+    request_hash: str,
+    candidate_hash: str,
+    result: DomainPreservationResult,
+) -> DomainPreservationCertificate:
+    return DomainPreservationCertificate(
+        request_sha256=request_hash,
+        candidate_sha256=candidate_hash,
+        status=result.status,
+        original_nonzero_factors=result.original_nonzero_factors,
+        candidate_nonzero_factors=result.candidate_nonzero_factors,
+        missing_factors=result.missing_factors,
+        additional_factors=result.additional_factors,
+        explanation=result.explanation,
+    )
+
+
 class TaskBoundCheck(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     status: Literal["EXPERIMENTAL", "INCOMPLETE", "INVALID_CERTIFICATE", "UNSUPPORTED"]
@@ -34,6 +66,7 @@ class TaskBoundCheck(BaseModel):
     equal: bool | None = None
     domain_status: Literal["PRESERVED", "EXPANDED", "RESTRICTED", "CHANGED", "UNSUPPORTED", "NOT_CHECKED"] = "NOT_CHECKED"
     domain_explanation: str | None = None
+    domain_certificate: DomainPreservationCertificate | None = None
     explanation: str
 
 
@@ -88,6 +121,7 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
                         candidate_sha256=candidate_hash, equal=checked["equal"],
                         domain_status=domain_check.status,
                         domain_explanation=domain_check.explanation,
+                        domain_certificate=_domain_certificate(request_hash, candidate_hash, domain_check),
                         explanation="Algebraic comparison completed, but domain preservation could not be checked.",
                     )
                 if domain_check.status != "PRESERVED":
@@ -96,6 +130,7 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
                         candidate_sha256=candidate_hash, equal=False,
                         domain_status=domain_check.status,
                         domain_explanation=domain_check.explanation,
+                        domain_certificate=_domain_certificate(request_hash, candidate_hash, domain_check),
                         explanation="Candidate is algebraically comparable but does not preserve the original expression domain.",
                     )
         else:
@@ -113,5 +148,9 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
         candidate_sha256=candidate_hash, equal=checked["equal"],
         domain_status=domain_check.status if domain_check is not None else "NOT_CHECKED",
         domain_explanation=domain_check.explanation if domain_check is not None else None,
+        domain_certificate=(
+            _domain_certificate(request_hash, candidate_hash, domain_check)
+            if domain_check is not None else None
+        ),
         explanation=checked["explanation"],
     )
