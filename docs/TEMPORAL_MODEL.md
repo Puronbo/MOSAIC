@@ -99,3 +99,34 @@ For example, a machine failure may occur during an interval on a plant clock, a 
 The evidence digest supports integrity checking and provenance; it does not prove the evidence is truthful. The observer and recipient identifiers identify whose observation or knowledge is represented; they do not certify that person's reliability. A causal or enabling relationship must still be represented explicitly, and requires its own evidence or verification.
 
 This separation is a key epistemic rule for MOSAIC: **the time an event occurs, the time it is measured, the time it is recorded, and the time someone knows about it are not interchangeable.** The model captures the distinctions without claiming to settle the metaphysics of time.
+
+
+## Causal hypotheses and evidence
+
+A precedence edge and a causal hypothesis answer different questions. “A happened before B” is an ordering statement. “A caused B” proposes a dependency that needs evidence and may have competing explanations. MOSAIC now represents the latter with `CausalHypothesis`, without deriving it from timestamps or from an existing `CausalLink`.
+
+A hypothesis identifies a proposed cause event, effect event, and relation (for example, `causes` or `enables`). It can retain multiple `CausalEvidence` records, each with:
+
+- a unique evidence identifier and SHA-256 digest;
+- a method category: observational, interventional, counterfactual, mechanistic, or other;
+- a submitter-assigned polarity: supports or challenges;
+- a description and explicitly listed assumptions.
+
+A hypothesis may also list alternative explanations and a proposed counterfactual question. Both supporting and challenging evidence can coexist. This is intentional: evidence is not collapsed into a majority vote or a single confidence score. The schema permits an unassessed hypothesis with no evidence, and does not automatically mark any hypothesis true, false, proved, or refuted.
+
+### What these evidence categories mean
+
+- **Observational:** records covariation or sequence in observed data. Confounding and selection effects may remain.
+- **Interventional:** describes evidence from changing a candidate cause under a stated procedure. The intervention design, compliance, and unintended effects still matter.
+- **Counterfactual:** asks what would have happened under an alternative condition. A proposed question is not itself a computed or identified counterfactual.
+- **Mechanistic:** records a proposed process connecting cause and effect. A plausible mechanism is not proof that it operated in this instance.
+
+An evidence digest establishes which bytes a record refers to, not whether the record is accurate. The polarity is the evidence submitter's interpretation, not an independently verified assessment. The current schema is a provenance and reasoning scaffold, not a causal-discovery algorithm.
+
+### Counterfactual discipline
+
+A useful causal investigation asks a question such as: “Would the shutdown still have occurred if overheating had been prevented while relevant background conditions were held fixed?” This is stronger than noting that overheating preceded shutdown. It also exposes the assumptions that must be justified: what counts as an intervention, which background conditions are held fixed, whether the alternative is physically possible, and whether other causes remain.
+
+MOSAIC should not answer such a question merely by deleting an event from a log or replaying a model's narrative. A future counterfactual engine needs a declared structural or physical model, intervention semantics, variable domains, and independently checkable assumptions. Until then, the counterfactual field stores a question, not its answer.
+
+The intended research rule is therefore: **temporal precedence can constrain a causal explanation, but it cannot establish one; causal evidence must remain traceable, challengeable, and explicit about assumptions.**
