@@ -1,8 +1,7 @@
-"""Request-bound Lean checks for a restricted class of algebraic transformations.
+"""Request-bound Lean checks for affine and bounded polynomial transformations.
 
-Only simplify/expand/factor requests are eligible, and the result must fit the
-affine Int grammar. This checks equivalence, not canonical simplification or
-rational-domain preservation.
+Only simplify/expand/factor requests are eligible. This checks equivalence,
+not canonical simplification or rational-domain preservation.
 """
 import hashlib
 from typing import Literal
@@ -43,7 +42,7 @@ class LeanTransformationVerification(BaseModel):
 def verify_request_transformation_with_lean(
     request: MathRequest, result: str
 ) -> LeanTransformationVerification:
-    """Verify a proposed affine result against the exact transformation input."""
+    """Verify a proposed affine or polynomial result against the exact request."""
     if request.operation.value not in {"simplify", "expand", "factor"}:
         return LeanTransformationVerification(
             status="UNSUPPORTED",
