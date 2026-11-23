@@ -18,7 +18,12 @@ on:
       - "formal/polynomial/**"
       - "mosaic/verification/lean_polynomial.py"
       - "mosaic/verification/lean_obligations.py"
+      - "mosaic/verification/lean_transformations.py"
+      - "mosaic/api.py"
       - "tests/test_lean_polynomial.py"
+      - "tests/test_lean_obligations.py"
+      - "tests/test_lean_transformations.py"
+      - "tests/test_lean_polynomial_api.py"
       - "tests/test_lean_obligations.py"
       - ".github/workflows/lean-polynomial.yml"
   workflow_dispatch:
