@@ -182,7 +182,7 @@ def domain_constraints_for_request(request: MathRequest) -> tuple[str, ...]:
     return tuple(item.expression for item in domain_restrictions_for_request(request))
 
 
-def _is_nonnegative_integer_power_of_polynomial(request: MathRequest) -> bool:
+def _is_supported_rational_power(request: MathRequest) -> bool:
     supported, _ = _rational_domain_analysis(request)
     return supported
 
@@ -196,7 +196,7 @@ def evaluate_side_condition(
         and condition.predicate in {
             "inner_differentiability", "domain_definedness", "domain_preservation"
         }
-        and _is_nonnegative_integer_power_of_polynomial(request)
+        and _is_supported_rational_power(request)
     ):
         return (
             "EXPERIMENTAL",
