@@ -260,17 +260,17 @@ def _source(raw: str, candidate_derivative: str | None = None) -> tuple[str, str
     generated_derivative = _derivative(tree)
     derivative = generated_derivative
     proof = _proof(tree)
-    reconcile = f"  exact {proof}\\n"
+    reconcile = f"  exact {proof}\n"
     if candidate_derivative is not None:
         candidate_tree = _parse(candidate_derivative)
         if _polynomial(candidate_tree) != _polynomial(_parse(generated_derivative)):
             raise _CandidateMismatch("candidate derivative differs from the independently computed derivative")
         derivative = _render(candidate_tree, "t")
-        reconcile = f"  have h := {proof}\\n  convert h using 1 <;> ring\\n"
+        reconcile = f"  have h := {proof}\n  convert h using 1 <;> ring\n"
     source = (
-        "import Mathlib.Analysis.Calculus.Deriv.Pow\\n"
-        "theorem mosaic_polynomial_has_derivative (x : ℝ) :\\n"
-        f"    HasDerivAt (fun t : ℝ => {expression}) ({derivative}) x := by\\n"
+        "import Mathlib.Analysis.Calculus.Deriv.Pow\n"
+        "theorem mosaic_polynomial_has_derivative (x : ℝ) :\n"
+        f"    HasDerivAt (fun t : ℝ => {expression}) ({derivative}) x := by\n"
         f"{reconcile}"
     )
     return source, derivative
