@@ -15,6 +15,7 @@ from mosaic.verification.graph import (
     ObligationGraph,
     ObligationNode,
     evaluate_obligation_graph,
+    ObligationGraphResult,
 )
 from mosaic.verification.obligations import obligations_for_request, request_fingerprint
 
@@ -34,7 +35,7 @@ class ChainRulePlan(BaseModel):
 class ChainRuleExecution(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     plan: ChainRulePlan
-    graph_result: object
+    graph_result: ObligationGraphResult
 
 
 def _extract_power_composition(expression: str) -> tuple[str, int]:
