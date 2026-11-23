@@ -121,3 +121,30 @@ def test_identically_zero_denominator_is_not_supported():
     rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
     results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
     assert all(status == "UNSUPPORTED" for status, _, _ in results)
+
+
+def test_domain_restrictions_are_typed_request_bound_and_deterministic():
+    from mosaic.verification.side_conditions import domain_restrictions_for_request
+
+    req = request("((x + 1)/(x - 1))**2")
+    restrictions = domain_restrictions_for_request(req)
+    assert restrictions == domain_restrictions_for_request(req)
+    assert len(restrictions) == 1
+    restriction = restrictions[0]
+    assert restriction.predicate == "nonzero"
+    assert restriction.expression == "x - 1"
+    assert restriction.source_kind == "division_denominator"
+    assert restriction.request_sha256 != domain_restrictions_for_request(
+        request("((x + 1)/(x - 2))**2")
+    )[0].request_sha256
+
+
+def test_distinct_original_denominator_occurrences_remain_distinct():
+    from mosaic.verification.side_conditions import domain_restrictions_for_request
+
+    restrictions = domain_restrictions_for_request(
+        request("((1/(x - 1) + 1/(x - 1)))**2")
+    )
+    assert len(restrictions) == 2
+    assert restrictions[0].expression == restrictions[1].expression
+    assert restrictions[0].restriction_id != restrictions[1].restriction_id
