@@ -11,7 +11,7 @@ def test_affine_renderer_extracts_bounded_integer_forms():
     form, variables = lean_linear._parse_linear("2*x - y + 3")
     assert form == {"x": 2, "y": -1, "": 3}
     assert variables == ("x", "y")
-    assert lean_linear._render_form(form) == "(((2 : Int) * x) + (-y) + (3 : Int))"
+    assert lean_linear._render_expression("2*x - y + 3") == "((((2 : Int) * x) - y) + (3 : Int))"
 
 
 @pytest.mark.parametrize("expression", [
@@ -61,3 +61,15 @@ def test_lean_omega_rejection_is_not_formal_verification(monkeypatch):
     )
     result = lean_linear.verify_linear_int_identity("x + y", "x + z")
     assert result.status == "REJECTED"
+
+
+def test_cancelled_variables_remain_explicitly_bound():
+    form, variables = lean_linear._parse_linear("x - x")
+    assert form == {}
+    assert variables == ("x",)
+    assert lean_linear._render_expression("x - x") == "(x - x)"
+
+
+def test_constant_intermediate_growth_is_bounded():
+    with pytest.raises(ValueError):
+        lean_linear._parse_linear("(1000000 * 1000000) * x")
