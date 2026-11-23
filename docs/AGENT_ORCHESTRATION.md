@@ -1,0 +1,43 @@
+# MOSAIC agent orchestration contract (v11.4)
+
+## Purpose
+
+Orchestration coordinates specialized agents without expanding the trusted computing base. Agents are untrusted proposal producers. Their outputs are evidence to inspect, not proof objects.
+
+## Roles
+
+- **Decomposer:** turns a goal into explicit subgoals and dependencies.
+- **Solver:** proposes candidate derivations or computations.
+- **Critic:** searches for hidden assumptions, invalid steps, edge cases, and counterexamples.
+- **Verifier:** identifies the independent checker or proof obligation required. A model playing this role is still not the trusted proof kernel.
+
+## Task contract
+
+Each task has a stable ID, role, bounded goal/context, explicit assumptions, dependency IDs, token budget, and timeout. The task graph must have unique IDs, known dependencies, and no cycles. A deterministic topological order is used so orchestration can be replayed and audited.
+
+## Proposal contract
+
+Every proposal records its task ID, agent ID, role, claim, rationale, assumptions, evidence references, and execution status. Agent output must be treated as untrusted input and validated before use. A provider adapter must enforce independent wall-clock, token, concurrency, and request-size limits; the core contract does not itself enforce runtime isolation.
+
+## Conflict and consensus policy
+
+- No proposals: keep the task pending or mark it incomplete.
+- One distinct claim: mark it as a candidate for independent checking.
+- Multiple distinct claims: require adversarial review and preserve every proposal.
+- Matching claims from multiple models are not proof and do not increase the mathematical status above `EXPERIMENTAL`.
+- A critic's disagreement is a useful signal, not an automatic refutation.
+- Only a separate sound checker may establish a mathematical result. Only a configured trusted proof kernel may support `FORMALLY_VERIFIED`.
+
+## Execution lifecycle
+
+`PENDING -> RUNNING -> COMPLETED | FAILED | TIMED_OUT`
+
+Retries must be bounded and recorded as new attempts. Preserve provider/model identifiers, prompt and context hashes, timestamps, resource use, task dependencies, raw outputs, and checker versions. Never silently overwrite a conflicting proposal.
+
+## Security boundaries
+
+Treat prompts, model responses, retrieved documents, and tool outputs as untrusted data. Do not allow an agent to choose arbitrary tools or permissions. Use explicit capability allow-lists, secret isolation, egress controls, per-agent quotas, output-size limits, and process isolation for symbolic computation. Redact secrets before logging.
+
+## Current implementation
+
+`mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, dependency graph validation, and conservative proposal aggregation. It does not call model APIs, execute agents, provide a scheduler, or verify mathematics. Those integrations remain separate milestones.
