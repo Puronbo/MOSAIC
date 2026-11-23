@@ -6,6 +6,20 @@ system can call this endpoint after generating a mathematical candidate. The
 endpoint does not call a model; it is the independent verification side of the
 integration.
 
+## Registering the tool with an AI agent
+
+Fetch `GET /v1/ai/tool-schema` to obtain a portable function-tool declaration
+named `mosaic_verify_candidate`. Register that declaration with an agent
+framework that supports function tools. When the model requests the tool, your
+application forwards its arguments to `POST /v1/ai/candidate` and returns the
+JSON response to the model as tool output.
+
+This separates three responsibilities: the model proposes a candidate, the
+agent runtime transports tool calls, and MOSAIC independently evaluates the
+candidate. MOSAIC does not invoke the model or assume that a tool call itself
+is trustworthy. The returned status and checker details—not the model's
+description of the tool result—are authoritative.
+
 ## Request
 
 The request carries the original mathematical task separately from the
