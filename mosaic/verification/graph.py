@@ -14,6 +14,7 @@ from mosaic.verification.obligations import (
 from mosaic.verification.side_conditions import (
     RuleSideCondition,
     verify_side_condition_contract,
+    evaluate_side_condition,
 )
 from mosaic.verification.task_bound import TaskBoundCheck
 
@@ -51,7 +52,8 @@ class ObligationNodeResult(BaseModel):
 class SideConditionResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     condition_id: str
-    status: Literal["UNSUPPORTED"]
+    status: Literal["EXPERIMENTAL", "UNSUPPORTED"]
+    checker_id: str
     explanation: str
 
 
@@ -177,11 +179,25 @@ def evaluate_obligation_graph(
     side_results = tuple(
         SideConditionResult(
             condition_id=item.condition.condition_id,
-            status="UNSUPPORTED",
-            explanation=item.condition.statement,
+            status=status,
+            checker_id=checker_id,
+            explanation=explanation,
         )
         for item in graph.side_conditions
+        for status, checker_id, explanation in (
+            evaluate_side_condition(item.request, item.condition),
+        )
     )
+    if (
+        overall == "UNSUPPORTED"
+        and side_results
+        and all(item.status == "EXPERIMENTAL" for item in side_results)
+        and all(
+            result.status == "EXPERIMENTAL" and result.equal is True
+            for result in ordered_results
+        )
+    ):
+        overall = "EXPERIMENTAL"
     return ObligationGraphResult(
         status=overall,
         results=ordered_results,
