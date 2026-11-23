@@ -140,7 +140,7 @@ def append_verification_revision(
         revision = session_store.append(
             session_id, payload.candidate, check,
             tuple(item.model_dump(mode="json") for item in feedback),
-            evidence_from_check(check),
+            evidence_from_check(check, session.request, payload.candidate),
         )
     except RevisionLimitReached as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -184,5 +184,5 @@ def verify_task_bound(payload: TaskBoundVerificationRequest):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return TaskBoundVerificationResponse(
         check=check, feedback=_candidate_feedback(check),
-        evidence=evidence_from_check(check),
+        evidence=evidence_from_check(check, payload.request, payload.candidate),
     )
