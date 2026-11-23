@@ -33,7 +33,10 @@ proofs that the conditions hold. The checker does not enumerate roots or
 remove restrictions after cancellation. Supported rational expressions and
 their derivatives remain conditional on the recorded restrictions and are
 marked `EXPERIMENTAL`. Negative outer powers, logarithms, roots,
-trigonometric expressions, and branch-sensitive functions remain unsupported.
+trigonometric expressions, and branch-sensitive functions remain unsupported. Negative
+integer powers *inside* the rational expression are supported and contribute
+a typed `negative_power_base` restriction (for example, `x**-1` records
+`x != 0`). Negative outer powers remain unsupported.
 
 The checker result is separate from the immutable side-condition contract.
 It cannot be altered by supplying a candidate string. Graph validation
