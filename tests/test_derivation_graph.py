@@ -2,7 +2,7 @@ from mosaic.core.requests import MathRequest
 from mosaic.core.types import Operation
 from mosaic.engines.algebra import ExpressionError
 from mosaic.verification.derivation import build_derivation_tree
-from mosaic.verification.derivation_graph import compile_derivation_obligation_graph
+from mosaic.verification.derivation_graph import (\n    compile_derivation_obligation_graph,\n    evaluate_derivation_tree,\n)
 from mosaic.verification.graph import validate_obligation_graph
 
 
@@ -51,3 +51,13 @@ def test_compiler_rejects_incomplete_or_tampered_tree():
         assert "invalid or incomplete" in str(exc)
     else:
         raise AssertionError("tampered derivation tree should be rejected")
+
+
+
+def test_evaluator_keeps_missing_leaf_obligations_incomplete():
+    source = request()
+    tree = build_derivation_tree(source)
+    result = evaluate_derivation_tree(source, tree, {})
+    assert result.status == "INCOMPLETE"
+    assert len(result.results) == 5
+    assert all(item.status == "INCOMPLETE" for item in result.results)
