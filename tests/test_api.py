@@ -51,8 +51,8 @@ def test_task_bound_endpoint_returns_versioned_domain_certificate_and_feedback()
     assert body["check"]["domain_certificate"]["checker_id"] == "rational_domain_factor_comparison.v1"
     assert body["feedback"][0]["code"] == "REVIEW_RESULT"
     assert body["feedback"][0]["retryable"] is False
-    assert body["evidence"]["assessment"]["status"] == "SINGLE_SOURCE_SUPPORT"
-    assert body["evidence"]["assessment"]["independent_support_count"] == 1
+    assert body["evidence"]["assessment"]["status"] == "MULTI_SOURCE_SUPPORT"
+    assert body["evidence"]["assessment"]["independent_support_count"] == 2
     assert body["evidence"]["assessment"]["model_opinion_count"] == 0
 
 
@@ -121,7 +121,7 @@ def test_verification_session_keeps_request_fixed_and_appends_revisions(tmp_path
     assert first.json()["check"]["domain_status"] == "PRESERVED"
     assert first.json()["assessment"]["trajectory"] == "FIRST_ATTEMPT"
     assert first.json()["assessment"]["recommendation"] == "STOP_REVIEW"
-    assert first.json()["evidence"]["assessment"]["independent_support_count"] == 1
+    assert first.json()["evidence"]["assessment"]["independent_support_count"] == 2
 
     second = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
         "candidate": _candidate("(x**2 - 1)/(x - 1)", "(x + 1)*(x - 1)/(x - 1)")
@@ -137,7 +137,7 @@ def test_verification_session_keeps_request_fixed_and_appends_revisions(tmp_path
     assert body["request"]["expression"] == "(x**2 - 1)/(x - 1)"
     assert [item["revision"] for item in body["revisions"]] == [1, 2]
     assert [item["check"]["request_sha256"] for item in body["revisions"]] == [original_hash, original_hash]
-    assert all(item["evidence"]["assessment"]["status"] == "SINGLE_SOURCE_SUPPORT" for item in body["revisions"])
+    assert all(item["evidence"]["assessment"]["status"] == "MULTI_SOURCE_SUPPORT" for item in body["revisions"])
 
 
 def test_verification_session_unknown_id_is_not_found():
