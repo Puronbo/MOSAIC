@@ -27,7 +27,7 @@ def test_product_rule_is_generated_from_mathlib_derivative_combinator():
 def test_constant_and_unary_negative_are_supported():
     source, _ = _source("-x^2 + 7")
     assert ".neg" in source
-    assert "hasDerivAt_const" in source
+    assert "hasDerivAt_const x (7 : ℝ)" in source
 
 
 @pytest.mark.parametrize(
