@@ -15,6 +15,19 @@ from mosaic.engines.algebra import ExpressionError, parse_expression
 from mosaic.verification.obligations import request_fingerprint
 
 
+class DomainRestriction(BaseModel):
+    """A typed nonzero condition preserving its origin in the submitted syntax."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    restriction_id: str = Field(min_length=1, max_length=180)
+    request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    predicate: Literal["nonzero"] = "nonzero"
+    expression: str = Field(min_length=1, max_length=2000)
+    source_kind: Literal["division_denominator", "negative_power_base"]
+    line: int = Field(ge=1)
+    column: int = Field(ge=0)
+
+
 class RuleSideCondition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -69,7 +82,7 @@ def verify_side_condition_contract(
     )
 
 
-def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[str, ...]]:
+def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[tuple[str, str, int, int], ...]]:
     """Recognize rational expressions while retaining every syntactic exclusion."""
     try:
         tree = ast.parse(request.expression, mode="eval")
@@ -84,7 +97,7 @@ def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[str, ..
         ):
             return False, ()
 
-        constraints: list[str] = []
+        constraints: list[tuple[str, str, int, int]] = []
 
         def supported(node: ast.AST) -> bool:
             if isinstance(node, ast.Name):
@@ -107,7 +120,7 @@ def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[str, ..
                         return False
                     if denominator == 0:
                         return False
-                    constraints.append(sp.sstr(denominator))
+                    constraints.append((sp.sstr(denominator), "division_denominator", node.lineno, node.col_offset))
                     return True
                 if isinstance(node.op, ast.Pow):
                     if not (
@@ -118,7 +131,7 @@ def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[str, ..
                         return False
                     if node.right.value < 0:
                         base = parse_expression(ast.unparse(node.left))
-                        constraints.append(sp.sstr(base))
+                        constraints.append((sp.sstr(base), "negative_power_base", node.lineno, node.col_offset))
                     return True
             return False
 
@@ -140,10 +153,33 @@ def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[str, ..
         return False, ()
 
 
-def domain_constraints_for_request(request: MathRequest) -> tuple[str, ...]:
-    """Return preserved nonzero constraints for supported rational chain rules."""
+def domain_restrictions_for_request(request: MathRequest) -> tuple[DomainRestriction, ...]:
+    """Return deterministic, request-bound restrictions for supported rational chains."""
     supported, constraints = _rational_domain_analysis(request)
-    return constraints if supported else ()
+    if not supported:
+        return ()
+    fingerprint = request_fingerprint(request)
+    restrictions = []
+    for expression, source_kind, line, column in constraints:
+        payload = json.dumps(
+            [fingerprint, expression, source_kind, line, column],
+            separators=(",", ":"),
+        )
+        digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
+        restrictions.append(DomainRestriction(
+            restriction_id=f"domain:{digest}",
+            request_sha256=fingerprint,
+            expression=expression,
+            source_kind=source_kind,
+            line=line,
+            column=column,
+        ))
+    return tuple(restrictions)
+
+
+def domain_constraints_for_request(request: MathRequest) -> tuple[str, ...]:
+    """Compatibility view of the typed nonzero restrictions."""
+    return tuple(item.expression for item in domain_restrictions_for_request(request))
 
 
 def _is_nonnegative_integer_power_of_polynomial(request: MathRequest) -> bool:
