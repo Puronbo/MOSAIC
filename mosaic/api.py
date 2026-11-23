@@ -10,6 +10,7 @@ from mosaic.core.types import Status
 from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
 from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_candidate
+from mosaic.verification.evidence import EvidenceBundle, evidence_from_check
 from mosaic.verification.sessions import (
     RevisionLimitReached, SessionStore, VerificationSession, VerificationRevision,
 )
@@ -49,6 +50,7 @@ class TaskBoundVerificationResponse(BaseModel):
     checker_id: str = "mosaic.task_bound_candidate.v1"
     check: TaskBoundCheck
     feedback: tuple[CandidateFeedback, ...] = ()
+    evidence: EvidenceBundle
 
 
 def _candidate_feedback(check: TaskBoundCheck) -> tuple[CandidateFeedback, ...]:
@@ -138,6 +140,7 @@ def append_verification_revision(
         revision = session_store.append(
             session_id, payload.candidate, check,
             tuple(item.model_dump(mode="json") for item in feedback),
+            evidence_from_check(check),
         )
     except RevisionLimitReached as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -179,4 +182,7 @@ def verify_task_bound(payload: TaskBoundVerificationRequest):
         check = verify_task_bound_candidate(payload.request, payload.candidate)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return TaskBoundVerificationResponse(check=check, feedback=_candidate_feedback(check))
+    return TaskBoundVerificationResponse(
+        check=check, feedback=_candidate_feedback(check),
+        evidence=evidence_from_check(check),
+    )
