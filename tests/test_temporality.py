@@ -139,3 +139,38 @@ def test_partial_order_comparison_rejects_unregistered_event():
     graph = EventOrderGraph(event_ids=("A", "B"))
     with pytest.raises(ValueError, match="belong"):
         compare_event_order(graph, "A", "C")
+
+
+def test_clock_definitions_make_time_semantics_explicit():
+    from mosaic.core.temporality import ClockDefinition, ClockKind, validate_clock_point
+
+    monotonic = ClockDefinition(clock_id="process-1", kind=ClockKind.MONOTONIC)
+    civil = ClockDefinition(
+        clock_id="wall-1", kind=ClockKind.CIVIL, timezone="Asia/Manila"
+    )
+    proper = ClockDefinition(
+        clock_id="traveler-1", kind=ClockKind.PROPER, worldline_id="worldline-A"
+    )
+    coordinate = ClockDefinition(
+        clock_id="frame-1", kind=ClockKind.COORDINATE, reference_frame="frame-A"
+    )
+    assert monotonic.kind == ClockKind.MONOTONIC
+    assert civil.timezone == "Asia/Manila"
+    assert proper.worldline_id == "worldline-A"
+    assert coordinate.reference_frame == "frame-A"
+    validate_clock_point(point("12", clock="process-1"), monotonic)
+    with pytest.raises(ValueError, match="does not match"):
+        validate_clock_point(point("12", clock="other"), monotonic)
+
+
+def test_clock_definitions_reject_missing_or_misapplied_context():
+    from mosaic.core.temporality import ClockDefinition, ClockKind
+
+    with pytest.raises(ValidationError, match="reference_frame"):
+        ClockDefinition(clock_id="frame", kind=ClockKind.COORDINATE)
+    with pytest.raises(ValidationError, match="worldline_id"):
+        ClockDefinition(clock_id="traveler", kind=ClockKind.PROPER)
+    with pytest.raises(ValidationError, match="timezone"):
+        ClockDefinition(clock_id="wall", kind=ClockKind.CIVIL)
+    with pytest.raises(ValidationError, match="only valid"):
+        ClockDefinition(clock_id="mono", kind=ClockKind.MONOTONIC, timezone="UTC")
