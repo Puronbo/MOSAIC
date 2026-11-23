@@ -44,3 +44,17 @@ def test_side_condition_contract_is_request_bound_and_tamper_evident():
 def test_side_conditions_are_deterministic():
     rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
     assert rule.side_conditions(request()) == rule.side_conditions(request())
+
+
+
+def test_nested_derivation_exposes_side_conditions_for_each_rule_node():
+    from mosaic.verification.derivation import build_derivation_tree
+    from mosaic.verification.derivation_graph import side_conditions_for_derivation_tree
+
+    req = request("((x**2 + 1)**3)**2")
+    tree = build_derivation_tree(req)
+    conditions = side_conditions_for_derivation_tree(req, tree)
+
+    assert len(conditions) == 6
+    assert all(item.status == "UNSUPPORTED" for item in conditions)
+    assert len({item.condition_id for item in conditions}) == 6
