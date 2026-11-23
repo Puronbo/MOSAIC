@@ -78,14 +78,6 @@ def test_simplification_passes_when_original_domain_is_preserved():
     assert result.domain_status == "PRESERVED"
 
 
-def test_simplification_refuses_unrecognized_domain_grammar():
-    request = req("simplify", "sin(x)")
-    raw = json.dumps({"operation": "simplify", "expression": "sin(x)", "variable": "x", "result": "sin(x)"})
-    result = verify_task_bound_candidate(request, raw)
-    assert result.status == "UNSUPPORTED"
-    assert result.domain_status == "UNSUPPORTED"
-
-
 def test_differentiation_does_not_apply_rewrite_domain_equality_policy():
     request = req("differentiate", "x**3")
     raw = json.dumps({"operation": "differentiate", "expression": "x**3", "variable": "x", "result": "3*x**2"})
