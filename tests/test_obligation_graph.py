@@ -26,10 +26,12 @@ def node(operation, expression, rhs=None, depends_on=()):
 
 
 def identity_candidate(lhs, rhs):
-    return (
-        '{"operation":"verify_identity","expression":' + repr(lhs)
-        + ',"rhs":' + repr(rhs) + '}'
-    )
+    import json
+    return json.dumps({
+        "operation": "verify_identity",
+        "expression": lhs,
+        "rhs": rhs,
+    })
 
 
 def expand_candidate(expression, result):
