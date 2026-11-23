@@ -142,6 +142,85 @@ def test_partial_order_comparison_rejects_unregistered_event():
 
 
 
+
+def interval(start, end, clock="monotonic-A"):
+    from mosaic.core.temporality import TemporalInterval
+
+    return TemporalInterval(start=point(str(start), clock=clock), end=point(str(end), clock=clock))
+
+
+@pytest.mark.parametrize(
+    "left,right,expected",
+    [
+        ((1, 2), (3, 4), "BEFORE"),
+        ((1, 3), (3, 5), "MEETS"),
+        ((1, 4), (3, 6), "OVERLAPS"),
+        ((1, 3), (1, 5), "STARTS"),
+        ((2, 3), (1, 5), "DURING"),
+        ((2, 5), (1, 5), "FINISHES"),
+        ((1, 5), (1, 5), "EQUALS"),
+        ((1, 5), (2, 5), "FINISHED_BY"),
+        ((1, 6), (2, 5), "CONTAINS"),
+        ((1, 5), (1, 3), "STARTED_BY"),
+        ((3, 6), (1, 4), "OVERLAPPED_BY"),
+        ((3, 5), (1, 3), "MET_BY"),
+        ((4, 5), (1, 3), "AFTER"),
+    ],
+)
+def test_exact_temporal_intervals_use_allen_relations(left, right, expected):
+    from mosaic.core.temporality import IntervalRelation, compare_temporal_intervals
+
+    assert compare_temporal_intervals(
+        interval(*left), interval(*right)
+    ) == IntervalRelation(expected)
+
+
+def test_uncertain_interval_order_is_only_asserted_when_bounds_separate():
+    from mosaic.core.temporality import (
+        IntervalRelation,
+        TemporalInterval,
+        compare_temporal_intervals,
+    )
+
+    definitely_before = TemporalInterval(
+        start=point("1", "0.1"),
+        end=point("2", "0.1"),
+    )
+    later = TemporalInterval(
+        start=point("3", "0.1"),
+        end=point("4", "0.1"),
+    )
+    uncertain_overlap = TemporalInterval(
+        start=point("1", "0.2"),
+        end=point("3", "0.2"),
+    )
+    overlapping = TemporalInterval(
+        start=point("2.9", "0.2"),
+        end=point("4", "0.2"),
+    )
+    assert compare_temporal_intervals(
+        definitely_before, later
+    ) == IntervalRelation.BEFORE
+    assert compare_temporal_intervals(
+        uncertain_overlap, overlapping
+    ) == IntervalRelation.INDETERMINATE
+
+
+def test_temporal_intervals_reject_cross_clock_endpoints_and_comparisons():
+    from mosaic.core.temporality import TemporalInterval, compare_temporal_intervals
+
+    with pytest.raises(ValidationError, match="same clock"):
+        TemporalInterval(start=point("1"), end=point("2", clock="other"))
+    with pytest.raises(ValueError, match="different clocks"):
+        compare_temporal_intervals(interval(1, 2), interval(3, 4, clock="other"))
+
+
+def test_temporal_interval_rejects_reversed_endpoints():
+    from mosaic.core.temporality import TemporalInterval
+
+    with pytest.raises(ValidationError, match="cannot follow"):
+        TemporalInterval(start=point("3"), end=point("2"))
+
 def test_clock_calibration_transforms_coordinates_and_propagates_uncertainty():
     from mosaic.core.temporality import ClockCalibration, transform_clock_point
 
