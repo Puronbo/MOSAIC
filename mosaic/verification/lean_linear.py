@@ -113,8 +113,9 @@ def _render_linear(node: ast.AST) -> str:
             raise _Unsupported("only variables x, y, and z are supported")
         return node.id
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-        operator = "+" if isinstance(node.op, ast.UAdd) else "-"
-        return f"({operator}{_render_linear(node.operand)})"
+        if isinstance(node.op, ast.UAdd):
+            return _render_linear(node.operand)
+        return f"(-{_render_linear(node.operand)})"
     if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult)):
         operator = "+" if isinstance(node.op, ast.Add) else "-" if isinstance(node.op, ast.Sub) else "*"
         return f"({_render_linear(node.left)} {operator} {_render_linear(node.right)})"
