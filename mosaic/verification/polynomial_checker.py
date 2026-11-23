@@ -14,6 +14,8 @@ RationalFunction: TypeAlias = tuple[Polynomial, Polynomial]
 _VARIABLES = {"x": 0, "y": 1, "z": 2}
 _MAX_NODES = 200
 _MAX_EXPONENT = 12
+_MAX_DEGREE = 48
+_MAX_TERMS = 4096
 
 
 class UnsupportedPolynomialExpression(ValueError):
@@ -40,7 +42,11 @@ def _multiply(left: Polynomial, right: Polynomial) -> Polynomial:
     for lm, lc in left.items():
         for rm, rc in right.items():
             monomial = tuple(a + b for a, b in zip(lm, rm))
+            if max(monomial) > _MAX_DEGREE:
+                raise UnsupportedPolynomialExpression("polynomial degree exceeds the independent checker bound")
             result[monomial] = result.get(monomial, Fraction(0)) + lc * rc
+            if len(result) > _MAX_TERMS:
+                raise UnsupportedPolynomialExpression("polynomial term count exceeds the independent checker bound")
     return _clean(result)
 
 
@@ -98,6 +104,8 @@ def _parse(node: ast.AST) -> RationalFunction:
     if isinstance(node, ast.Constant):
         if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
             raise UnsupportedPolynomialExpression("only numeric rational constants are supported")
+        if len(str(node.value)) > 128:
+            raise UnsupportedPolynomialExpression("numeric literal exceeds the independent checker bound")
         return {(0, 0, 0): Fraction(str(node.value))}, one
     if isinstance(node, ast.Name) and node.id in _VARIABLES:
         powers = [0, 0, 0]
@@ -147,5 +155,5 @@ def rational_polynomial_equivalent(left: str, right: str) -> bool | None:
         left_value = _parse(left_tree.body)
         right_value = _parse(right_tree.body)
         return _multiply(left_value[0], right_value[1]) == _multiply(right_value[0], left_value[1])
-    except (SyntaxError, ValueError, ZeroDivisionError, OverflowError):
+    except (SyntaxError, ValueError, ZeroDivisionError, OverflowError, RecursionError):
         return None
