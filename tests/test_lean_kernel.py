@@ -72,3 +72,11 @@ def test_no_user_supplied_lean_source_or_imports_can_enter_the_generated_file(mo
     assert "macro" not in captured["source"]
     assert captured["source"] == "theorem mosaic_certificate : ((7 * 8) : Nat) = (56 : Nat) := by decide\n"
     assert "sorry" not in captured["source"]
+
+
+def test_lean_subprocess_receives_toolchain_environment_not_application_secrets(monkeypatch):
+    monkeypatch.setenv("ELAN_HOME", "/opt/elan")
+    monkeypatch.setenv("API_SECRET", "must-not-be-forwarded")
+    env = lean_kernel._lean_environment()
+    assert env["ELAN_HOME"] == "/opt/elan"
+    assert "API_SECRET" not in env
