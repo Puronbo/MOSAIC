@@ -60,7 +60,7 @@ def test_candidate_derivative_is_bound_to_the_generated_polynomial():
     assert "HasDerivAt (fun t : ℝ" in source
     assert "(3 : ℝ)" in source
     assert "convert h using 1 <;> ring" in source
-    assert derivative == "(((3 : ℝ) * (t ^ 2)) + (2 : ℝ))"
+    assert derivative == "(((3 : ℝ) * (x ^ 2)) + (2 : ℝ))"
 
 
 def test_wrong_candidate_derivative_is_rejected_before_kernel_execution():
