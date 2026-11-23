@@ -21,11 +21,31 @@ operation, expression, and variable to the supplied request, recomputes the
 expected result, and performs the existing rational-domain comparison for
 simplify/expand/factor candidates.
 
-The response envelope contains `schema_version`, `checker_id`, and a
-structured `check`. The check includes request and candidate hashes, status,
-equality result, and (when applicable) a candidate-bound domain-preservation
-certificate. Consumers should retain the complete response and may rerun the
-identified checker against the original inputs.
+## Response and revision loop
+
+Response schema version `1.1` contains `checker_id`, the complete structured
+`check`, and a `feedback` array. Feedback entries have stable machine-facing
+codes, severity, a human-readable message, a suggested next action, and a
+`retryable` flag. Current codes include:
+
+- `DOMAIN_RESTRICTION_LOST`: preserve the original excluded values; missing
+  factors are included when the checker can identify them.
+- `ALGEBRAIC_MISMATCH`: recompute the operation from the unchanged request.
+- `INVALID_CANDIDATE`: correct the claim schema or exact task binding.
+- `UNSUPPORTED_CHECK`: do not treat the candidate as accepted.
+- `REVIEW_RESULT`: available experimental checks passed, but proof is not
+  established.
+
+An agent loop should retain the original request unchanged, revise only its
+candidate, and resubmit it. It should stop or escalate when feedback is not
+retryable. Feedback is guidance, not evidence; the checker result and its
+limitations remain authoritative. No provider identity or model-generated
+confidence can upgrade a result.
+
+The check includes request and candidate hashes, status, equality result, and
+(where applicable) a candidate-bound domain-preservation certificate.
+Consumers should retain the complete response and may rerun the identified
+checker against the original inputs.
 
 A response with `EXPERIMENTAL` is not a proof. Hashes bind the report to the
 inputs; they do not establish mathematical truth. `INCOMPLETE`,
