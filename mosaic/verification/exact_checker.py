@@ -15,8 +15,9 @@ def verify_identity(lhs: str, rhs: str) -> dict:
                 "explanation": "The symbolic engine reduces the exact difference to zero. This candidate has not been independently proof-checked."}
     polynomial_nonzero = False
     try:
-        polynomial_nonzero = reduced.is_polynomial() and not sp.Poly(reduced).is_zero
-    except (sp.PolynomialError, TypeError):
+        symbols = tuple(sorted(reduced.free_symbols, key=str))
+        polynomial_nonzero = bool(symbols) and reduced.is_polynomial(*symbols) and not sp.Poly(reduced, *symbols).is_zero
+    except (sp.PolynomialError, TypeError, ValueError):
         polynomial_nonzero = False
     if reduced.is_zero is False or polynomial_nonzero:
         return {"status": "INCOMPLETE", "equal": False, "certificate": None,
