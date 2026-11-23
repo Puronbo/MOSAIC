@@ -30,14 +30,18 @@ subtraction, multiplication, and natural powers. The generated theorem is
 submitted to the pinned Mathlib project and receives
 `FORMALLY_VERIFIED` only when Lean exits successfully after kernel checking.
 
-The derivative expression and generated proof source each receive a SHA-256
-fingerprint. The Mathlib revision is pinned to
+The checker can also accept a proposed derivative string from the model. It
+parses that candidate with the same bounded grammar, compares exact polynomial
+coefficients against its independently computed derivative, and makes the
+candidate—not a substituted expected value—the conclusion of the generated
+Lean theorem. Lean reconciles equivalent polynomial forms with a generated
+ring equality proof. The expression, submitted derivative, and generated proof
+source each receive a SHA-256 fingerprint. The Mathlib revision is pinned to
 `fc4f59e577feb1a4956671bc04ac18aaaf8cd842`. A missing Lean environment,
 timeout, unsupported syntax, or rejected theorem is never reported as a
 formal proof.
 
-This checker establishes a derivative theorem for the supported polynomial
-expression over the reals. It does not yet provide a request-bound
-differentiation operation in the AI gateway, handle rational functions or
-domain restrictions, or support multivariate/partial derivatives. Those
-remain separate integration tasks.
+The model gateway binds the exact original request and candidate result before
+calling this checker. Only variable `x` is currently connected to this formal
+path; `y` and `z`, rational functions, domain restrictions, and
+multivariate/partial derivatives remain unsupported for formal differentiation.
