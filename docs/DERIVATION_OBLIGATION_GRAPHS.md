@@ -29,3 +29,14 @@ therefore retains the checkers' conservative status and cannot be promoted to
   aggregation.
 - Future rule compilers must explicitly define prerequisite branches and
   dependency semantics before they can participate.
+
+
+## Rule-owned derivation expansion
+
+Each statically registered decomposition rule now supplies its own ordered
+child-request expander. The recursive tree builder and validator resolve that
+expander through the registry rather than branching on a particular rule ID.
+This makes adding a new built-in rule less invasive while preserving the
+allow-list: rule code is still trusted repository code, not model-supplied
+executable content. Child order remains significant because dependency policies
+refer to child indices.
