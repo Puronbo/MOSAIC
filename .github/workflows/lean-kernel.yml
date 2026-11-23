@@ -39,11 +39,23 @@ jobs:
       - name: Exercise real Lean kernel bridge
         run: |
           python - <<'PY'
+          from mosaic.core.requests import MathRequest
+          from mosaic.core.types import Operation
           from mosaic.verification.lean_kernel import verify_closed_nat_equality
+          from mosaic.verification.lean_obligations import verify_request_identity_with_lean
 
           positive = verify_closed_nat_equality("(2 + 3) * 4", "20")
           assert positive.status == "FORMALLY_VERIFIED", positive.model_dump()
           negative = verify_closed_nat_equality("2 + 3", "6")
           assert negative.status == "REJECTED", negative.model_dump()
-          print("Lean kernel bridge positive and negative checks passed.")
+          request = MathRequest(
+              operation=Operation.VERIFY_IDENTITY,
+              expression="2 + 3",
+              rhs="5",
+          )
+          bound = verify_request_identity_with_lean(request)
+          assert bound.status == "FORMALLY_VERIFIED", bound.model_dump()
+          assert bound.obligation.request_sha256
+          assert bound.obligation.assumptions == ()
+          print("Lean kernel bridge and request-bound obligation checks passed.")
           PY
