@@ -53,8 +53,11 @@ cannot replace the request with a self-selected proposition.
    and independently recomputes the requested operation.
 3. Transformations must also pass the available rational-domain preservation
    check before they can advance to formal checking.
-4. For eligible identity and simplify/expand/factor tasks, MOSAIC generates its
-   own bounded Lean obligation and invokes the configured Lean checker.
+4. For eligible identity, simplify/expand/factor, and bounded univariate
+   differentiation tasks, MOSAIC generates its own Lean obligation and invokes
+   the configured Lean checker. Differentiation currently supports real
+   polynomials in `x` only; the submitted derivative is checked against an
+   independently computed polynomial and is the conclusion of the Lean theorem.
 5. The response binds the original request and exact candidate to SHA-256
    fingerprints and reports each checker result separately.
 
@@ -84,7 +87,8 @@ outputs, not mathematical evidence.
 - `KERNEL_UNAVAILABLE` / `KERNEL_ERROR`: formal verification could not
   complete; this is not a successful proof.
 - `EXPERIMENTAL`: task-bound checks passed but no formal checker is available
-  for that operation.
+  for that operation (including differentiation in variables other than `x`
+  or outside the bounded polynomial grammar).
 
 The API never upgrades a model's own assertion, confidence, or agreement with
 other models into evidence. A hash establishes input/report identity, not
