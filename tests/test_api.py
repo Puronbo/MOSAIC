@@ -259,3 +259,44 @@ def test_request_bound_lean_identity_endpoint_rejects_extra_fields():
         "lhs": "1",
     })
     assert response.status_code == 422
+
+
+def test_request_bound_lean_transformation_endpoint(monkeypatch):
+    from mosaic import api as api_module
+    from mosaic.verification.lean_transformations import LeanTransformationVerification
+    captured = {}
+
+    def fake_verify(request, result):
+        captured["request"] = request
+        captured["result"] = result
+        return LeanTransformationVerification(
+            status="UNSUPPORTED",
+            explanation="Outside the restricted affine grammar.",
+        )
+
+    monkeypatch.setattr(
+        api_module, "verify_request_transformation_with_lean", fake_verify
+    )
+    response = client.post("/v1/verify/lean/transformation", json={
+        "request": {
+            "operation": "simplify",
+            "expression": "2*x + x",
+        },
+        "result": "3*x",
+    })
+    assert response.status_code == 200
+    assert response.json()["status"] == "UNSUPPORTED"
+    assert captured["request"].expression == "2*x + x"
+    assert captured["result"] == "3*x"
+
+
+def test_request_bound_lean_transformation_endpoint_rejects_extra_fields():
+    response = client.post("/v1/verify/lean/transformation", json={
+        "request": {
+            "operation": "simplify",
+            "expression": "2*x + x",
+        },
+        "result": "3*x",
+        "lean_source": "sorry",
+    })
+    assert response.status_code == 422
