@@ -92,3 +92,35 @@ def test_ai_candidate_endpoint_rejects_unknown_fields():
         "lean_source": "by trivial",
     })
     assert response.status_code == 422
+
+
+def test_gateway_keeps_kernel_unavailable_distinct_from_proof(monkeypatch):
+    from mosaic.core import model_gateway
+    from mosaic.verification.lean_obligations import LeanIdentityVerification
+
+    monkeypatch.setattr(
+        model_gateway, "verify_task_bound_candidate",
+        lambda request, candidate: _task_check(),
+    )
+    monkeypatch.setattr(
+        model_gateway, "verify_request_identity_with_lean",
+        lambda request: LeanIdentityVerification(
+            status="KERNEL_UNAVAILABLE",
+            explanation="Lean executable unavailable",
+        ),
+    )
+    submission = ModelCandidateSubmission(
+        request=MathRequest(
+            operation="verify_identity",
+            expression="x + 1",
+            rhs="1 + x",
+        ),
+        candidate=json.dumps({
+            "operation": "verify_identity",
+            "expression": "x + 1",
+            "rhs": "1 + x",
+        }),
+    )
+    result = evaluate_model_candidate(submission)
+    assert result.status == "KERNEL_UNAVAILABLE"
+    assert result.status != "FORMALLY_VERIFIED"
