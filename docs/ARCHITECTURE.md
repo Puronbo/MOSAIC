@@ -43,3 +43,10 @@ addition, subtraction, and multiplication by a constant. It emits explicit
 fingerprinted. Nonlinear expressions, division, domain assumptions, and
 arbitrary source remain unsupported. The theorem proves equality for every
 integer assignment and must not be interpreted as a rational-domain proof.
+
+A further route, POST /v1/verify/lean/transformation, binds a proposed result
+to a specific simplify/expand/factor request and checks affine equivalence
+over Int. The obligation binds both request and candidate hashes. This narrow
+check is not a general transformation verifier: nonlinear expressions,
+division, rational-domain preservation, and canonical-form properties are
+outside its scope.
