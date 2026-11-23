@@ -104,21 +104,31 @@ def _parse_linear(raw: str) -> tuple[dict[str, int], tuple[str, ...]]:
     return form, variables
 
 
-def _render_form(form: dict[str, int]) -> str:
-    terms: list[str] = []
-    constant = form.get("", 0)
-    for variable in sorted(key for key in form if key):
-        coefficient = form[variable]
-        if coefficient == 1:
-            term = variable
-        elif coefficient == -1:
-            term = f"(-{variable})"
-        else:
-            term = f"(({coefficient} : Int) * {variable})"
-        terms.append(term)
-    if constant:
-        terms.append(f"({constant} : Int)")
-    return "(" + " + ".join(terms or ["(0 : Int)"]) + ")"
+def _render_linear(node: ast.AST) -> str:
+    literal = _constant(node)
+    if literal is not None:
+        return f"({literal} : Int)"
+    if isinstance(node, ast.Name):
+        if node.id not in _ALLOWED_VARIABLES:
+            raise _Unsupported("only variables x, y, and z are supported")
+        return node.id
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        operator = "+" if isinstance(node.op, ast.UAdd) else "-"
+        return f"({operator}{_render_linear(node.operand)})"
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult)):
+        operator = "+" if isinstance(node.op, ast.Add) else "-" if isinstance(node.op, ast.Sub) else "*"
+        return f"({_render_linear(node.left)} {operator} {_render_linear(node.right)})"
+    raise _Unsupported("only affine integer expressions are supported")
+
+
+def _render_expression(raw: str) -> str:
+    if not isinstance(raw, str) or not raw.strip() or len(raw) > _MAX_INPUT_CHARS:
+        raise _Unsupported("expression must be non-empty and within the input bound")
+    tree = ast.parse(raw, mode="eval")
+    if sum(1 for _ in ast.walk(tree)) > _MAX_AST_NODES:
+        raise _Unsupported("expression exceeds the syntax-node bound")
+    _linear_form(tree.body)  # Validate the affine grammar before rendering.
+    return _render_linear(tree.body)
 
 
 def verify_linear_int_identity(
@@ -147,7 +157,7 @@ def verify_linear_int_identity(
     binders = " ".join(f"({name} : Int)" for name in variables)
     theorem_header = (
         f"theorem mosaic_certificate {binders} : "
-        f"{_render_form(left)} = {_render_form(right)} := by omega\n"
+        f"{_render_expression(lhs)} = {_render_expression(rhs)} := by omega\n"
     )
     source = "import Lean\n" + theorem_header
     proof_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
