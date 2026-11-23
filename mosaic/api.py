@@ -10,7 +10,9 @@ from mosaic.core.types import Status
 from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
 from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_candidate
-from mosaic.verification.sessions import (\n    RevisionLimitReached, SessionStore, VerificationSession, VerificationRevision,\n)
+from mosaic.verification.sessions import (
+    RevisionLimitReached, SessionStore, VerificationSession, VerificationRevision,
+)
 
 
 app = FastAPI(title="MOSAIC API", version="0.4.0")
