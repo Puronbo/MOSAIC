@@ -2,9 +2,10 @@
 
 ## Status
 
-Design decision recorded; implementation is not yet enabled. The existing Lean
-4.36.0 integration remains the trusted baseline. Nonlinear polynomial
-identities remain unsupported by the formal adapter.
+A separate Mathlib proof project and real-kernel CI workflow now exist. The
+Python/API polynomial adapter is not yet enabled; nonlinear user requests
+remain unsupported until a bounded compiler and request-bound certificate
+path are implemented and tested.
 
 ## Finding
 
@@ -67,6 +68,8 @@ Mathlib revision to verify all of the following with the real kernel:
 - The exact generated source hash is returned even when the kernel is
   unavailable.
 
-Until these checks exist, MOSAIC must continue to describe nonlinear
-polynomial proof as unsupported rather than infer formal status from
-symbolic simplification.
+Until the bounded compiler and its positive/negative adversarial tests
+exist, MOSAIC must continue to describe nonlinear user-request verification
+as unsupported rather than infer formal status from symbolic simplification.
+The fixed Lean examples are infrastructure probes, not a general-purpose
+MOSAIC polynomial certificate.
