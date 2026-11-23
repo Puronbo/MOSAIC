@@ -231,7 +231,7 @@ def verify_lean_transformation(payload: LeanTransformationVerificationRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "mosaic", "version": "0.8.0"}
+    return {"status": "ok", "service": "mosaic", "version": app.version}
 
 
 @app.post("/v1/math", response_model=MathResponse)
