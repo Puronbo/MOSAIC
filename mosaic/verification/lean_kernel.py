@@ -146,7 +146,7 @@ def verify_closed_nat_equality(
             version_result = subprocess.run(
                 [executable, "--version"], capture_output=True, text=True,
                 timeout=min(timeout_seconds, 2.0), check=False,
-                env=os.environ.copy(),
+                env=_lean_environment(),
             )
             version = (version_result.stdout or version_result.stderr).strip()[:160] or None
         except (OSError, subprocess.TimeoutExpired):
