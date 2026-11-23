@@ -16,6 +16,9 @@ from mosaic.verification.evidence import EvidenceBundle, evidence_from_check
 from mosaic.verification.lean_kernel import LeanKernelCheck, verify_closed_nat_equality
 from mosaic.verification.lean_obligations import LeanIdentityVerification, verify_request_identity_with_lean
 from mosaic.verification.lean_polynomial import LeanPolynomialCheck, verify_polynomial_int_identity
+from mosaic.verification.lean_calculus import (
+    LeanPolynomialDerivativeCheck, verify_polynomial_real_derivative,
+)
 from mosaic.verification.lean_transformations import (
     LeanTransformationVerification, verify_request_transformation_with_lean,
 )
@@ -109,6 +112,13 @@ class LeanEqualityVerificationRequest(BaseModel):
     rhs: str = Field(min_length=1, max_length=512)
 
 
+class LeanPolynomialDerivativeRequest(BaseModel):
+    """A bounded real-polynomial derivative claim; no caller Lean source."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    expression: str = Field(min_length=1, max_length=512)
+    candidate_derivative: str | None = Field(default=None, max_length=512)
+
+
 class LeanTransformationVerificationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     request: MathRequest
@@ -194,6 +204,17 @@ def verify_lean_closed_nat_equality(payload: LeanEqualityVerificationRequest):
 def verify_lean_polynomial_int_identity(payload: LeanEqualityVerificationRequest):
     """Kernel-check a bounded polynomial identity using the pinned Mathlib project."""
     return verify_polynomial_int_identity(payload.lhs, payload.rhs)
+
+
+@app.post(
+    "/v1/verify/lean/polynomial-real-derivative",
+    response_model=LeanPolynomialDerivativeCheck,
+)
+def verify_lean_polynomial_real_derivative(payload: LeanPolynomialDerivativeRequest):
+    """Prove a bounded real-polynomial derivative, optionally checking a candidate."""
+    return verify_polynomial_real_derivative(
+        payload.expression, candidate_derivative=payload.candidate_derivative
+    )
 
 
 @app.post("/v1/verify/lean/request-identity", response_model=LeanIdentityVerification)
