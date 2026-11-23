@@ -146,3 +146,16 @@ It currently supports only `verify_identity` requests whose expressions fit
 the closed-natural-number grammar. The response includes a request fingerprint
 and an explicit assumption-free obligation. It does not yet formally verify
 general symbolic transformations.
+
+
+### Symbolic affine identity checks
+
+The request-bound Lean identity route now has a second, narrowly scoped path
+for affine identities over integers. It accepts only variables `x`, `y`,
+and `z`; integer literals; addition and subtraction; and multiplication
+where at least one factor is constant. MOSAIC derives universally quantified
+`Int` binders and asks Lean's `omega` tactic to construct the proof. The
+generated theorem is still checked by Lean's kernel, and its source hash and
+variable list are returned. Nonlinear products, division, powers, assumptions,
+and other variables remain unsupported. This proves an identity over all
+integer assignments, not a statement about rational-function domains.
