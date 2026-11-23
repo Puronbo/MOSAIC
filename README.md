@@ -140,7 +140,9 @@ experimental and is not a formal proof. See
 
 ## Optional Lean kernel verification
 
-MOSAIC includes three separate Lean-backed checkers:
+MOSAIC includes Lean-backed checkers for closed natural-number equalities,
+affine integer identities, bounded polynomial identities, request-bound
+transformations, and bounded real-polynomial derivatives.
 
 - Closed natural-number equalities, using the pinned core Lean toolchain.
 - Universally quantified affine integer identities, using Lean's `omega`
@@ -153,6 +155,12 @@ literals; unary signs; addition, subtraction, multiplication; and
 nonnegative integer powers. Both `^` and `**` are accepted for powers.
 Division, negative powers, function calls, unknown variables, oversized
 expressions, and caller-supplied Lean source are unsupported.
+
+The derivative checker supports univariate polynomials in `x` over `ℝ`. In
+the model gateway, it binds the proposed derivative to the original request,
+compares exact polynomial coefficients, and asks Lean to prove the submitted
+result is the derivative. It does not cover rational functions or partial
+derivatives. See [the derivative backend contract](docs/LEAN_POLYNOMIAL_DERIVATIVES.md).
 
 Available endpoints:
 
