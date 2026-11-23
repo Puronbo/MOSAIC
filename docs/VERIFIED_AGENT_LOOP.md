@@ -47,7 +47,10 @@ Important boundaries:
 - Only `FORMALLY_VERIFIED` means task-bound checks passed and the configured
   Lean kernel accepted the request-bound proposition.
 - Other statuses remain distinct; a Python-side algebraic match is not silently
-  promoted to formal proof.
+  promoted to formal proof. Differentiation currently has task-bound experimental
+  comparison but no dedicated Lean derivative checker, so it cannot return
+  `FORMALLY_VERIFIED` through this gateway. Integration is not currently
+  supported by task-bound candidate checking.
 - The returned trace records provider/model labels, prompt/output hashes, and
   the complete checker evaluation for each attempt.
 
