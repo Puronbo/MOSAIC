@@ -85,9 +85,9 @@ def test_lean_unavailable_still_returns_affine_proof_fingerprint(monkeypatch):
     monkeypatch.setattr(lean_linear.shutil, "which", lambda _: None)
     result = lean_linear.verify_linear_int_identity("x + y", "y + x")
     source = (
-        "import Lean\\n"
+        "import Lean\n"
         "theorem mosaic_certificate (x : Int) (y : Int) : "
-        "(x + y) = (y + x) := by omega\\n"
+        "(x + y) = (y + x) := by omega\n"
     )
     assert result.status == "KERNEL_UNAVAILABLE"
     assert result.proof_source_sha256 == hashlib.sha256(source.encode()).hexdigest()
