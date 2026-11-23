@@ -58,3 +58,35 @@ def test_nested_derivation_exposes_side_conditions_for_each_rule_node():
     assert len(conditions) == 6
     assert all(item.status == "UNSUPPORTED" for item in conditions)
     assert len({item.condition_id for item in conditions}) == 6
+
+
+
+def test_real_polynomial_chain_rule_preconditions_are_checked_experimentally():
+    from mosaic.verification.side_conditions import evaluate_side_condition
+
+    req = request("(x**2 + 1)**3")
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
+
+    assert all(status == "EXPERIMENTAL" for status, _, _ in results)
+    assert all(checker == "calculus.real_polynomial_domain.v1" for _, checker, _ in results)
+
+
+def test_negative_power_domain_preconditions_remain_unsupported():
+    from mosaic.verification.side_conditions import evaluate_side_condition
+
+    req = request("(x**2 + 1)**-2")
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
+
+    assert all(status == "UNSUPPORTED" for status, _, _ in results)
+
+
+def test_non_polynomial_inner_expression_remains_unsupported():
+    from mosaic.verification.side_conditions import evaluate_side_condition
+
+    req = request("(log(x))**2")
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
+
+    assert all(status == "UNSUPPORTED" for status, _, _ in results)
