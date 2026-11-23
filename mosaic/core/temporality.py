@@ -60,6 +60,63 @@ def validate_clock_point(point: TemporalPoint, clock: ClockDefinition) -> None:
         raise ValueError("temporal point clock_id does not match clock definition")
 
 
+class ClockCalibration(BaseModel):
+    """An explicit affine mapping between two clock scales.
+
+    This is declared calibration data, not proof that the clocks were correctly
+    calibrated. The mapping is valid only over its stated source-coordinate range.
+    """
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source_clock_id: str = Field(min_length=1, max_length=120)
+    target_clock_id: str = Field(min_length=1, max_length=120)
+    offset_seconds: Decimal
+    rate: Decimal = Field(gt=0)
+    calibration_uncertainty_seconds: Decimal = Field(default=Decimal("0"), ge=0)
+    valid_source_min_seconds: Decimal
+    valid_source_max_seconds: Decimal
+
+    @model_validator(mode="after")
+    def validate_calibration(self):
+        values = (
+            self.offset_seconds,
+            self.rate,
+            self.calibration_uncertainty_seconds,
+            self.valid_source_min_seconds,
+            self.valid_source_max_seconds,
+        )
+        if not all(value.is_finite() for value in values):
+            raise ValueError("calibration values must be finite")
+        if self.source_clock_id == self.target_clock_id:
+            raise ValueError("calibration must connect distinct clock IDs")
+        if self.valid_source_min_seconds > self.valid_source_max_seconds:
+            raise ValueError("calibration validity range is reversed")
+        return self
+
+
+def transform_clock_point(
+    point: TemporalPoint, calibration: ClockCalibration
+) -> TemporalPoint:
+    """Map a reading using declared calibration and propagate bounded uncertainty."""
+    if point.clock_id != calibration.source_clock_id:
+        raise ValueError("temporal point does not match calibration source clock")
+    if (
+        point.lower_bound < calibration.valid_source_min_seconds
+        or point.upper_bound > calibration.valid_source_max_seconds
+    ):
+        raise ValueError("temporal point uncertainty extends outside calibration range")
+    return TemporalPoint(
+        clock_id=calibration.target_clock_id,
+        coordinate_seconds=(
+            calibration.offset_seconds + calibration.rate * point.coordinate_seconds
+        ),
+        uncertainty_seconds=(
+            calibration.rate * point.uncertainty_seconds
+            + calibration.calibration_uncertainty_seconds
+        ),
+    )
+
+
 class TemporalOrder(StrEnum):
     BEFORE = "BEFORE"
     AFTER = "AFTER"
