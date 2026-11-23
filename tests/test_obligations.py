@@ -74,3 +74,13 @@ def test_unsupported_obligation_never_invokes_a_checker():
     (obligation,) = obligations_for_request(req)
     result = verify_obligation_candidate(req, obligation, "{}")
     assert result.status == "UNSUPPORTED"
+
+
+
+def test_modified_obligation_statement_is_rejected():
+    from mosaic.verification.obligations import verify_obligation_candidate
+    req = request("expand", "(x+1)**2")
+    (obligation,) = obligations_for_request(req)
+    altered = obligation.model_copy(update={"statement": "Check an unrelated claim."})
+    result = verify_obligation_candidate(req, altered, "{}")
+    assert result.status == "INVALID_CERTIFICATE"
