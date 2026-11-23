@@ -1,0 +1,34 @@
+name: Lean polynomial integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "formal/polynomial/**"
+      - ".github/workflows/lean-polynomial.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "formal/polynomial/**"
+      - ".github/workflows/lean-polynomial.yml"
+  workflow_dispatch:
+
+jobs:
+  polynomial-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Elan
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Install pinned Lean and Mathlib dependencies
+        working-directory: formal/polynomial
+        run: |
+          elan toolchain install "$(cat lean-toolchain)"
+          lake --version
+          lake exe cache get
+      - name: Check polynomial identities with real Lean kernel
+        working-directory: formal/polynomial
+        run: lake env lean Main.lean
