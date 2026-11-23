@@ -70,5 +70,5 @@ def test_no_user_supplied_lean_source_or_imports_can_enter_the_generated_file(mo
     lean_kernel.verify_closed_nat_equality("7 * 8", "56")
     assert "import " not in captured["source"]
     assert "macro" not in captured["source"]
-    assert captured["source"] == "theorem mosaic_certificate : ((7 * 8) : Nat) = (56 : Nat) := by decide\\n"
+    assert captured["source"] == "theorem mosaic_certificate : ((7 * 8) : Nat) = (56 : Nat) := by decide\n"
     assert "sorry" not in captured["source"]
