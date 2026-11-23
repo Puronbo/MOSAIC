@@ -40,6 +40,12 @@ def test_unsupported_derivative_syntax_is_not_formally_verified(expression):
     assert result.proof_source_sha256 is None
 
 
+def test_large_intermediate_coefficients_are_rejected():
+    expression = "*".join(["1000000"] * 20)
+    result = verify_polynomial_real_derivative(expression, lake_executable="missing-lake")
+    assert result.status == "UNSUPPORTED"
+
+
 def test_derivative_reports_kernel_unavailable_without_lean():
     result = verify_polynomial_real_derivative("x^2 + 2*x + 1", lake_executable="missing-lake")
     assert result.status == "KERNEL_UNAVAILABLE"
