@@ -35,6 +35,18 @@ def _expected_children(request: MathRequest, rule_id: str) -> tuple[MathRequest,
     return rule.children(request)
 
 
+def _valid_limits(max_depth: object, max_nodes: object) -> bool:
+    """Reject coercible or ambiguous resource budgets (including bool-as-int)."""
+    return (
+        isinstance(max_depth, int)
+        and not isinstance(max_depth, bool)
+        and max_depth >= 0
+        and isinstance(max_nodes, int)
+        and not isinstance(max_nodes, bool)
+        and max_nodes >= 1
+    )
+
+
 def build_derivation_tree(
     request: MathRequest,
     *,
@@ -42,8 +54,10 @@ def build_derivation_tree(
     max_nodes: int = 128,
 ) -> DerivationTree:
     """Expand every applicable registered rule within explicit resource bounds."""
-    if max_depth < 0 or max_nodes < 1:
-        raise ValueError("max_depth must be nonnegative and max_nodes must be positive.")
+    if not _valid_limits(max_depth, max_nodes):
+        raise ValueError(
+            "max_depth must be a nonnegative integer and max_nodes must be a positive integer."
+        )
     count = 0
 
     def visit(current: MathRequest, path: tuple[int, ...], depth: int) -> DerivationNode:
@@ -83,6 +97,8 @@ def validate_derivation_tree(
     max_nodes: int = 128,
 ) -> bool:
     """Check root binding, complete rule expansion, paths, and resource bounds."""
+    if not _valid_limits(max_depth, max_nodes):
+        return False
     try:
         if tree.root.request != request or tree.root.path != ():
             return False
