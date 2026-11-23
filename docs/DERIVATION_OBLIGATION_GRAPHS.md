@@ -26,7 +26,8 @@ branch-sensitive functions. Those remain \`UNSUPPORTED\`.
 The checker result is separate from the immutable side-condition contract.
 It cannot be altered by supplying a candidate string. Graph validation
 recomputes the contract; graph evaluation invokes the built-in checker.
-Algebraic leaf checks still run for diagnostics.
+Algebraic leaf checks still run for diagnostics. Direct chain-rule execution uses
+this same registered checker path, so it cannot bypass precondition evaluation.
 
 ## Status and trust boundary
 
