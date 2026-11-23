@@ -141,6 +141,66 @@ def test_partial_order_comparison_rejects_unregistered_event():
         compare_event_order(graph, "A", "C")
 
 
+
+def test_clock_calibration_transforms_coordinates_and_propagates_uncertainty():
+    from mosaic.core.temporality import ClockCalibration, transform_clock_point
+
+    calibration = ClockCalibration(
+        source_clock_id="device-A",
+        target_clock_id="reference-B",
+        offset_seconds=Decimal("100"),
+        rate=Decimal("2"),
+        calibration_uncertainty_seconds=Decimal("0.05"),
+        valid_source_min_seconds=Decimal("0"),
+        valid_source_max_seconds=Decimal("10"),
+    )
+    transformed = transform_clock_point(
+        point("5", "0.1", clock="device-A"), calibration
+    )
+    assert transformed.clock_id == "reference-B"
+    assert transformed.coordinate_seconds == Decimal("110")
+    assert transformed.uncertainty_seconds == Decimal("0.25")
+
+
+def test_clock_calibration_rejects_wrong_source_and_out_of_range_readings():
+    from mosaic.core.temporality import ClockCalibration, transform_clock_point
+
+    calibration = ClockCalibration(
+        source_clock_id="device-A",
+        target_clock_id="reference-B",
+        offset_seconds=Decimal("0"),
+        rate=Decimal("1"),
+        valid_source_min_seconds=Decimal("0"),
+        valid_source_max_seconds=Decimal("10"),
+    )
+    with pytest.raises(ValueError, match="source clock"):
+        transform_clock_point(point("5", clock="other"), calibration)
+    with pytest.raises(ValueError, match="outside calibration range"):
+        transform_clock_point(point("10", "0.1", clock="device-A"), calibration)
+
+
+def test_clock_calibration_requires_finite_values_and_valid_range():
+    from mosaic.core.temporality import ClockCalibration
+
+    with pytest.raises(ValidationError):
+        ClockCalibration(
+            source_clock_id="A",
+            target_clock_id="B",
+            offset_seconds=Decimal("NaN"),
+            rate=Decimal("1"),
+            valid_source_min_seconds=Decimal("0"),
+            valid_source_max_seconds=Decimal("1"),
+        )
+    with pytest.raises(ValidationError, match="reversed"):
+        ClockCalibration(
+            source_clock_id="A",
+            target_clock_id="B",
+            offset_seconds=Decimal("0"),
+            rate=Decimal("1"),
+            valid_source_min_seconds=Decimal("2"),
+            valid_source_max_seconds=Decimal("1"),
+        )
+
 def test_clock_definitions_make_time_semantics_explicit():
     from mosaic.core.temporality import ClockDefinition, ClockKind, validate_clock_point
 
