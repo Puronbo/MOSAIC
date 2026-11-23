@@ -5,6 +5,9 @@ from pydantic import ValidationError
 
 from mosaic.core.temporality import (
     CausalLink,
+    EventOrderGraph,
+    PartialOrderRelation,
+    compare_event_order,
     StateTransition,
     TemporalEvent,
     TemporalOrder,
@@ -96,3 +99,43 @@ def test_events_are_clock_located_and_transitions_record_state_change():
             source_state_sha256="a" * 64,
             target_state_sha256="a" * 64,
         )
+
+
+
+def test_partial_order_infers_transitive_precedence_and_incomparability():
+    graph = EventOrderGraph(
+        event_ids=("A", "B", "C", "D"),
+        precedes=(("A", "B"), ("B", "C")),
+    )
+    assert compare_event_order(graph, "A", "C") == PartialOrderRelation.BEFORE
+    assert compare_event_order(graph, "C", "A") == PartialOrderRelation.AFTER
+    assert compare_event_order(graph, "A", "D") == PartialOrderRelation.INCOMPARABLE
+    assert compare_event_order(graph, "B", "B") == PartialOrderRelation.SAME_EVENT
+
+
+def test_partial_order_does_not_treat_incomparability_as_simultaneity():
+    graph = EventOrderGraph(
+        event_ids=("independent-A", "independent-B"),
+        precedes=(),
+    )
+    assert compare_event_order(
+        graph, "independent-A", "independent-B"
+    ) == PartialOrderRelation.INCOMPARABLE
+
+
+def test_partial_order_rejects_cycles_unknown_nodes_and_duplicate_nodes():
+    with pytest.raises(ValidationError, match="cycle"):
+        EventOrderGraph(
+            event_ids=("A", "B", "C"),
+            precedes=(("A", "B"), ("B", "C"), ("C", "A")),
+        )
+    with pytest.raises(ValidationError, match="unknown event"):
+        EventOrderGraph(event_ids=("A",), precedes=(("A", "B"),))
+    with pytest.raises(ValidationError, match="unique"):
+        EventOrderGraph(event_ids=("A", "A"))
+
+
+def test_partial_order_comparison_rejects_unregistered_event():
+    graph = EventOrderGraph(event_ids=("A", "B"))
+    with pytest.raises(ValueError, match="belong"):
+        compare_event_order(graph, "A", "C")
