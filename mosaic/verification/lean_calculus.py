@@ -263,7 +263,8 @@ def _source(raw: str, candidate_derivative: str | None = None) -> tuple[str, str
     reconcile = f"  exact {proof}\n"
     if candidate_derivative is not None:
         candidate_tree = _parse(candidate_derivative)
-        if _polynomial(candidate_tree) != _polynomial(_parse(generated_derivative)):
+        expected_derivative = {power - 1: coefficient * power for power, coefficient in _polynomial(tree).items() if power > 0}
+        if _polynomial(candidate_tree) != expected_derivative:
             raise _CandidateMismatch("candidate derivative differs from the independently computed derivative")
         derivative = _render(candidate_tree, "t")
         reconcile = f"  have h := {proof}\n  convert h using 1 <;> ring\n"
