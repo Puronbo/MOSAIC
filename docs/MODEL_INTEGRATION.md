@@ -90,6 +90,7 @@ from mosaic.client import MosaicClient
 from mosaic.core.requests import MathRequest
 
 client = MosaicClient("http://127.0.0.1:8000")
+tool = client.ai_tool_schema()  # register this with your agent runtime
 request = MathRequest(
     operation="verify_identity",
     expression="(x + 1)**2",
