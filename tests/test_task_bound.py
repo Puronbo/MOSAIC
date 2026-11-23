@@ -84,3 +84,38 @@ def test_differentiation_does_not_apply_rewrite_domain_equality_policy():
     result = verify_task_bound_candidate(request, raw)
     assert result.status == "EXPERIMENTAL"
     assert result.domain_status == "NOT_CHECKED"
+
+
+
+def test_domain_certificate_is_bound_to_request_candidate_and_exclusions():
+    request = req("simplify", "((x**2 - 1)/(x - 1))**2")
+    raw = json.dumps({
+        "operation": "simplify",
+        "expression": "((x**2 - 1)/(x - 1))**2",
+        "variable": "x",
+        "result": "(x**2 - 1)**2/(x - 1)**2",
+    })
+    result = verify_task_bound_candidate(request, raw)
+    certificate = result.domain_certificate
+    assert certificate is not None
+    assert certificate.request_sha256 == result.request_sha256
+    assert certificate.candidate_sha256 == result.candidate_sha256
+    assert certificate.status == "PRESERVED"
+    assert certificate.original_nonzero_factors == ("x - 1",)
+    assert certificate.candidate_nonzero_factors == ("x - 1",)
+    assert certificate.checker_id == "rational_domain_factor_comparison.v1"
+
+
+def test_domain_expansion_certificate_identifies_missing_exclusion():
+    request = req("simplify", "((x**2 - 1)/(x - 1))**2")
+    raw = json.dumps({
+        "operation": "simplify",
+        "expression": "((x**2 - 1)/(x - 1))**2",
+        "variable": "x",
+        "result": "(x + 1)**2",
+    })
+    result = verify_task_bound_candidate(request, raw)
+    assert result.domain_certificate is not None
+    assert result.domain_certificate.status == "EXPANDED"
+    assert result.domain_certificate.missing_factors == ("x - 1",)
+    assert result.domain_certificate.candidate_nonzero_factors == ()
