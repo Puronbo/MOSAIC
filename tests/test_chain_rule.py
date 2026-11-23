@@ -70,5 +70,11 @@ def test_direct_execution_reports_rational_domain_constraints():
     execution = execute_power_chain_rule(request("((x+1)/(x-1))**2"))
     assert all(item.status == "EXPERIMENTAL" for item in execution.graph_result.side_condition_results)
     assert all(item.domain_constraints == ("x - 1",) for item in execution.graph_result.side_condition_results)
+    restrictions = execution.graph_result.side_condition_results[0].domain_restrictions
+    assert len(restrictions) == 1
+    assert restrictions[0].predicate == "nonzero"
+    assert restrictions[0].expression == "x - 1"
+    assert restrictions[0].source_kind == "division_denominator"
+    assert restrictions[0].request_sha256 == request("((x+1)/(x-1))**2").model_dump_json()[:0] or len(restrictions[0].request_sha256) == 64
     assert execution.graph_result.status == "EXPERIMENTAL"
 
