@@ -16,13 +16,13 @@ MOSAIC separates an untrusted proposal/execution layer from trusted verification
 
 - core: operation vocabulary, versioned request/response models, and agent orchestration contracts;
 - engines: restricted parsing and SymPy-backed exact symbolic operations;
-- verification: structured and task-bound candidate checking, typed request-bound obligations, and dependency-aware DAG evaluation; no Lean integration yet;
+- verification: structured and task-bound candidate checking, typed request-bound obligations, dependency-aware DAG evaluation, independent exact-arithmetic cross-checking, and an optional restricted Lean-kernel adapter;
 - adapters: FastAPI endpoint; Python and MCP adapters are planned;
 - tests: regression tests for supported operations, rejected syntax, and orchestration invariants.
 
 ## Trust and status policy
 
-The current identity routine reports EXPERIMENTAL even when SymPy simplifies a difference to zero. The attached object is a symbolic-zero candidate, not an independently checked proof certificate. The prototype does not emit FORMALLY_VERIFIED. A failed simplification is INCOMPLETE unless a separate sound procedure establishes a counterexample or refutation.
+The general identity and transformation routines remain EXPERIMENTAL even when symbolic recomputation succeeds. A narrow optional endpoint, POST /v1/verify/lean/closed-nat-equality, can return FORMALLY_VERIFIED only for closed natural-number equalities in a bounded arithmetic grammar when a configured Lean executable accepts MOSAIC-generated proof source. It is not a general proof backend: variables, assumptions, rational domains, arbitrary Lean source, and user-supplied tactics are not supported. If Lean is unavailable, the result says so and never falls back to experimental evidence.
 
 Agent outputs are untrusted proposals. Agreement between agents is not verification; disagreement triggers review rather than an automatic verdict. See [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
 
@@ -32,5 +32,5 @@ Agent outputs are untrusted proposals. Agreement between agents is not verificat
 2. Add domain-aware semantics and explicit assumptions.
 3. Define canonical certificate schemas and independent checkers.
 4. Add Python SDK and MCP adapter over the same operation contract.
-5. Integrate a trusted proof assistant kernel for formal proof claims.
+5. Expand the restricted Lean bridge into request-bound proof obligations with explicit assumptions and a reproducible Lean toolchain.
 6. Add provider adapters, sandboxed execution, provenance logging, retries, and budget-aware scheduling.
