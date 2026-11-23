@@ -50,6 +50,10 @@ class _Unsupported(ValueError):
     pass
 
 
+class _CandidateMismatch(ValueError):
+    pass
+
+
 def _integer(node: ast.AST) -> int | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(node.value, bool):
         if abs(node.value) > _MAX_LITERAL:
@@ -267,6 +271,7 @@ def _source(raw: str) -> tuple[str, str]:
 def verify_polynomial_real_derivative(
     expression: str,
     *,
+    candidate_derivative: str | None = None,
     timeout_seconds: float = 30.0,
     lake_executable: str = "lake",
 ) -> LeanPolynomialDerivativeCheck:
@@ -275,7 +280,14 @@ def verify_polynomial_real_derivative(
         expression.encode("utf-8") if isinstance(expression, str) else b""
     ).hexdigest()
     try:
-        source, derivative = _source(expression)
+        source, derivative = _source(expression, candidate_derivative)
+    except _CandidateMismatch:
+        return LeanPolynomialDerivativeCheck(
+            status="REJECTED",
+            expression_sha256=expression_hash,
+            derivative_sha256=hashlib.sha256(candidate_derivative.encode("utf-8")).hexdigest(),
+            explanation="The submitted derivative does not match the independently computed polynomial derivative.",
+        )
     except (SyntaxError, ValueError, RecursionError):
         return LeanPolynomialDerivativeCheck(
             status="UNSUPPORTED",
@@ -284,7 +296,9 @@ def verify_polynomial_real_derivative(
             explanation="Expression is outside the bounded univariate polynomial grammar.",
         )
 
-    derivative_hash = hashlib.sha256(derivative.encode("utf-8")).hexdigest()
+    derivative_hash = hashlib.sha256(
+        (candidate_derivative if candidate_derivative is not None else derivative).encode("utf-8")
+    ).hexdigest()
     if (
         isinstance(timeout_seconds, bool)
         or not isinstance(timeout_seconds, (int, float))
