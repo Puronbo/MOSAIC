@@ -56,3 +56,37 @@ reject unknown fields.
 This endpoint reuses the same checker as the Python verification layer. It
 does not call an AI provider, accept provider assertions as trusted evidence,
 or upgrade symbolic computation to formal proof.
+
+# Persistent verification sessions
+
+MOSAIC exposes an append-only SQLite-backed session API:
+
+- `POST /v1/verification-sessions` creates a session with one immutable
+  `MathRequest`.
+- `POST /v1/verification-sessions/{session_id}/revisions` checks and appends
+  a candidate against that stored request.
+- `GET /v1/verification-sessions/{session_id}` returns the original request,
+  its SHA-256 fingerprint, and the ordered revision history.
+
+Revision numbers are assigned transactionally by SQLite. Each revision stores
+the raw candidate, the complete task-bound checker result, structured feedback,
+and a UTC timestamp. The request and existing revision rows are protected by
+database triggers against updates. Revisions are append-only through this API;
+this is an integrity-oriented local ledger, not a tamper-proof audit system
+against an administrator who can replace the database file.
+
+The database path is configured by `MOSAIC_SESSION_DB`; the default is
+`mosaic_sessions.sqlite3` in the service working directory. SQLite creates
+the database and parent directory as needed. Use a persistent volume for
+deployment if sessions must survive process or container replacement.
+
+A session ID is an unguessable UUID, but the prototype does not implement user
+authentication, tenant isolation, retention policies, encryption at rest, or
+multi-host storage. Do not expose this API publicly or store sensitive data
+without adding those controls. Back up the database and restrict filesystem
+permissions appropriately.
+
+Every revision is verified against the stored original request. Clients cannot
+supply a replacement request when appending. The stored hash is the canonical
+request fingerprint used by the task-bound checker. A passing experimental
+result is still not a formal proof.
