@@ -221,3 +221,41 @@ def test_lean_closed_nat_endpoint_rejects_unexpected_fields():
         "lhs": "2 + 3", "rhs": "5", "lean_source": "sorry"
     })
     assert response.status_code == 422
+
+
+def test_request_bound_lean_identity_endpoint_uses_request_expression_and_rhs(monkeypatch):
+    from mosaic import api as api_module
+    from mosaic.verification.lean_obligations import LeanIdentityVerification
+    captured = {}
+
+    def fake_verify(request):
+        captured["request"] = request
+        return LeanIdentityVerification(
+            status="UNSUPPORTED",
+            explanation="The expression is outside the supported closed-natural-number grammar.",
+        )
+
+    monkeypatch.setattr(api_module, "verify_request_identity_with_lean", fake_verify)
+    response = client.post("/v1/verify/lean/request-identity", json={
+        "request": {
+            "operation": "verify_identity",
+            "expression": "2 + 3",
+            "rhs": "5",
+        }
+    })
+    assert response.status_code == 200
+    assert response.json()["status"] == "UNSUPPORTED"
+    assert captured["request"].expression == "2 + 3"
+    assert captured["request"].rhs == "5"
+
+
+def test_request_bound_lean_identity_endpoint_rejects_extra_fields():
+    response = client.post("/v1/verify/lean/request-identity", json={
+        "request": {
+            "operation": "verify_identity",
+            "expression": "2 + 3",
+            "rhs": "5",
+        },
+        "lhs": "1",
+    })
+    assert response.status_code == 422
