@@ -28,6 +28,21 @@ class DomainRestriction(BaseModel):
     column: int = Field(ge=0)
 
 
+
+
+class DomainPreservationResult(BaseModel):
+    """Conservative comparison of original and candidate rational domains."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: Literal["PRESERVED", "EXPANDED", "RESTRICTED", "CHANGED", "UNSUPPORTED"]
+    original_nonzero_factors: tuple[str, ...] = ()
+    candidate_nonzero_factors: tuple[str, ...] = ()
+    missing_factors: tuple[str, ...] = ()
+    additional_factors: tuple[str, ...] = ()
+    explanation: str = Field(min_length=1, max_length=2000)
+
+
+
 class RuleSideCondition(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -196,6 +211,129 @@ def verify_domain_restriction(request: MathRequest, supplied: DomainRestriction)
 def domain_constraints_for_request(request: MathRequest) -> tuple[str, ...]:
     """Compatibility view of the typed nonzero restrictions."""
     return tuple(item.expression for item in domain_restrictions_for_request(request))
+
+
+
+
+def _nonzero_factor_signature(expressions: tuple[str, ...]) -> tuple[str, ...]:
+    """Canonicalize polynomial nonzero predicates, ignoring nonzero multiplicity."""
+    factors: set[str] = set()
+    for expression in expressions:
+        parsed = parse_expression(expression)
+        symbols = tuple(sorted(parsed.free_symbols, key=str))
+        if not symbols:
+            if parsed == 0:
+                raise ValueError("zero cannot be a domain restriction")
+            continue
+        polynomial = sp.Poly(parsed, *symbols)
+        _, irreducible = sp.factor_list(polynomial.as_expr(), *symbols)
+        for factor, _multiplicity in irreducible:
+            normalized = sp.Poly(factor, *symbols).monic().as_expr()
+            factors.add(sp.sstr(normalized))
+    return tuple(sorted(factors))
+
+
+def _candidate_rational_restrictions(expression: str) -> tuple[str, ...] | None:
+    """Extract denominator and negative-power exclusions from a restricted AST."""
+    try:
+        tree = ast.parse(expression, mode="eval")
+        restrictions: list[str] = []
+
+        def visit(node: ast.AST) -> bool:
+            if isinstance(node, ast.Name):
+                return True
+            if isinstance(node, ast.Constant):
+                return isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+            if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+                return visit(node.operand)
+            if not isinstance(node, ast.BinOp) or not (visit(node.left) and visit(node.right)):
+                return False
+            if isinstance(node.op, (ast.Add, ast.Sub, ast.Mult)):
+                return True
+            if isinstance(node.op, ast.Div):
+                denominator = parse_expression(ast.unparse(node.right))
+                symbols = tuple(sorted(denominator.free_symbols, key=str))
+                if symbols and not denominator.is_polynomial(*symbols):
+                    return False
+                if denominator == 0:
+                    return False
+                restrictions.append(sp.sstr(denominator))
+                return True
+            if isinstance(node.op, ast.Pow):
+                exponent = _integer_literal(node.right)
+                if exponent is None:
+                    return False
+                if exponent < 0:
+                    base = parse_expression(ast.unparse(node.left))
+                    symbols = tuple(sorted(base.free_symbols, key=str))
+                    if symbols and not base.is_polynomial(*symbols):
+                        return False
+                    if base == 0:
+                        return False
+                    restrictions.append(sp.sstr(base))
+                return True
+            return False
+
+        if not visit(tree.body):
+            return None
+        parsed = parse_expression(expression)
+        symbols = tuple(sorted(parsed.free_symbols, key=str))
+        if symbols and not parsed.is_rational_function(*symbols):
+            return None
+        return tuple(restrictions)
+    except (SyntaxError, ExpressionError, sp.PolynomialError, TypeError, ValueError):
+        return None
+
+
+def check_domain_preservation(
+    request: MathRequest,
+    candidate_expression: str,
+) -> DomainPreservationResult:
+    """Compare exact polynomial exclusion factors; never infer a proof from matching syntax."""
+    supported, original_constraints = _rational_domain_analysis(request)
+    if not supported:
+        return DomainPreservationResult(
+            status="UNSUPPORTED",
+            explanation="The original request is outside the supported rational-power domain checker.",
+        )
+    candidate_constraints = _candidate_rational_restrictions(candidate_expression)
+    if candidate_constraints is None:
+        return DomainPreservationResult(
+            status="UNSUPPORTED",
+            explanation="The candidate is outside the restricted rational-expression grammar.",
+        )
+    try:
+        original = _nonzero_factor_signature(tuple(item[0] for item in original_constraints))
+        candidate = _nonzero_factor_signature(candidate_constraints)
+    except (ExpressionError, sp.PolynomialError, TypeError, ValueError):
+        return DomainPreservationResult(
+            status="UNSUPPORTED",
+            explanation="A domain predicate could not be normalized as a polynomial nonzero condition.",
+        )
+    missing = tuple(sorted(set(original) - set(candidate)))
+    additional = tuple(sorted(set(candidate) - set(original)))
+    if missing and additional:
+        status = "CHANGED"
+    elif missing:
+        status = "EXPANDED"
+    elif additional:
+        status = "RESTRICTED"
+    else:
+        status = "PRESERVED"
+    explanations = {
+        "PRESERVED": "The candidate retains the same polynomial nonzero exclusions as the original request.",
+        "EXPANDED": "The candidate omits original exclusions and may be defined at points excluded by the original expression.",
+        "RESTRICTED": "The candidate introduces additional exclusions and may have a narrower domain than the original expression.",
+        "CHANGED": "The candidate both omits original exclusions and introduces additional exclusions.",
+    }
+    return DomainPreservationResult(
+        status=status,
+        original_nonzero_factors=original,
+        candidate_nonzero_factors=candidate,
+        missing_factors=missing,
+        additional_factors=additional,
+        explanation=explanations[status],
+    )
 
 
 def _is_supported_rational_power(request: MathRequest) -> bool:
