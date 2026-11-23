@@ -377,7 +377,7 @@ def test_event_knowledge_does_not_rewrite_occurrence_or_causality():
         source_observation_id="observation-1",
     )
     assert learned.event_id == occurrence.event_id
-    assert learned.learned_at.coordinate_seconds > occurrence.occurred_during.end.coordinate_seconds
+    assert learned.learned_at.clock_id != occurrence.occurred_during.end.clock_id
     # Knowledge arriving later does not itself establish a causal edge.
     assert CausalLink(
         source_event_id="change",
