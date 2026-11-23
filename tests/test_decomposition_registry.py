@@ -86,3 +86,14 @@ def test_chain_rule_declares_its_obligation_dependency_contract():
     assert rule.dependency_policy(3) == ((2, (0, 1)),)
     with pytest.raises(ExpressionError, match="requires three child branches"):
         rule.dependency_policy(2)
+
+
+def test_matcher_excludes_invalid_expressions_and_out_of_contract_inputs():
+    assert applicable_decomposition_rules(request("unknown_symbol**2+1**2")) == ()
+    assert applicable_decomposition_rules(request("(x+1)**101")) == ()
+    unsupported_variable = MathRequest(
+        operation=Operation.DIFFERENTIATE,
+        expression="(x+1)**2",
+        variable="theta",
+    )
+    assert applicable_decomposition_rules(unsupported_variable) == ()
