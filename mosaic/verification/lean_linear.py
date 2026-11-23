@@ -56,6 +56,12 @@ def _constant(node: ast.AST) -> int | None:
     return None
 
 
+def _bounded_form(form: dict[str, int]) -> dict[str, int]:
+    if any(abs(value) > _MAX_COEFFICIENT for value in form.values()):
+        raise _Unsupported("linear coefficient or constant exceeds the arithmetic bound")
+    return form
+
+
 def _linear_form(node: ast.AST) -> dict[str, int]:
     if isinstance(node, ast.Name):
         if node.id not in _ALLOWED_VARIABLES:
@@ -76,18 +82,18 @@ def _linear_form(node: ast.AST) -> dict[str, int]:
         merged = dict(left)
         for key, value in right.items():
             merged[key] = merged.get(key, 0) + sign * value
-        return {key: value for key, value in merged.items() if value}
+        return _bounded_form({key: value for key, value in merged.items() if value})
     if isinstance(node.op, ast.Mult):
         left, right = _linear_form(node.left), _linear_form(node.right)
         left_is_constant = not any(key for key in left)
         right_is_constant = not any(key for key in right)
         if left_is_constant and right_is_constant:
-            return {"": left.get("", 0) * right.get("", 0)}
+            return _bounded_form({"": left.get("", 0) * right.get("", 0)})
         if not left_is_constant and not right_is_constant:
             raise _Unsupported("multiplication must have an integer literal factor")
         scalar = left.get("", 0) if left_is_constant else right.get("", 0)
         form = right if left_is_constant else left
-        return {key: scalar * value for key, value in form.items() if key}
+        return _bounded_form({key: scalar * value for key, value in form.items() if key})
     raise _Unsupported("only addition, subtraction, and multiplication by integer literals are supported")
 
 
@@ -98,9 +104,10 @@ def _parse_linear(raw: str) -> tuple[dict[str, int], tuple[str, ...]]:
     if sum(1 for _ in ast.walk(tree)) > _MAX_AST_NODES:
         raise _Unsupported("expression exceeds the syntax-node bound")
     form = _linear_form(tree.body)
-    if any(abs(value) > _MAX_COEFFICIENT for value in form.values()):
-        raise _Unsupported("linear coefficient exceeds the arithmetic bound")
-    variables = tuple(sorted(key for key in form if key))
+    variables = tuple(sorted({
+        node.id for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+    }))
     return form, variables
 
 
