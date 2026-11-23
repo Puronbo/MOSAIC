@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from mosaic.core.requests import MathRequest
-from mosaic.engines.algebra import ExpressionError
+from mosaic.engines.algebra import ExpressionError, parse_expression
 from mosaic.verification.side_conditions import (
     RuleSideCondition,
     make_unsupported_side_conditions,
@@ -44,14 +44,23 @@ def _matches_power_chain(request: MathRequest) -> bool:
     except SyntaxError:
         return False
     node = tree.body
-    return (
+    if request.variable not in {"x", "y", "z"}:
+        return False
+    if not (
         isinstance(node, ast.BinOp)
         and isinstance(node.op, ast.Pow)
         and not isinstance(node.left, ast.Name)
         and isinstance(node.right, ast.Constant)
         and not isinstance(node.right.value, bool)
         and isinstance(node.right.value, int)
-    )
+        and abs(node.right.value) <= 100
+    ):
+        return False
+    try:
+        parse_expression(request.expression)
+    except ExpressionError:
+        return False
+    return True
 
 
 def _chain_rule_dependencies(child_count: int) -> tuple[tuple[int, tuple[int, ...]], ...]:
