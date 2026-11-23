@@ -40,3 +40,19 @@ This makes adding a new built-in rule less invasive while preserving the
 allow-list: rule code is still trusted repository code, not model-supplied
 executable content. Child order remains significant because dependency policies
 refer to child indices.
+
+
+## Explicit rule side conditions
+
+Registered rules may also expose `side_conditions(request)` contracts.
+The chain-rule rule currently declares unresolved inner-differentiability,
+domain-definedness, and domain-preservation conditions. Each is request-bound,
+deterministic, and explicitly marked `UNSUPPORTED` with no checker.
+
+These conditions are intentionally not silently treated as satisfied and are
+not yet inserted into the executable obligation DAG. The existing DAG therefore
+continues to report the status of its supported algebraic checks, while callers
+can separately inspect the rule's unresolved preconditions. A future domain-aware
+checker must discharge these contracts before the aggregate derivation can be
+upgraded. Contract validation checks integrity only; it does not prove a
+condition.
