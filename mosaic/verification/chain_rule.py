@@ -13,6 +13,7 @@ from mosaic.engines.algebra import ExpressionError, parse_expression, run_algebr
 from mosaic.verification.graph import (
     ObligationGraph,
     ObligationNode,
+    RuleSideConditionNode,
     evaluate_obligation_graph,
     ObligationGraphResult,
 )
@@ -135,7 +136,19 @@ def execute_power_chain_rule(request: MathRequest) -> ChainRuleExecution:
         obligation=final_obligation,
         depends_on=(outer_obligation.obligation_id, inner_obligation.obligation_id),
     )
-    graph = ObligationGraph(nodes=(outer_node, inner_node, final_node))
+    # Resolve rule-owned preconditions at execution time to avoid a module
+    # import cycle while ensuring this direct execution path cannot bypass them.
+    from mosaic.verification.decomposition import get_decomposition_rule
+
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    side_conditions = tuple(
+        RuleSideConditionNode(request=request, condition=condition)
+        for condition in rule.side_conditions(request)
+    )
+    graph = ObligationGraph(
+        nodes=(outer_node, inner_node, final_node),
+        side_conditions=side_conditions,
+    )
     candidates = {
         outer_obligation.obligation_id: json.dumps({
             "operation": "differentiate",
