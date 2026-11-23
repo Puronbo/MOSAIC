@@ -23,6 +23,20 @@ For a coordinate (t) and uncertainty (u), the represented interval is ([t-u,t+u]
 
 The initial `duration_bounds` function returns a nonnegative interval for the absolute separation of two readings from the same clock. It preserves uncertainty instead of silently selecting a point estimate.
 
+
+## Clock kinds and what a timestamp means
+
+A clock ID identifies a measurement scale; a ClockDefinition declares its intended semantics:
+
+- **MONOTONIC:** an elapsed-time counter that should not move backward. Useful for durations in software; it is not a universal physical clock.
+- **CIVIL:** a calendar/administrative time scale interpreted with an explicit timezone. It can jump or repeat because of daylight-saving rules and clock corrections, so raw civil timestamps are not reliable elapsed-time measurements.
+- **PROPER:** time accumulated along a specified physical worldline. The definition therefore requires a worldline_id; comparing different worldlines requires a physical model, not just matching numeric coordinates.
+- **COORDINATE:** a time coordinate within a specified reference frame. The definition therefore requires a reference_frame; another frame's coordinate time is not directly interchangeable.
+
+All coordinates in this initial contract are stored in seconds, but this common unit does not make distinct clocks comparable. validate_clock_point checks that a reading is associated with its declared clock. It does not prove calibration, synchronization, correct timezone data, a valid worldline, or a physical frame transformation. Proper-time and coordinate-time conversion is intentionally not implemented until an explicit relativistic model and assumptions are supplied.
+
+This gives MOSAIC a practical answer to “what time is” at the software boundary: a timestamp is a value produced by a particular clock under declared semantics. Physical time itself is not reduced to that value. The model records change, ordering, duration, and causal claims separately, then asks what a specified clock or physical theory licenses us to infer.
+
 ## Event order as a partial order
 
 A single global timeline is not always justified by the available information. MOSAIC now represents event precedence as a directed acyclic graph. An edge (A \to B) means the model asserts that A precedes B. Reachability gives transitive consequences: if A precedes B and B precedes C, then A precedes C.
