@@ -6,8 +6,10 @@ from mosaic.engines.algebra import ExpressionError
 from mosaic.verification.decomposition import (
     applicable_decomposition_rules,
     decompose_request,
+    execute_decomposition,
     get_decomposition_rule,
     registered_decomposition_rules,
+    verify_decomposition_execution,
     verify_decomposition_plan,
 )
 
@@ -54,3 +56,25 @@ def test_verifier_rejects_wrong_plan_type():
     assert not verify_decomposition_plan(
         request(), "calculus.chain_rule.integer_power.v1", {"claim": "trust me"}
     )
+
+
+def test_generic_executor_verifies_plan_and_returns_graph_execution():
+    rule_id = "calculus.chain_rule.integer_power.v1"
+    execution = execute_decomposition(request(), rule_id)
+    assert execution.graph_result.status == "EXPERIMENTAL"
+    assert verify_decomposition_execution(request(), rule_id, execution)
+
+
+def test_execution_audit_rejects_tampered_graph_result():
+    rule_id = "calculus.chain_rule.integer_power.v1"
+    execution = execute_decomposition(request(), rule_id)
+    tampered_result = execution.graph_result.model_copy(update={"status": "PROVED"})
+    tampered_execution = execution.model_copy(update={"graph_result": tampered_result})
+    assert not verify_decomposition_execution(request(), rule_id, tampered_execution)
+
+
+def test_generic_executor_rejects_unknown_and_nonmatching_rule():
+    with pytest.raises(ExpressionError, match="Unknown decomposition rule"):
+        execute_decomposition(request(), "unregistered.rule")
+    with pytest.raises(ExpressionError, match="does not match"):
+        execute_decomposition(request("x+1"), "calculus.chain_rule.integer_power.v1")
