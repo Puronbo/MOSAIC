@@ -32,6 +32,7 @@ The current Python prototype includes:
 - typed agent task/proposal contracts with dependency graph validation;
 - a provider-neutral asynchronous model adapter protocol, explicit provider registry, timeout and payload bounds, and prompt/output hashes;
 - a model-facing candidate gateway that combines strict task binding with optional request-bound Lean verification;
+- a bounded provider-neutral proposal → independent verification → structured feedback → revision loop (maximum three attempts);
 - a deterministic agent graph runner with explicit provider assignments, dependency-output handoff, failure isolation, and execution provenance;
 - an opt-in OpenAI-compatible HTTP chat provider with HTTPS/loopback policy, redirect rejection, sanitized errors, and injectable test transport;
 - a structured identity-claim boundary, task-bound candidate verification, and first-class verification obligations and dependency-aware DAG execution;
@@ -46,7 +47,7 @@ See [recursive derivation trees](docs/RECURSIVE_DERIVATION_TREES.md) and [deriva
 
 ## Planned work
 
-Independently checked canonical certificates, broader task-bound operation coverage, additional vendor-specific provider implementations, parallel scheduling, retries, durable execution storage, an MCP adapter, stronger resource isolation, richer domain-aware semantics, and broader formal proof workflows remain future work. Lean-kernel integration and the initial provider-neutral AI candidate gateway are implemented for the bounded operations documented below. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
+Independently checked canonical certificates, broader task-bound operation coverage, additional vendor-specific provider implementations, parallel scheduling, durable execution storage, an MCP adapter, stronger resource isolation, richer domain-aware semantics, and broader formal proof workflows remain future work. Lean-kernel integration and the initial provider-neutral AI candidate gateway are implemented for the bounded operations documented below. The operation registry also includes planned operations such as `solve`, `verify_certificate`, `search`, `counterexample`, and `analyze`; unsupported operations return an explicit status.
 
 ## Repository status
 
