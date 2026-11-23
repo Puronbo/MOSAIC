@@ -6,6 +6,7 @@ A successful Lean process means the configured Lean kernel accepted the
 generated theorem; unavailable Lean remains explicitly unavailable.
 """
 import ast
+import os
 import shutil
 import subprocess
 import tempfile
@@ -103,6 +104,12 @@ def verify_closed_nat_equality(
             explanation="The expression is outside the restricted closed-natural-number grammar.",
         )
 
+    if not isinstance(timeout_seconds, (int, float)) or timeout_seconds <= 0 or timeout_seconds > 30:
+        return LeanKernelCheck(
+            status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
+            explanation="The Lean wall-clock limit must be between 0 and 30 seconds.",
+        )
+
     executable = shutil.which(lean_executable)
     if executable is None:
         return LeanKernelCheck(
@@ -122,14 +129,14 @@ def verify_closed_nat_equality(
                 [executable, str(source_path)],
                 capture_output=True, text=True, timeout=timeout_seconds,
                 check=False, cwd=directory,
-                env={"PATH": str(Path(executable).parent), "HOME": directory},
+                env=os.environ.copy(),
             )
         version = None
         try:
             version_result = subprocess.run(
                 [executable, "--version"], capture_output=True, text=True,
                 timeout=min(timeout_seconds, 2.0), check=False,
-                env={"PATH": str(Path(executable).parent), "HOME": tempfile.gettempdir()},
+                env=os.environ.copy(),
             )
             version = (version_result.stdout or version_result.stderr).strip()[:160] or None
         except (OSError, subprocess.TimeoutExpired):
