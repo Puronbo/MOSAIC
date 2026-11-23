@@ -123,7 +123,7 @@ def verify_closed_nat_equality(
 
     source = (
         "theorem mosaic_certificate : "
-        f"({rendered_lhs} : Nat) = ({rendered_rhs} : Nat) := by decide\\n"
+        f"({rendered_lhs} : Nat) = ({rendered_rhs} : Nat) := by decide\n"
     )
     proof_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
     executable = shutil.which(lean_executable)
