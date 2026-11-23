@@ -1,0 +1,30 @@
+"""Shared status and operation vocabulary."""
+from enum import StrEnum
+
+class Status(StrEnum):
+    DEFINITION = "DEFINITION"
+    ASSUMPTION = "ASSUMPTION"
+    CONJECTURE = "CONJECTURE"
+    EXPERIMENTAL = "EXPERIMENTAL"
+    CONDITIONAL = "CONDITIONAL"
+    PROVED = "PROVED"
+    FORMALLY_VERIFIED = "FORMALLY_VERIFIED"
+    REFUTED = "REFUTED"
+    INCOMPLETE = "INCOMPLETE"
+    STALE = "STALE"
+    INVALID_CERTIFICATE = "INVALID_CERTIFICATE"
+    UNSUPPORTED = "UNSUPPORTED"
+    ERROR = "ERROR"
+
+class Operation(StrEnum):
+    SIMPLIFY = "simplify"
+    EXPAND = "expand"
+    FACTOR = "factor"
+    DIFFERENTIATE = "differentiate"
+    INTEGRATE = "integrate"
+    VERIFY_IDENTITY = "verify_identity"
+    SOLVE = "solve"
+    VERIFY_CERTIFICATE = "verify_certificate"
+    SEARCH = "search"
+    COUNTEREXAMPLE = "counterexample"
+    ANALYZE = "analyze"
