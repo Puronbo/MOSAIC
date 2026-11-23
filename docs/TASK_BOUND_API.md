@@ -116,3 +116,33 @@ The default maximum is 20 revisions per session. A further append returns HTTP
 is deliberately conservative: it compares discrete checker outcomes, not
 semantic quality, elegance, or the magnitude of mathematical progress. It is
 an orchestration hint, not evidence and not a proof status.
+
+## Evidence provenance and independence
+
+Every task-bound verification response and stored session revision now includes
+an `evidence` bundle. Each item identifies the mathematical claim it concerns,
+the registered checker, the exact request and candidate hashes, its finding
+(`supports`, `refutes`, or `unresolved`), and an implementation
+`independence_group`.
+
+Evidence sources are allow-listed in MOSAIC code. A caller or candidate cannot
+declare a new checker ID or independence group and have it counted. Findings
+must refer to the same request and candidate hashes before they can be
+aggregated. Conflicting findings are detected only when independent groups
+disagree about the same claim; support for domain preservation and refutation
+of algebraic equivalence are different claims, not a false conflict.
+
+**Current limitation:** the task-bound algebraic check and rational-domain
+comparison both rely on the same SymPy-backed symbolic runtime. Their findings
+are separately recorded, but both map to
+`sympy_symbolic_runtime`, so the bundle counts at most one independent source
+today. `MULTI_SOURCE_SUPPORT` is reserved for future separately registered
+implementations with distinct independence groups; it is not produced by
+duplicating model calls.
+
+Model outputs are not `EvidenceItem` records and do not contribute to the
+independent checker count. Model identity, agreement, confidence, and majority
+vote cannot upgrade the result. Formal-kernel evidence will require a separate
+registered integration and its own explicit trust contract. Even multiple
+independent experimental checkers do not automatically establish a formal
+proof.
