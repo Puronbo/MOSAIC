@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 from mosaic.core.requests import MathRequest
 from mosaic.verification.task_bound import TaskBoundCheck
+from mosaic.verification.evidence import EvidenceBundle
 
 
 def _canonical(value: Any) -> str:
@@ -40,6 +41,7 @@ class VerificationRevision(BaseModel):
     check: TaskBoundCheck
     feedback: tuple[dict[str, Any], ...]
     assessment: RevisionAssessment
+    evidence: EvidenceBundle
     created_at: str
 
 
@@ -174,6 +176,10 @@ class SessionStore:
                 db.execute(
                     "ALTER TABLE verification_revisions ADD COLUMN assessment_json TEXT"
                 )
+            if "evidence_json" not in columns:
+                db.execute(
+                    "ALTER TABLE verification_revisions ADD COLUMN evidence_json TEXT"
+                )
 
     @staticmethod
     def _now() -> str:
@@ -197,6 +203,7 @@ class SessionStore:
     def append(
         self, session_id: str, candidate: str, check: TaskBoundCheck,
         feedback: tuple[dict[str, Any], ...],
+        evidence: EvidenceBundle,
     ) -> VerificationRevision | None:
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -225,16 +232,18 @@ class SessionStore:
             created_at = self._now()
             db.execute(
                 """INSERT INTO verification_revisions
-                   (session_id, revision, candidate, check_json, feedback_json, created_at, assessment_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (session_id, revision, candidate, check_json, feedback_json, created_at, assessment_json, evidence_json)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (session_id, revision, candidate,
                  _canonical(check.model_dump(mode="json")),
                  _canonical(list(feedback)), created_at,
-                 _canonical(assessment.model_dump(mode="json"))),
+                 _canonical(assessment.model_dump(mode="json")),
+                 _canonical(evidence.model_dump(mode="json"))),
             )
         return VerificationRevision(
             revision=revision, candidate=candidate, check=check,
-            feedback=feedback, assessment=assessment, created_at=created_at,
+            feedback=feedback, assessment=assessment, evidence=evidence,
+            created_at=created_at,
         )
 
     def get(self, session_id: str) -> VerificationSession | None:
@@ -259,6 +268,15 @@ class SessionStore:
                     if row["assessment_json"] else RevisionAssessment(
                         trajectory="FIRST_ATTEMPT", recommendation="CONTINUE",
                         explanation="Legacy revision predates progress assessment.",
+                    )
+                ),
+                evidence=(
+                    EvidenceBundle.model_validate(json.loads(row["evidence_json"]))
+                    if row["evidence_json"] else EvidenceBundle(
+                        items=(), assessment={
+                            "status": "NO_CHECKER_EVIDENCE",
+                            "explanation": "Legacy revision predates evidence provenance.",
+                        },
                     )
                 ),
                 created_at=row["created_at"],
