@@ -17,11 +17,11 @@ not trust signals.
   "request": {
     "schema_version": "1.0",
     "operation": "verify_identity",
-    "expression": "(x + 1)^2",
+    "expression": "(x + 1)**2",
     "variable": "x",
-    "rhs": "x^2 + 2*x + 1"
+    "rhs": "x**2 + 2*x + 1"
   },
-  "candidate": "{\"operation\":\"verify_identity\",\"expression\":\"(x + 1)^2\",\"rhs\":\"x^2 + 2*x + 1\"}",
+  "candidate": "{\"operation\":\"verify_identity\",\"expression\":\"(x + 1)**2\",\"rhs\":\"x**2 + 2*x + 1\"}",
   "provider_id": "my-provider",
   "model_id": "my-model"
 }
@@ -78,13 +78,13 @@ from mosaic.core.requests import MathRequest
 client = MosaicClient("http://127.0.0.1:8000")
 request = MathRequest(
     operation="verify_identity",
-    expression="(x + 1)^2",
-    rhs="x^2 + 2*x + 1",
+    expression="(x + 1)**2",
+    rhs="x**2 + 2*x + 1",
 )
 result = client.verify_model_candidate(
     request,
-    '{"operation":"verify_identity","expression":"(x + 1)^2",'
-    '"rhs":"x^2 + 2*x + 1"}',
+    '{"operation":"verify_identity","expression":"(x + 1)**2",'
+    '"rhs":"x**2 + 2*x + 1"}',
     provider_id="my-provider",
     model_id="my-model",
 )
