@@ -55,6 +55,30 @@ class DurationBounds(BaseModel):
     maximum_seconds: Decimal = Field(ge=0)
 
 
+class TemporalEvent(BaseModel):
+    """An identified occurrence located relative to a declared clock."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: str = Field(min_length=1, max_length=120)
+    observed_at: TemporalPoint
+    description: str = Field(default="", max_length=500)
+
+
+class StateTransition(BaseModel):
+    """A recorded change between two content-addressed system states."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: str = Field(min_length=1, max_length=120)
+    source_state_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    target_state_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def require_actual_change(self):
+        if self.source_state_sha256 == self.target_state_sha256:
+            raise ValueError("a state transition must change the represented state")
+        return self
+
+
 class CausalLink(BaseModel):
     """A directed causal/dependency claim, not a timestamp comparison."""
     model_config = ConfigDict(extra="forbid", frozen=True)
