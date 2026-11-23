@@ -7,6 +7,8 @@ on:
       - "formal/polynomial/**"
       - "mosaic/verification/lean_polynomial.py"
       - "mosaic/verification/lean_obligations.py"
+      - "mosaic/verification/lean_transformations.py"
+      - "mosaic/api.py"
       - "tests/test_lean_polynomial.py"
       - "tests/test_lean_obligations.py"
       - ".github/workflows/lean-polynomial.yml"
@@ -49,6 +51,7 @@ jobs:
           from mosaic.core.types import Operation
           from mosaic.verification.lean_polynomial import verify_polynomial_int_identity
           from mosaic.verification.lean_obligations import verify_request_identity_with_lean
+          from mosaic.verification.lean_transformations import verify_request_transformation_with_lean
 
           positive = verify_polynomial_int_identity("(x + 1)^2", "x^2 + 2*x + 1")
           assert positive.status == "FORMALLY_VERIFIED", positive.model_dump()
@@ -71,5 +74,17 @@ jobs:
           assert bound.obligation.request_sha256
           assert bound.obligation.variables == ("x",)
           assert bound.obligation.assumptions == ()
-          print("Bounded polynomial and request-bound Mathlib kernel checks passed.")
+
+          transform_request = MathRequest(
+              operation=Operation.EXPAND,
+              expression="(x + 1)^2",
+          )
+          transformed = verify_request_transformation_with_lean(
+              transform_request, "x^2 + 2*x + 1"
+          )
+          assert transformed.status == "FORMALLY_VERIFIED", transformed.model_dump()
+          assert transformed.obligation.checker_id == "lean.kernel.polynomial_int_identity.v1"
+          assert transformed.obligation.request_sha256
+          assert transformed.obligation.candidate_sha256
+          print("Bounded polynomial, request-bound identity, and transformation kernel checks passed.")
           PY
