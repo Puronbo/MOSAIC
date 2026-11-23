@@ -90,3 +90,29 @@ Every revision is verified against the stored original request. Clients cannot
 supply a replacement request when appending. The stored hash is the canonical
 request fingerprint used by the task-bound checker. A passing experimental
 result is still not a formal proof.
+
+## Revision progress and stopping policy
+
+Each appended revision includes an `assessment` computed from checker outputs,
+not model confidence or textual similarity:
+
+- `FIRST_ATTEMPT`: no earlier candidate exists.
+- `IMPROVED`: a candidate that did not pass the available checks now does.
+- `REGRESSED`: a previously passing experimental candidate no longer passes.
+- `UNCHANGED`: the candidate is repeated or its checker outcome is unchanged.
+- `CHANGED_UNRESOLVED`: the checker outcome changed but did not establish an improvement.
+
+The accompanying recommendation is one of:
+
+- `CONTINUE`: retryable checker feedback remains.
+- `STOP_REVIEW`: available experimental checks passed; stop automated retries
+  and route the result for review. This does not mean proved.
+- `STOP_NO_PROGRESS`: an identical candidate was already submitted.
+- `STOP_NONRETRYABLE`: the latest feedback does not offer a retryable correction.
+- `STOP_REVISION_LIMIT`: the configured session limit was reached.
+
+The default maximum is 20 revisions per session. A further append returns HTTP
+409. The limit is configurable when constructing `SessionStore`. The assessment
+is deliberately conservative: it compares discrete checker outcomes, not
+semantic quality, elegance, or the magnitude of mathematical progress. It is
+an orchestration hint, not evidence and not a proof status.
