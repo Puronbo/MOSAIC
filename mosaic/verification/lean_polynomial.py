@@ -122,7 +122,7 @@ def _polynomial(node: ast.AST) -> Polynomial:
                     1 if isinstance(node.op, ast.Add) else -1)
     if isinstance(node.op, ast.Mult):
         return _multiply(_polynomial(node.left), _polynomial(node.right))
-    if isinstance(node.op, ast.Pow):
+    if isinstance(node.op, (ast.Pow, ast.BitXor)):
         exponent = _constant(node.right)
         if exponent is None or exponent < 0 or exponent > _MAX_EXPONENT:
             raise _Unsupported("powers must use a bounded nonnegative integer exponent")
