@@ -384,3 +384,96 @@ def test_event_knowledge_does_not_rewrite_occurrence_or_causality():
         target_event_id="another-event",
         relation="enables",
     ).relation == "enables"
+
+
+def test_causal_hypothesis_keeps_support_and_challenge_as_evidence_not_proof():
+    from mosaic.core.temporality import (
+        CausalEvidence,
+        CausalEvidenceMethod,
+        CausalEvidencePolarity,
+        CausalHypothesis,
+    )
+
+    hypothesis = CausalHypothesis(
+        hypothesis_id="overheat-causes-shutdown",
+        cause_event_id="overheat",
+        effect_event_id="shutdown",
+        relation="causes",
+        evidence=(
+            CausalEvidence(
+                evidence_id="sensor-trace",
+                polarity=CausalEvidencePolarity.SUPPORTS,
+                method=CausalEvidenceMethod.OBSERVATIONAL,
+                evidence_sha256="a" * 64,
+                description="Temperature rose before shutdown.",
+            ),
+            CausalEvidence(
+                evidence_id="coolant-fault",
+                polarity=CausalEvidencePolarity.CHALLENGES,
+                method=CausalEvidenceMethod.MECHANISTIC,
+                evidence_sha256="b" * 64,
+                description="A coolant fault may independently explain shutdown.",
+            ),
+        ),
+        alternative_explanations=("Independent coolant fault",),
+        proposed_counterfactual="Would shutdown occur if overheating were prevented?",
+    )
+    assert len(hypothesis.evidence) == 2
+    assert {item.polarity for item in hypothesis.evidence} == {
+        CausalEvidencePolarity.SUPPORTS,
+        CausalEvidencePolarity.CHALLENGES,
+    }
+    # The schema preserves competing evidence; it does not produce a proof status.
+
+
+def test_causal_hypothesis_rejects_self_edges_duplicate_evidence_and_bad_hashes():
+    from mosaic.core.temporality import (
+        CausalEvidence,
+        CausalEvidenceMethod,
+        CausalEvidencePolarity,
+        CausalHypothesis,
+    )
+
+    item = CausalEvidence(
+        evidence_id="evidence-1",
+        polarity=CausalEvidencePolarity.SUPPORTS,
+        method=CausalEvidenceMethod.INTERVENTIONAL,
+        evidence_sha256="c" * 64,
+        description="Controlled intervention record.",
+    )
+    with pytest.raises(ValidationError, match="distinct events"):
+        CausalHypothesis(
+            hypothesis_id="self",
+            cause_event_id="A",
+            effect_event_id="A",
+            relation="causes",
+        )
+    with pytest.raises(ValidationError, match="unique"):
+        CausalHypothesis(
+            hypothesis_id="duplicate",
+            cause_event_id="A",
+            effect_event_id="B",
+            relation="causes",
+            evidence=(item, item),
+        )
+    with pytest.raises(ValidationError):
+        CausalEvidence(
+            evidence_id="bad",
+            polarity=CausalEvidencePolarity.SUPPORTS,
+            method=CausalEvidenceMethod.OTHER,
+            evidence_sha256="invalid",
+            description="Unverified record.",
+        )
+
+
+def test_causal_hypothesis_can_remain_unassessed_without_evidence():
+    from mosaic.core.temporality import CausalHypothesis
+
+    hypothesis = CausalHypothesis(
+        hypothesis_id="possible-enabling-condition",
+        cause_event_id="A",
+        effect_event_id="B",
+        relation="enables",
+    )
+    assert hypothesis.evidence == ()
+    assert hypothesis.alternative_explanations == ()
