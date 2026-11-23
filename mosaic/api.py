@@ -17,7 +17,7 @@ from mosaic.verification.sessions import (
 )
 
 
-app = FastAPI(title="MOSAIC API", version="0.5.0")
+app = FastAPI(title="MOSAIC API", version="0.6.0")
 session_store = SessionStore()
 
 
@@ -164,7 +164,7 @@ def verify_lean_closed_nat_equality(payload: LeanEqualityVerificationRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "mosaic", "version": "0.5.0"}
+    return {"status": "ok", "service": "mosaic", "version": "0.6.0"}
 
 
 @app.post("/v1/math", response_model=MathResponse)
