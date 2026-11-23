@@ -9,6 +9,10 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from mosaic.core.requests import MathRequest
+from mosaic.verification.lean_calculus import (
+    LeanPolynomialDerivativeCheck,
+    verify_polynomial_real_derivative,
+)
 from mosaic.verification.lean_obligations import (
     LeanIdentityVerification,
     verify_request_identity_with_lean,
@@ -63,7 +67,7 @@ class ModelCandidateEvaluation(BaseModel):
     request_sha256: str
     candidate_sha256: str
     task_bound_check: TaskBoundCheck
-    lean_check: LeanIdentityVerification | LeanTransformationVerification | None = None
+    lean_check: LeanIdentityVerification | LeanTransformationVerification | LeanPolynomialDerivativeCheck | None = None
     explanation: str
 
     @computed_field
@@ -169,6 +173,18 @@ def evaluate_model_candidate(
     lean_check = None
     if submission.request.operation.value == "verify_identity":
         lean_check = verify_request_identity_with_lean(submission.request)
+    elif submission.request.operation.value == "differentiate":
+        try:
+            decoded = json.loads(submission.candidate)
+            result = decoded["result"]
+            variable = decoded["variable"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            result = None
+            variable = None
+        if isinstance(result, str) and variable == "x":
+            lean_check = verify_polynomial_real_derivative(
+                submission.request.expression, candidate_derivative=result
+            )
     elif submission.request.operation.value in {"simplify", "expand", "factor"}:
         try:
             decoded = json.loads(submission.candidate)
