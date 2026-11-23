@@ -70,3 +70,42 @@ def obligations_for_request(request: MathRequest) -> tuple[VerificationObligatio
         checker_id=checker,
         statement=statement,
     ),)
+
+
+
+def verify_obligation_candidate(request: MathRequest, obligation: VerificationObligation, raw: str):
+    """Evaluate a candidate only if its obligation matches this exact request.
+
+    The returned TaskBoundCheck retains the conservative status vocabulary of
+    the task-bound verifier. No checker name supplied by a model is executed.
+    """
+    from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_candidate
+
+    fingerprint = request_fingerprint(request)
+    if obligation.request_sha256 != fingerprint or obligation.operation != request.operation.value:
+        candidate_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest() if isinstance(raw, str) else hashlib.sha256(b"").hexdigest()
+        return TaskBoundCheck(
+            status="INVALID_CERTIFICATE",
+            request_sha256=fingerprint,
+            candidate_sha256=candidate_hash,
+            explanation="Verification obligation is stale or belongs to a different request.",
+        )
+
+    expected = obligations_for_request(request)[0]
+    if obligation.obligation_id != expected.obligation_id or obligation.kind != expected.kind or obligation.checker_id != expected.checker_id:
+        candidate_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest() if isinstance(raw, str) else hashlib.sha256(b"").hexdigest()
+        return TaskBoundCheck(
+            status="INVALID_CERTIFICATE",
+            request_sha256=fingerprint,
+            candidate_sha256=candidate_hash,
+            explanation="Obligation metadata does not match the registered checker contract.",
+        )
+    if obligation.kind == "unsupported":
+        candidate_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest() if isinstance(raw, str) else hashlib.sha256(b"").hexdigest()
+        return TaskBoundCheck(
+            status="UNSUPPORTED",
+            request_sha256=fingerprint,
+            candidate_sha256=candidate_hash,
+            explanation="No checker is registered for this obligation.",
+        )
+    return verify_task_bound_candidate(request, raw)
