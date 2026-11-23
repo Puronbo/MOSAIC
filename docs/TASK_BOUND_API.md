@@ -184,7 +184,10 @@ request and creates a request-fingerprinted
 The generated Lean proposition has no additional assumptions.
 
 A formal result therefore applies to the exact identity encoded in that
-request, not to a nearby candidate or an independently supplied equation.
+request, not to a nearby candidate or an independently supplied equation. The
+Lean check includes a SHA-256 fingerprint of the exact generated theorem
+source, alongside the hashes of the original left- and right-hand expressions,
+so the checked artifact can be identified in downstream records.
 The current Lean grammar still supports only closed natural-number arithmetic;
 identities containing variables or rational-domain conditions remain
 unsupported. This endpoint does not upgrade the general task-bound result or
