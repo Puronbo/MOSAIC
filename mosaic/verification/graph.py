@@ -16,6 +16,8 @@ from mosaic.verification.side_conditions import (
     verify_side_condition_contract,
     evaluate_side_condition,
     domain_constraints_for_request,
+    domain_restrictions_for_request,
+    DomainRestriction,
 )
 from mosaic.verification.task_bound import TaskBoundCheck
 
@@ -57,6 +59,7 @@ class SideConditionResult(BaseModel):
     checker_id: str
     explanation: str
     domain_constraints: tuple[str, ...] = ()
+    domain_restrictions: tuple[DomainRestriction, ...] = ()
 
 
 class ObligationGraphResult(BaseModel):
@@ -185,6 +188,7 @@ def evaluate_obligation_graph(
             checker_id=checker_id,
             explanation=explanation,
             domain_constraints=domain_constraints_for_request(item.request),
+            domain_restrictions=domain_restrictions_for_request(item.request),
         )
         for item in graph.side_conditions
         for status, checker_id, explanation in (
