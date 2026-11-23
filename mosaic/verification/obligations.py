@@ -92,7 +92,7 @@ def verify_obligation_candidate(request: MathRequest, obligation: VerificationOb
         )
 
     expected = obligations_for_request(request)[0]
-    if obligation.obligation_id != expected.obligation_id or obligation.kind != expected.kind or obligation.checker_id != expected.checker_id:
+    if obligation != expected:
         candidate_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest() if isinstance(raw, str) else hashlib.sha256(b"").hexdigest()
         return TaskBoundCheck(
             status="INVALID_CERTIFICATE",
