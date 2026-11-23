@@ -73,3 +73,9 @@ def test_cancelled_variables_remain_explicitly_bound():
 def test_constant_intermediate_growth_is_bounded():
     with pytest.raises(ValueError):
         lean_linear._parse_linear("(1000000 * 1000000) * x")
+
+
+def test_scalar_multiplication_preserves_affine_constant_term():
+    form, variables = lean_linear._parse_linear("2*(x + 3)")
+    assert form == {"x": 2, "": 6}
+    assert variables == ("x",)
