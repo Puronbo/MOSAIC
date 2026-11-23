@@ -26,7 +26,7 @@ def test_missing_lean_is_explicitly_unavailable(monkeypatch):
     result = lean_kernel.verify_closed_nat_equality("2 + 3", "5")
     assert result.status == "KERNEL_UNAVAILABLE"
     assert result.lhs_sha256 == hashlib.sha256(b"2 + 3").hexdigest()
-    expected_source = "theorem mosaic_certificate : ((2 + 3) : Nat) = (5 : Nat) := by decide\\n"
+    expected_source = "theorem mosaic_certificate : ((2 + 3) : Nat) = (5 : Nat) := by decide\n"
     assert result.proof_source_sha256 == hashlib.sha256(expected_source.encode()).hexdigest()
 
 
