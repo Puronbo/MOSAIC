@@ -16,7 +16,7 @@ from mosaic.verification.sessions import (
 )
 
 
-app = FastAPI(title="MOSAIC API", version="0.4.0")
+app = FastAPI(title="MOSAIC API", version="0.5.0")
 session_store = SessionStore()
 
 
@@ -151,7 +151,7 @@ def append_verification_revision(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "mosaic", "version": "0.4.0"}
+    return {"status": "ok", "service": "mosaic", "version": "0.5.0"}
 
 
 @app.post("/v1/math", response_model=MathResponse)
