@@ -205,3 +205,49 @@ def test_negative_outer_power_remains_unsupported():
 
     req = request("((x + 1)/(x - 1))**-2")
     assert domain_restrictions_for_request(req) == ()
+
+
+
+def test_domain_preservation_detects_cancellation_that_expands_domain():
+    from mosaic.verification.side_conditions import check_domain_preservation
+
+    req = request("((x**2 - 1)/(x - 1))**2")
+    result = check_domain_preservation(req, "(x + 1)**2")
+    assert result.status == "EXPANDED"
+    assert result.missing_factors == ("x - 1",)
+    assert result.additional_factors == ()
+
+
+def test_domain_preservation_accepts_equivalent_denominator_multiplicity():
+    from mosaic.verification.side_conditions import check_domain_preservation
+
+    req = request("((x + 1)/(x - 1))**2")
+    result = check_domain_preservation(req, "(x + 1)**2/(x - 1)**2")
+    assert result.status == "PRESERVED"
+    assert result.original_nonzero_factors == ("x - 1",)
+
+
+def test_domain_preservation_detects_additional_candidate_exclusions():
+    from mosaic.verification.side_conditions import check_domain_preservation
+
+    req = request("(x**2 + 1)**2")
+    result = check_domain_preservation(req, "1/(x - 3)")
+    assert result.status == "RESTRICTED"
+    assert result.additional_factors == ("x - 3",)
+
+
+def test_domain_preservation_handles_factorized_equivalent_denominators():
+    from mosaic.verification.side_conditions import check_domain_preservation
+
+    req = request("((x + 1)/(x**2 - 1))**2")
+    result = check_domain_preservation(req, "(x + 1)**2/((x - 1)*(x + 1))**2")
+    assert result.status == "PRESERVED"
+    assert set(result.original_nonzero_factors) == {"x - 1", "x + 1"}
+
+
+def test_domain_preservation_rejects_unsupported_candidate_grammar():
+    from mosaic.verification.side_conditions import check_domain_preservation
+
+    req = request("((x + 1)/(x - 1))**2")
+    result = check_domain_preservation(req, "sin(x)")
+    assert result.status == "UNSUPPORTED"
