@@ -37,6 +37,17 @@ All coordinates in this initial contract are stored in seconds, but this common 
 
 This gives MOSAIC a practical answer to “what time is” at the software boundary: a timestamp is a value produced by a particular clock under declared semantics. Physical time itself is not reduced to that value. The model records change, ordering, duration, and causal claims separately, then asks what a specified clock or physical theory licenses us to infer.
 
+
+## Explicit clock calibration
+
+`ClockCalibration` represents a declared affine mapping from one clock scale to another:
+
+`target = offset + rate × source`
+
+The mapping names both clock IDs, requires a positive rate, records a finite validity interval on the source scale, and includes a bounded calibration uncertainty. Transforming a `TemporalPoint` is allowed only when its clock ID matches the source and its entire uncertainty interval lies inside the calibration range.
+
+Uncertainty is propagated conservatively as `rate × source_uncertainty + calibration_uncertainty`. This is a bounded-error contract for the stated affine model; it is not a calibration procedure, proof of synchronization, or evidence that the assumed rate and offset remain physically valid. Nonlinear drift, changing rates, discontinuities, and relativistic frame transformations require richer domain-specific models. A calibration must never be extrapolated outside its declared range.
+
 ## Event order as a partial order
 
 A single global timeline is not always justified by the available information. MOSAIC now represents event precedence as a directed acyclic graph. An edge (A \to B) means the model asserts that A precedes B. Reachability gives transitive consequences: if A precedes B and B precedes C, then A precedes C.
