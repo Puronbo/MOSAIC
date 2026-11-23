@@ -43,7 +43,7 @@ The current Python prototype includes:
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
 
-See [the temporal model](docs/TEMPORAL_MODEL.md) for event partial orders, uncertainty-aware clock measurements, explicit monotonic/civil/proper/coordinate clock semantics, duration bounds, state transitions, and the distinction between temporal order and causality.
+See [the temporal model](docs/TEMPORAL_MODEL.md) for event partial orders, uncertainty-aware clock measurements, explicit monotonic/civil/proper/coordinate clock semantics, bounded clock-calibration transforms, duration bounds, state transitions, and the distinction between temporal order and causality.
 
 See [recursive derivation trees](docs/RECURSIVE_DERIVATION_TREES.md) and [derivation-to-obligation graph compilation](docs/DERIVATION_OBLIGATION_GRAPHS.md) for the current decomposition contracts and trust limitations.
 
