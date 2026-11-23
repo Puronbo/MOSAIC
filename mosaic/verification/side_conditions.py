@@ -82,6 +82,22 @@ def verify_side_condition_contract(
     )
 
 
+def _integer_literal(node: ast.AST) -> int | None:
+    """Read a signed integer literal without accepting booleans or expressions."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, int) and not isinstance(node.value, bool):
+        return node.value
+    if (
+        isinstance(node, ast.UnaryOp)
+        and isinstance(node.op, (ast.UAdd, ast.USub))
+        and isinstance(node.operand, ast.Constant)
+        and isinstance(node.operand.value, int)
+        and not isinstance(node.operand.value, bool)
+    ):
+        value = node.operand.value
+        return -value if isinstance(node.op, ast.USub) else value
+    return None
+
+
 def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[tuple[str, str, int, int], ...]]:
     """Recognize rational expressions while retaining every syntactic exclusion."""
     try:
@@ -90,10 +106,8 @@ def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[tuple[s
         if not (
             isinstance(root, ast.BinOp)
             and isinstance(root.op, ast.Pow)
-            and isinstance(root.right, ast.Constant)
-            and isinstance(root.right.value, int)
-            and not isinstance(root.right.value, bool)
-            and root.right.value >= 0
+            and _integer_literal(root.right) is not None
+            and _integer_literal(root.right) >= 0
         ):
             return False, ()
 
@@ -123,13 +137,10 @@ def _rational_domain_analysis(request: MathRequest) -> tuple[bool, tuple[tuple[s
                     constraints.append((sp.sstr(denominator), "division_denominator", node.lineno, node.col_offset))
                     return True
                 if isinstance(node.op, ast.Pow):
-                    if not (
-                        isinstance(node.right, ast.Constant)
-                        and isinstance(node.right.value, int)
-                        and not isinstance(node.right.value, bool)
-                    ):
+                    exponent = _integer_literal(node.right)
+                    if exponent is None:
                         return False
-                    if node.right.value < 0:
+                    if exponent < 0:
                         base = parse_expression(ast.unparse(node.left))
                         constraints.append((sp.sstr(base), "negative_power_base", node.lineno, node.col_offset))
                     return True
@@ -175,6 +186,11 @@ def domain_restrictions_for_request(request: MathRequest) -> tuple[DomainRestric
             column=column,
         ))
     return tuple(restrictions)
+
+
+def verify_domain_restriction(request: MathRequest, supplied: DomainRestriction) -> bool:
+    """Validate restriction provenance; this does not establish the nonzero predicate."""
+    return supplied in domain_restrictions_for_request(request)
 
 
 def domain_constraints_for_request(request: MathRequest) -> tuple[str, ...]:
