@@ -48,6 +48,13 @@ The mapping names both clock IDs, requires a positive rate, records a finite val
 
 Uncertainty is propagated conservatively as `rate × source_uncertainty + calibration_uncertainty`. This is a bounded-error contract for the stated affine model; it is not a calibration procedure, proof of synchronization, or evidence that the assumed rate and offset remain physically valid. Nonlinear drift, changing rates, discontinuities, and relativistic frame transformations require richer domain-specific models. A calibration must never be extrapolated outside its declared range.
 
+
+## Interval relations
+
+`TemporalInterval` stores start and end readings on the same clock. For exact endpoints, `compare_temporal_intervals` implements the 13 qualitative relations of Allen-style interval algebra: before, meets, overlaps, starts, during, finishes, equals, and their converse relations. This describes how two intervals relate; it does not assert why either interval occurred.
+
+For uncertain endpoints, MOSAIC makes only conservative claims in this initial implementation. `BEFORE` or `AFTER` is returned only when the endpoint uncertainty bounds are strictly separated. Other relations require exact endpoints; otherwise the answer is `INDETERMINATE`. In particular, overlapping uncertainty bounds do not prove simultaneity, equality, or causal connection. Intervals on different clocks cannot be compared without an explicit calibration or physical transformation.
+
 ## Event order as a partial order
 
 A single global timeline is not always justified by the available information. MOSAIC now represents event precedence as a directed acyclic graph. An edge (A \to B) means the model asserts that A precedes B. Reachability gives transitive consequences: if A precedes B and B precedes C, then A precedes C.
