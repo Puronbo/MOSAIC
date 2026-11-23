@@ -49,8 +49,10 @@ The chain-rule rule currently declares unresolved inner-differentiability,
 domain-definedness, and domain-preservation conditions. Each is request-bound,
 deterministic, and explicitly marked `UNSUPPORTED` with no checker.
 
-These conditions are intentionally not silently treated as satisfied and are
-not yet inserted into the executable obligation DAG. The existing DAG therefore
+Use ` + "`side_conditions_for_derivation_tree(request, tree)`" + ` to collect these
+contracts across every rule node in a validated recursive derivation. These
+conditions are intentionally not silently treated as satisfied and are not yet
+inserted into the executable obligation DAG. The existing DAG therefore
 continues to report the status of its supported algebraic checks, while callers
 can separately inspect the rule's unresolved preconditions. A future domain-aware
 checker must discharge these contracts before the aggregate derivation can be
