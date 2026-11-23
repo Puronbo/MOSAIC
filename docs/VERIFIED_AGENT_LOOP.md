@@ -32,6 +32,45 @@ async def main():
 asyncio.run(main())
 ```
 
+## Wrap an existing model SDK
+
+You do not need to replace your current model client or adopt a specific
+agent framework. Adapt its call with `CallableModelProvider` and keep
+credentials in your application's existing SDK configuration:
+
+```python
+from mosaic.core.adapters import (
+    CallableModelProvider,
+    ModelCapability,
+    ModelRequest,
+)
+from mosaic.core.orchestration import AgentRole
+
+# Existing SDK client is created and authenticated by your application.
+async def call_existing_model(request: ModelRequest) -> str:
+    response = await existing_sdk.generate(
+        system=request.system_instruction,
+        prompt=request.prompt,
+        max_tokens=request.max_output_tokens,
+    )
+    return response.text
+
+provider = CallableModelProvider(
+    ModelCapability(
+        provider_id="my-application",
+        model_id="my-current-model",
+        supported_roles=(AgentRole.SOLVER,),
+    ),
+    call_existing_model,
+)
+```
+
+The callback receives a bounded `ModelRequest` and returns raw text. A normal
+synchronous callback is also supported and is executed in a worker thread;
+async callbacks remain asynchronous. The adapter does not interpret model
+output, add credentials to prompts, or assign mathematical status. Pass this
+provider to `run_verified_agent` as in the example above. Provider IDs are
+provenance labels, not trust signals.
 The loop asks the provider for a strict JSON candidate, submits the exact
 unchanged request and raw candidate to MOSAIC's independent gateway, and feeds
 structured checker feedback into a bounded revision attempt when the candidate
