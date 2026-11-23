@@ -33,7 +33,7 @@ The current Python prototype includes:
 - a provider-neutral asynchronous model adapter protocol, explicit provider registry, timeout and payload bounds, and prompt/output hashes;
 - a deterministic agent graph runner with explicit provider assignments, dependency-output handoff, failure isolation, and execution provenance;
 - an opt-in OpenAI-compatible HTTP chat provider with HTTPS/loopback policy, redirect rejection, sanitized errors, and injectable test transport;
-- a structured identity-claim boundary, task-bound candidate verification, and first-class verification obligations and dependency-aware DAG execution that bind explicit checker contracts to request fingerprints;
+- a structured identity-claim boundary, task-bound candidate verification, and first-class verification obligations and dependency-aware DAG execution and a deterministic chain-rule decomposer that bind explicit checker contracts to request fingerprints;
 - regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
