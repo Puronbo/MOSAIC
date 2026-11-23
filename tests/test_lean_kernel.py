@@ -44,7 +44,7 @@ def test_lean_kernel_success_uses_only_generated_closed_theorem(monkeypatch):
     result = lean_kernel.verify_closed_nat_equality("(2 + 3)", "5")
     assert result.status == "FORMALLY_VERIFIED"
     assert result.lean_version == "Lean version test"
-    expected_source = "theorem mosaic_certificate : ((2 + 3) : Nat) = (5 : Nat) := by decide\\n"
+    expected_source = "theorem mosaic_certificate : ((2 + 3) : Nat) = (5 : Nat) := by decide\n"
     assert result.proof_source_sha256 == hashlib.sha256(expected_source.encode()).hexdigest()
     assert len(calls) == 2
 
