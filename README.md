@@ -122,3 +122,16 @@ registered in code; related checks using the same symbolic runtime count as
 one source. Model opinions are not checker evidence. This cross-check remains
 experimental and is not a formal proof. See
 [the evidence and independence contract](docs/TASK_BOUND_API.md#evidence-provenance-and-independence).
+
+
+## Optional Lean kernel check
+
+When a Lean 4 executable is installed and available on PATH, MOSAIC exposes
+`POST /v1/verify/lean/closed-nat-equality`. It accepts only bounded, closed
+natural-number arithmetic expressions; MOSAIC generates the Lean theorem
+rather than accepting source code or tactics from the caller. A successful
+kernel check is reported as `FORMALLY_VERIFIED` for that exact equality only.
+If Lean is unavailable, the response explicitly reports
+`KERNEL_UNAVAILABLE`. This narrow bridge does not yet prove general symbolic
+identities or transformations. See [the architecture](docs/ARCHITECTURE.md)
+and [security limitations](SECURITY.md).
