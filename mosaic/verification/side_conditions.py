@@ -290,11 +290,11 @@ def check_domain_preservation(
     candidate_expression: str,
 ) -> DomainPreservationResult:
     """Compare exact polynomial exclusion factors; never infer a proof from matching syntax."""
-    supported, original_constraints = _rational_domain_analysis(request)
-    if not supported:
+    original_constraints = _candidate_rational_restrictions(request.expression)
+    if original_constraints is None:
         return DomainPreservationResult(
             status="UNSUPPORTED",
-            explanation="The original request is outside the supported rational-power domain checker.",
+            explanation="The original request is outside the supported rational-expression domain checker.",
         )
     candidate_constraints = _candidate_rational_restrictions(candidate_expression)
     if candidate_constraints is None:
@@ -303,7 +303,7 @@ def check_domain_preservation(
             explanation="The candidate is outside the restricted rational-expression grammar.",
         )
     try:
-        original = _nonzero_factor_signature(tuple(item[0] for item in original_constraints))
+        original = _nonzero_factor_signature(original_constraints)
         candidate = _nonzero_factor_signature(candidate_constraints)
     except (ExpressionError, sp.PolynomialError, TypeError, ValueError):
         return DomainPreservationResult(
