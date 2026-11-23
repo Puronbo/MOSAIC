@@ -148,3 +148,60 @@ def test_distinct_original_denominator_occurrences_remain_distinct():
     assert len(restrictions) == 2
     assert restrictions[0].expression == restrictions[1].expression
     assert restrictions[0].restriction_id != restrictions[1].restriction_id
+
+
+
+def test_negative_inner_power_records_its_base_as_a_domain_restriction():
+    from mosaic.verification.side_conditions import (
+        domain_restrictions_for_request, evaluate_side_condition,
+    )
+
+    req = request("(x**-1 + 1)**2")
+    restrictions = domain_restrictions_for_request(req)
+    assert len(restrictions) == 1
+    assert restrictions[0].expression == "x"
+    assert restrictions[0].source_kind == "negative_power_base"
+    assert all(
+        status == "EXPERIMENTAL"
+        for status, _, _ in (
+            evaluate_side_condition(
+                req, condition
+            )
+            for condition in get_decomposition_rule(
+                "calculus.chain_rule.integer_power.v1"
+            ).side_conditions(req)
+        )
+    )
+
+
+def test_negative_power_of_composite_base_preserves_that_base():
+    from mosaic.verification.side_conditions import domain_restrictions_for_request
+
+    restrictions = domain_restrictions_for_request(request("((x - 1)**-2 + 3)**2"))
+    assert len(restrictions) == 1
+    assert restrictions[0].expression == "x - 1"
+    assert restrictions[0].source_kind == "negative_power_base"
+
+
+def test_domain_restriction_verifier_checks_exact_request_bound_provenance():
+    from mosaic.verification.side_conditions import (
+        domain_restrictions_for_request, verify_domain_restriction,
+    )
+
+    req = request("((x + 1)/(x - 1))**2")
+    restriction = domain_restrictions_for_request(req)[0]
+    assert verify_domain_restriction(req, restriction)
+    assert not verify_domain_restriction(
+        request("((x + 1)/(x - 2))**2"), restriction
+    )
+    altered = restriction.model_copy(update={"expression": "x - 9"})
+    assert not verify_domain_restriction(req, altered)
+    altered_source = restriction.model_copy(update={"source_kind": "negative_power_base"})
+    assert not verify_domain_restriction(req, altered_source)
+
+
+def test_negative_outer_power_remains_unsupported():
+    from mosaic.verification.side_conditions import domain_restrictions_for_request
+
+    req = request("((x + 1)/(x - 1))**-2")
+    assert domain_restrictions_for_request(req) == ()
