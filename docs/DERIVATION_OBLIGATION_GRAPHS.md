@@ -1,60 +1,42 @@
 # Derivation-to-obligation graph compilation
 
-MOSAIC can compile a validated recursive derivation tree into the existing
-dependency-aware obligation graph.
+MOSAIC compiles a validated recursive derivation tree into a dependency-aware
+obligation graph. Terminal derivation requests become checker obligations;
+internal nodes preserve decomposition structure and dependency semantics.
 
-`compile_derivation_obligation_graph(request, tree)` first revalidates the
-entire tree against the statically registered decomposition rules. It then
-creates checker obligations for terminal requests only. Internal nodes are
-decomposition structure, not independently checked mathematical claims.
+For the registered integer-power chain rule, the final composition identity
+depends on all terminal obligations in the outer- and inner-derivative
+branches. Nested applications preserve this dependency closure.
 
-For the registered integer-power chain rule, the three child branches have a
-fixed meaning: outer derivative, inner derivative, and final composition
-identity. The final identity is gated on every terminal obligation in the
-first two branches. This preserves prerequisite dependencies when the inner
-derivative itself has been recursively decomposed.
+## Rule preconditions are part of graph evaluation
 
-The compiler rejects invalid trees and rules without an explicit obligation
-compiler. The resulting graph is a structural dependency contract; it does
-not prove that the rule registry is mathematically complete or that the
-current experimental symbolic checker is sound. A fully satisfied graph
-therefore retains the checkers' conservative status and cannot be promoted to
-`PROVED` or `FORMALLY_VERIFIED`.
+Every registered rule may declare request-bound side conditions. The chain
+rule currently declares inner differentiability, domain definedness, and
+domain/branch preservation. Each is explicitly `UNSUPPORTED` because no
+domain-aware checker is registered.
 
-## Current scope
+The compiler now attaches each condition to the exact request that generated
+it as a `RuleSideConditionNode`. Graph validation recomputes the expected
+condition from the statically registered rule and rejects altered, stale, or
+unknown contracts. This is integrity validation, not proof that the condition
+holds.
 
-- Terminal requests use the existing `obligations_for_request` factory.
-- The integer-power chain rule is the only registered composition compiler.
-- The generic graph evaluator continues to own candidate checking and status
-  aggregation.
-- Future rule compilers must explicitly define prerequisite branches and
-  dependency semantics before they can participate.
+The evaluator still runs the algebraic leaf checks so users retain diagnostic
+results. However, any unresolved side condition makes the aggregate graph
+status `UNSUPPORTED`, even when every algebraic candidate passes its
+experimental checker. Side conditions are separately reported in
+`side_condition_results`; they are never silently treated as satisfied and
+cannot be discharged by supplying an arbitrary candidate string.
 
+## Status and trust boundary
 
-## Rule-owned derivation expansion
+- `EXPERIMENTAL` means all algebraic obligations passed current experimental
+  checkers, with no unresolved rule preconditions.
+- `UNSUPPORTED` means at least one required rule precondition has no checker.
+- `INCOMPLETE` means required algebraic candidates or dependencies are
+  missing or unsatisfied.
+- `INVALID_CERTIFICATE` means a candidate failed certificate/schema checks.
 
-Each statically registered decomposition rule now supplies its own ordered
-child-request expander. The recursive tree builder and validator resolve that
-expander through the registry rather than branching on a particular rule ID.
-This makes adding a new built-in rule less invasive while preserving the
-allow-list: rule code is still trusted repository code, not model-supplied
-executable content. Child order remains significant because dependency policies
-refer to child indices.
-
-
-## Explicit rule side conditions
-
-Registered rules may also expose `side_conditions(request)` contracts.
-The chain-rule rule currently declares unresolved inner-differentiability,
-domain-definedness, and domain-preservation conditions. Each is request-bound,
-deterministic, and explicitly marked `UNSUPPORTED` with no checker.
-
-Use ` + "`side_conditions_for_derivation_tree(request, tree)`" + ` to collect these
-contracts across every rule node in a validated recursive derivation. These
-conditions are intentionally not silently treated as satisfied and are not yet
-inserted into the executable obligation DAG. The existing DAG therefore
-continues to report the status of its supported algebraic checks, while callers
-can separately inspect the rule's unresolved preconditions. A future domain-aware
-checker must discharge these contracts before the aggregate derivation can be
-upgraded. Contract validation checks integrity only; it does not prove a
-condition.
+No status here is a formal proof. The registered rules remain allow-listed
+repository code, and future domain-aware checkers must explicitly discharge
+their own contracts before a derivation can be reported as fully evaluated.
