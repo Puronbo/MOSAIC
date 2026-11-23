@@ -69,7 +69,7 @@ def test_real_polynomial_chain_rule_preconditions_are_checked_experimentally():
     results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
 
     assert all(status == "EXPERIMENTAL" for status, _, _ in results)
-    assert all(checker == "calculus.real_polynomial_domain.v1" for _, checker, _ in results)
+    assert all(checker == "calculus.rational_domain_constraints.v1" for _, checker, _ in results)
 
 
 def test_negative_power_domain_preconditions_remain_unsupported():
@@ -89,4 +89,35 @@ def test_non_polynomial_inner_expression_remains_unsupported():
     rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
     results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
 
+    assert all(status == "UNSUPPORTED" for status, _, _ in results)
+
+
+
+def test_rational_inner_expression_preserves_original_denominator_exclusion():
+    from mosaic.verification.side_conditions import (
+        domain_constraints_for_request, evaluate_side_condition,
+    )
+
+    req = request("((x**2 - 1)/(x - 1))**2")
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
+
+    assert all(status == "EXPERIMENTAL" for status, _, _ in results)
+    assert all(checker == "calculus.rational_domain_constraints.v1" for _, checker, _ in results)
+    assert domain_constraints_for_request(req) == ("x - 1",)
+
+
+def test_rational_domain_analysis_collects_nested_denominators():
+    from mosaic.verification.side_conditions import domain_constraints_for_request
+
+    req = request("((1/(x - 2) + 1/(x + 3)))**2")
+    assert domain_constraints_for_request(req) == ("x - 2", "x + 3")
+
+
+def test_identically_zero_denominator_is_not_supported():
+    from mosaic.verification.side_conditions import evaluate_side_condition
+
+    req = request("((x + 1)/(x - x))**2")
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    results = [evaluate_side_condition(req, item) for item in rule.side_conditions(req)]
     assert all(status == "UNSUPPORTED" for status, _, _ in results)
