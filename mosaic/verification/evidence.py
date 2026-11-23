@@ -9,7 +9,11 @@ from typing import Literal, Iterable
 
 from pydantic import BaseModel, ConfigDict, Field
 
+import json
+
+from mosaic.core.requests import MathRequest
 from mosaic.verification.task_bound import TaskBoundCheck
+from mosaic.verification.polynomial_checker import rational_polynomial_equivalent
 
 
 # Registry metadata is controlled by MOSAIC code, not candidate payloads.
@@ -17,6 +21,7 @@ from mosaic.verification.task_bound import TaskBoundCheck
 REGISTERED_EVIDENCE_SOURCES = {
     "mosaic.task_bound_candidate.v1": "sympy_symbolic_runtime",
     "rational_domain_factor_comparison.v1": "sympy_symbolic_runtime",
+    "mosaic.exact_rational_polynomial.v1": "exact_fraction_polynomial",
 }
 
 
@@ -147,8 +152,10 @@ def aggregate_evidence(items: Iterable[EvidenceItem]) -> EvidenceBundle:
     )
 
 
-def evidence_from_check(check: TaskBoundCheck) -> EvidenceBundle:
-    """Translate task-bound checker outputs into registered evidence findings."""
+def evidence_from_check(
+    check: TaskBoundCheck, request: MathRequest, raw_candidate: str
+) -> EvidenceBundle:
+    """Translate task-bound and independent exact-arithmetic findings."""
     if check.equal is True and check.status == "EXPERIMENTAL":
         algebra_finding = "supports"
     elif check.equal is False:
@@ -172,4 +179,25 @@ def evidence_from_check(check: TaskBoundCheck) -> EvidenceBundle:
             check, "rational_domain_preservation", domain.checker_id,
             domain_finding, domain.explanation,
         ))
+    if request.operation.value in {"simplify", "expand", "factor"}:
+        try:
+            decoded = json.loads(raw_candidate)
+            proposed_result = decoded.get("result") if isinstance(decoded, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            proposed_result = None
+        if isinstance(proposed_result, str):
+            equivalent = rational_polynomial_equivalent(
+                request.expression, proposed_result
+            )
+            finding = (
+                "supports" if equivalent is True
+                else "refutes" if equivalent is False
+                else "unresolved"
+            )
+            items.append(_item(
+                check, "algebraic_equivalence",
+                "mosaic.exact_rational_polynomial.v1", finding,
+                "Independent exact Fraction-based rational-polynomial comparison: "
+                + ("equivalent" if equivalent is True else "not equivalent" if equivalent is False else "unsupported syntax"),
+            ))
     return aggregate_evidence(items)
