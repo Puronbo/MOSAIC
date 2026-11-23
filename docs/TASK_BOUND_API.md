@@ -171,3 +171,21 @@ prove identities with variables, rational-domain preservation, or arbitrary
 transformation obligations. The configured Lean executable is part of the
 trusted computing base; see [SECURITY.md](../SECURITY.md) for deployment
 limitations.
+
+
+## Request-bound Lean identity obligation
+
+`POST /v1/verify/lean/request-identity` accepts the standard
+`{ "request": MathRequest }` envelope. It does not accept proposition text
+or a caller-selected obligation. MOSAIC derives both sides directly from the
+request and creates a request-fingerprinted
+`lean.kernel.closed_nat_equality.v1` obligation. Only
+`verify_identity` requests with an explicit right-hand side are eligible.
+The generated Lean proposition has no additional assumptions.
+
+A formal result therefore applies to the exact identity encoded in that
+request, not to a nearby candidate or an independently supplied equation.
+The current Lean grammar still supports only closed natural-number arithmetic;
+identities containing variables or rational-domain conditions remain
+unsupported. This endpoint does not upgrade the general task-bound result or
+the evidence bundle.
