@@ -78,3 +78,11 @@ def test_generic_executor_rejects_unknown_and_nonmatching_rule():
         execute_decomposition(request(), "unregistered.rule")
     with pytest.raises(ExpressionError, match="does not match"):
         execute_decomposition(request("x+1"), "calculus.chain_rule.integer_power.v1")
+
+
+
+def test_chain_rule_declares_its_obligation_dependency_contract():
+    rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
+    assert rule.dependency_policy(3) == ((2, (0, 1)),)
+    with pytest.raises(ExpressionError, match="requires three child branches"):
+        rule.dependency_policy(2)
