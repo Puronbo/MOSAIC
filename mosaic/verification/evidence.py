@@ -37,6 +37,7 @@ class EvidenceAssessment(BaseModel):
     independent_support_groups: tuple[str, ...] = ()
     independent_refutation_groups: tuple[str, ...] = ()
     independent_support_count: int = 0
+    claim_conflicts: tuple[str, ...] = ()
     model_opinion_count: int = 0
     explanation: str
 
@@ -103,15 +104,29 @@ def evidence_from_check(check: TaskBoundCheck) -> EvidenceBundle:
     refute = sorted({
         item.independence_group for item in items if item.finding == "refutes"
     })
+    unresolved = [item for item in items if item.finding == "unresolved"]
+    claim_conflicts = sorted({
+        item.claim_id for item in items
+        if item.finding == "supports"
+        and any(
+            other.claim_id == item.claim_id
+            and other.finding == "refutes"
+            and other.independence_group != item.independence_group
+            for other in items
+        )
+    })
     if not items:
         status = "NO_CHECKER_EVIDENCE"
         explanation = "No registered checker evidence is available."
-    elif support and refute:
+    elif claim_conflicts:
         status = "CONFLICT"
-        explanation = "Registered checker findings conflict within the available evidence; investigate the claims and checker semantics."
+        explanation = "Independent implementation groups disagree on the same claim: " + ", ".join(claim_conflicts)
     elif refute:
         status = "REFUTED_BY_CHECKER"
         explanation = "At least one registered checker finding refutes a required claim."
+    elif unresolved:
+        status = "UNRESOLVED"
+        explanation = "At least one required claim remains unresolved by the available checkers."
     elif support and len(support) == 1:
         status = "SINGLE_SOURCE_SUPPORT"
         explanation = "Available findings support the checked claims, but all originate from one implementation group."
@@ -127,6 +142,7 @@ def evidence_from_check(check: TaskBoundCheck) -> EvidenceBundle:
         independent_support_groups=tuple(support),
         independent_refutation_groups=tuple(refute),
         independent_support_count=len(support),
+        claim_conflicts=tuple(claim_conflicts),
         explanation=explanation,
     )
     return EvidenceBundle(items=tuple(items), assessment=assessment)
