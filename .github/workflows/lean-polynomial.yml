@@ -85,6 +85,14 @@ jobs:
           assert derivative.proof_source_sha256
           product_derivative = verify_polynomial_real_derivative("(x + 2) * (x - 3)")
           assert product_derivative.status == "FORMALLY_VERIFIED", product_derivative.model_dump()
+          submitted_derivative = verify_polynomial_real_derivative(
+              "x^3 + 2*x", candidate_derivative="3*x^2 + 2"
+          )
+          assert submitted_derivative.status == "FORMALLY_VERIFIED", submitted_derivative.model_dump()
+          wrong_derivative = verify_polynomial_real_derivative(
+              "x^3 + 2*x", candidate_derivative="3*x^2 + 3"
+          )
+          assert wrong_derivative.status == "REJECTED", wrong_derivative.model_dump()
           bad_derivative = verify_polynomial_real_derivative("sin(x)")
           assert bad_derivative.status == "UNSUPPORTED", bad_derivative.model_dump()
 
@@ -134,5 +142,23 @@ jobs:
               }),
           ))
           assert gateway_transform.status == "FORMALLY_VERIFIED", gateway_transform.model_dump()
+
+          derivative_request = MathRequest(
+              operation=Operation.DIFFERENTIATE,
+              expression="x^3 + 2*x",
+              variable="x",
+          )
+          gateway_derivative = evaluate_model_candidate(ModelCandidateSubmission(
+              request=derivative_request,
+              candidate=json.dumps({
+                  "operation": "differentiate",
+                  "expression": "x^3 + 2*x",
+                  "variable": "x",
+                  "result": "3*x^2 + 2",
+              }),
+              provider_id="ci-provider",
+              model_id="ci-model",
+          ))
+          assert gateway_derivative.status == "FORMALLY_VERIFIED", gateway_derivative.model_dump()
           print("Polynomial identities, real polynomial derivatives, request-bound proofs, and model gateway checks passed.")
           PY
