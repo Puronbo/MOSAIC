@@ -20,11 +20,11 @@ def make_potential():
     )
 
 
-def make_config(boundary=LatticeBoundary.OPEN, field_values=None):
+def make_config(boundary=LatticeBoundary.OPEN, field_values=None, potential_id="zero-potential"):
     return FieldConfiguration1D(
         configuration_id="configuration-1",
         model_id="field-model",
-        potential_id="zero-potential",
+        potential_id=potential_id,
         coordinates=(Decimal("0"), Decimal("1"), Decimal("2")),
         field_values=field_values or (Decimal("0"), Decimal("1"), Decimal("2")),
         coordinate_unit="m",
