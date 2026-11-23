@@ -111,3 +111,11 @@ history with `GET /v1/verification-sessions/{session_id}`. See
 [the session contract](docs/TASK_BOUND_API.md#persistent-verification-sessions).
 Configure storage with `MOSAIC_SESSION_DB`; add authentication and deployment
 hardening before exposing it beyond a trusted environment.
+
+## Evidence provenance
+
+Task-bound checks now return provenance-labelled evidence findings alongside
+the result. Checker identities and independence groups are registered in code;
+related checks using the same symbolic runtime count as one source. Model
+opinions are not checker evidence. See
+[the evidence and independence contract](docs/TASK_BOUND_API.md#evidence-provenance-and-independence).
