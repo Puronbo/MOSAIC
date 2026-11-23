@@ -68,8 +68,12 @@ Mathlib revision to verify all of the following with the real kernel:
 - The exact generated source hash is returned even when the kernel is
   unavailable.
 
-Until the bounded compiler and its positive/negative adversarial tests
-exist, MOSAIC must continue to describe nonlinear user-request verification
-as unsupported rather than infer formal status from symbolic simplification.
-The fixed Lean examples are infrastructure probes, not a general-purpose
-MOSAIC polynomial certificate.
+The adapter is limited to universally quantified polynomial identities over
+`Int`. Its initial grammar supports variables `x`, `y`, and `z`, bounded
+integer literals, unary signs, addition, subtraction, multiplication, and
+nonnegative integer powers. It rejects division and unsupported syntax.
+Request-bound identity verification tries the closed-Nat checker, then the
+affine checker, then this polynomial checker. Each checker retains its own
+checker ID and generated-source fingerprint. The fixed Lean examples remain
+regression probes; the Python adapter is the bounded route for user-supplied
+expressions.
