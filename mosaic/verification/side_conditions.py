@@ -164,8 +164,8 @@ def evaluate_side_condition(
     ):
         return (
             "EXPERIMENTAL",
-            "calculus.real_polynomial_domain.v1",
-            "Recognized a nonnegative integer power of a polynomial; the expression and its derivatives are defined and differentiable over the real domain.",
+            "calculus.rational_domain_constraints.v1",
+            "Recognized a nonnegative integer power of a rational expression. Differentiability is conditional on the reported original-syntax nonzero constraints.",
         )
     return (
         "UNSUPPORTED",
