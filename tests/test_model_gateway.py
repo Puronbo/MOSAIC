@@ -170,3 +170,17 @@ def test_gateway_formally_checks_domain_preserving_transformation(monkeypatch):
     result = evaluate_model_candidate(submission)
     assert seen["result"] == "x^2 + 2*x + 1"
     assert result.status == "FORMALLY_VERIFIED"
+
+
+def test_ai_tool_schema_is_portable_and_restricts_unknown_fields():
+    client = TestClient(app)
+    response = client.get("/v1/ai/tool-schema")
+    assert response.status_code == 200
+    tool = response.json()
+    assert tool["type"] == "function"
+    assert tool["function"]["name"] == "mosaic_verify_candidate"
+    parameters = tool["function"]["parameters"]
+    assert parameters["additionalProperties"] is False
+    assert parameters["properties"]["request"]["additionalProperties"] is False
+    assert "candidate" in parameters["required"]
+    assert "lean_source" not in parameters["properties"]
