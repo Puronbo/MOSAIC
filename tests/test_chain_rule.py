@@ -73,7 +73,7 @@ def test_direct_execution_reports_rational_domain_constraints():
     assert execution.graph_result.status == "EXPERIMENTAL"
 
 
-def test_direct_execution_does_not_silently_accept_log_domain_conditions():
-    execution = execute_power_chain_rule(request("(log(x))**2"))
+def test_direct_execution_keeps_negative_power_domain_conditions_unsupported():
+    execution = execute_power_chain_rule(request("((x+1)/(x-1))**-2"))
     assert all(item.status == "UNSUPPORTED" for item in execution.graph_result.side_condition_results)
     assert execution.graph_result.status == "UNSUPPORTED"
