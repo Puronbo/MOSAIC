@@ -82,3 +82,23 @@ def test_registered_rule_exposes_its_own_child_expander():
     rule = get_decomposition_rule("calculus.chain_rule.integer_power.v1")
     assert rule in registered_decomposition_rules()
     assert rule.children(request()).__len__() == 3
+
+
+def test_builder_rejects_non_integer_or_ambiguous_resource_budgets():
+    for value in (True, False, 1.5, "2", -1):
+        with pytest.raises(ValueError, match="integer"):
+            build_derivation_tree(request(), max_depth=value)
+    for value in (True, False, 1.5, "4", 0, -1):
+        with pytest.raises(ValueError, match="integer"):
+            build_derivation_tree(request(), max_nodes=value)
+
+
+def test_validator_rejects_non_integer_resource_budgets():
+    tree = build_derivation_tree(request())
+    for kwargs in (
+        {"max_depth": True},
+        {"max_depth": 1.5},
+        {"max_nodes": False},
+        {"max_nodes": "128"},
+    ):
+        assert not validate_derivation_tree(request(), tree, **kwargs)
