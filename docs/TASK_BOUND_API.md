@@ -204,3 +204,15 @@ of variables, division, and powers. The response identifies the linear
 checker, quantified variables, request fingerprint, and generated theorem
 source hash. A kernel-accepted affine identity is not a proof of rational
 domain preservation and does not discharge calculus side conditions.
+
+
+### Request-bound transformation endpoint
+
+`POST /v1/verify/lean/transformation` accepts a `MathRequest` and a
+proposed `result`. It currently supports only `simplify`, `expand`, and
+`factor` requests where both expressions fit the affine-integer grammar.
+MOSAIC creates a candidate-bound obligation and checks universal equivalence
+over `Int` with Lean. A formal result means the proposed expression equals
+the original for every integer assignment; it does not prove that the result
+is canonical, preserve a rational-function domain, or satisfy any unmodeled
+side conditions. Division and nonlinear products are rejected as unsupported.
