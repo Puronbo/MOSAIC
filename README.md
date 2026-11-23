@@ -43,7 +43,7 @@ The current Python prototype includes:
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
 
-See [recursive derivation trees](docs/RECURSIVE_DERIVATION_TREES.md) and [derivation-to-obligation graph compilation](docs/DERIVATION_OBLIGATION_GRAPHS.md) for the current decomposition contracts and trust limitations.
+See [the initial temporal model](docs/TEMPORAL_MODEL.md) for clock-relative ordering, uncertainty-aware duration, and the distinction between time and causality.\n\nSee [recursive derivation trees](docs/RECURSIVE_DERIVATION_TREES.md) and [derivation-to-obligation graph compilation](docs/DERIVATION_OBLIGATION_GRAPHS.md) for the current decomposition contracts and trust limitations.
 
 ## Planned work
 
