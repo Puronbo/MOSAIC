@@ -13,7 +13,12 @@ def verify_identity(lhs: str, rhs: str) -> dict:
         return {"status": "EXPERIMENTAL", "equal": True,
                 "certificate": {"kind": "symbolic-zero-candidate", "difference": "0"},
                 "explanation": "The symbolic engine reduces the exact difference to zero. This candidate has not been independently proof-checked."}
-    if reduced.is_zero is False:
+    polynomial_nonzero = False
+    try:
+        polynomial_nonzero = reduced.is_polynomial() and not sp.Poly(reduced).is_zero
+    except (sp.PolynomialError, TypeError):
+        polynomial_nonzero = False
+    if reduced.is_zero is False or polynomial_nonzero:
         return {"status": "INCOMPLETE", "equal": False, "certificate": None,
                 "explanation": "The difference is not identically zero; this does not establish a universal inequality."}
     return {"status": "INCOMPLETE", "equal": None, "certificate": None,
