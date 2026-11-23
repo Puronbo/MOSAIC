@@ -7,6 +7,10 @@ from typing import Callable
 
 from mosaic.core.requests import MathRequest
 from mosaic.engines.algebra import ExpressionError
+from mosaic.verification.side_conditions import (
+    RuleSideCondition,
+    make_unsupported_side_conditions,
+)
 from mosaic.verification.chain_rule import (
     ChainRulePlan,
     decompose_power_chain_rule,
@@ -29,6 +33,7 @@ class DecompositionRule:
     execute: Callable[[MathRequest], object]
     dependency_policy: Callable[[int], tuple[tuple[int, tuple[int, ...]], ...]]
     children: Callable[[MathRequest], tuple[MathRequest, ...]]
+    side_conditions: Callable[[MathRequest], tuple[RuleSideCondition, ...]]
 
 
 def _matches_power_chain(request: MathRequest) -> bool:
@@ -61,6 +66,28 @@ def _chain_rule_children(request: MathRequest) -> tuple[MathRequest, ...]:
     return outer, inner, final
 
 
+def _chain_rule_side_conditions(request: MathRequest) -> tuple[RuleSideCondition, ...]:
+    """Expose chain-rule preconditions not yet discharged by a trusted checker."""
+    return make_unsupported_side_conditions(
+        request,
+        "calculus.chain_rule.integer_power.v1",
+        (
+            (
+                "inner_differentiability",
+                "The inner expression must be differentiable on the domain under consideration; no domain-aware checker is registered.",
+            ),
+            (
+                "domain_definedness",
+                "The expression and its derivative must be defined on the declared domain; this request format carries no explicit domain contract.",
+            ),
+            (
+                "domain_preservation",
+                "The transformation must preserve the intended domain and branch conventions; no domain-preservation checker is registered.",
+            ),
+        ),
+    )
+
+
 def _verify_chain_plan(request: MathRequest, plan: object) -> bool:
     if not isinstance(plan, ChainRulePlan):
         return False
@@ -78,6 +105,7 @@ _RULES: tuple[DecompositionRule, ...] = (
         execute=execute_power_chain_rule,
         dependency_policy=_chain_rule_dependencies,
         children=_chain_rule_children,
+        side_conditions=_chain_rule_side_conditions,
     ),
 )
 _RULES_BY_ID = {rule.rule_id: rule for rule in _RULES}
