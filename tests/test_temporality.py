@@ -313,3 +313,74 @@ def test_clock_definitions_reject_missing_or_misapplied_context():
         ClockDefinition(clock_id="wall", kind=ClockKind.CIVIL)
     with pytest.raises(ValidationError, match="only valid"):
         ClockDefinition(clock_id="mono", kind=ClockKind.MONOTONIC, timezone="UTC")
+
+
+
+def test_occurrence_measurement_recording_and_learning_are_distinct_times():
+    from mosaic.core.temporality import (
+        EventKnowledge,
+        EventObservation,
+        EventOccurrence,
+    )
+
+    occurrence = EventOccurrence(
+        event_id="power-loss",
+        occurred_during=interval(10, 11, clock="plant-clock"),
+    )
+    observation = EventObservation(
+        observation_id="sensor-report-1",
+        event_id="power-loss",
+        observer_id="sensor-7",
+        measurement_at=point("25", clock="sensor-clock"),
+        recorded_at=point("40", clock="database-clock"),
+        evidence_sha256="a" * 64,
+    )
+    knowledge = EventKnowledge(
+        event_id="power-loss",
+        recipient_id="operator-2",
+        learned_at=point("55", clock="operator-log"),
+        source_observation_id=observation.observation_id,
+    )
+
+    assert occurrence.occurred_during.start.clock_id == "plant-clock"
+    assert observation.measurement_at.clock_id == "sensor-clock"
+    assert observation.recorded_at.clock_id == "database-clock"
+    assert knowledge.learned_at.clock_id == "operator-log"
+    assert knowledge.event_id == occurrence.event_id == observation.event_id
+
+
+def test_observation_provenance_rejects_invalid_evidence_hash():
+    from mosaic.core.temporality import EventObservation
+
+    with pytest.raises(ValidationError):
+        EventObservation(
+            observation_id="report-1",
+            event_id="event-1",
+            observer_id="sensor-1",
+            measurement_at=point("2", clock="sensor"),
+            recorded_at=point("5", clock="database"),
+            evidence_sha256="not-a-sha256",
+        )
+
+
+def test_event_knowledge_does_not_rewrite_occurrence_or_causality():
+    from mosaic.core.temporality import EventKnowledge, EventOccurrence, CausalLink
+
+    occurrence = EventOccurrence(
+        event_id="change",
+        occurred_during=interval(1, 2, clock="physical-clock"),
+    )
+    learned = EventKnowledge(
+        event_id="change",
+        recipient_id="agent-A",
+        learned_at=point("100", clock="agent-clock"),
+        source_observation_id="observation-1",
+    )
+    assert learned.event_id == occurrence.event_id
+    assert learned.learned_at.coordinate_seconds > occurrence.occurred_during.end.coordinate_seconds
+    # Knowledge arriving later does not itself establish a causal edge.
+    assert CausalLink(
+        source_event_id="change",
+        target_event_id="another-event",
+        relation="enables",
+    ).relation == "enables"
