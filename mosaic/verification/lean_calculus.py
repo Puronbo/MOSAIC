@@ -254,19 +254,30 @@ def _proof(node: ast.AST) -> str:
     raise _Unsupported("unsupported polynomial syntax")
 
 
-def _source(raw: str) -> tuple[str, str]:
+class _CandidateMismatch(ValueError):
+    pass
+
+
+def _source(raw: str, candidate_derivative: str | None = None) -> tuple[str, str]:
     tree = _parse(raw)
     expression = _render(tree, "t")
-    derivative = _derivative(tree)
+    generated_derivative = _derivative(tree)
+    derivative = generated_derivative
     proof = _proof(tree)
+    reconcile = f"  exact {proof}\\n"
+    if candidate_derivative is not None:
+        candidate_tree = _parse(candidate_derivative)
+        if _polynomial(candidate_tree) != _polynomial(_parse(generated_derivative)):
+            raise _CandidateMismatch("candidate derivative differs from the independently computed derivative")
+        derivative = _render(candidate_tree, "t")
+        reconcile = f"  have h := {proof}\\n  convert h using 1 <;> ring\\n"
     source = (
-        "import Mathlib.Analysis.Calculus.Deriv.Pow\n"
-        "theorem mosaic_polynomial_has_derivative (x : ℝ) :\n"
-        f"    HasDerivAt (fun t : ℝ => {expression}) ({derivative}) x := by\n"
-        f"  exact {proof}\n"
+        "import Mathlib.Analysis.Calculus.Deriv.Pow\\n"
+        "theorem mosaic_polynomial_has_derivative (x : ℝ) :\\n"
+        f"    HasDerivAt (fun t : ℝ => {expression}) ({derivative}) x := by\\n"
+        f"{reconcile}"
     )
     return source, derivative
-
 
 def verify_polynomial_real_derivative(
     expression: str,
