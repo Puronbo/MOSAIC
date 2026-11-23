@@ -3,6 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 from mosaic.api import app
+from mosaic.verification.sessions import SessionStore
 
 client = TestClient(app)
 
@@ -31,10 +32,8 @@ def test_identity_requires_rhs():
 
 def _candidate(expression: str, result: str) -> str:
     return json.dumps({
-        "operation": "simplify",
-        "expression": expression,
-        "variable": "x",
-        "result": result,
+        "operation": "simplify", "expression": expression,
+        "variable": "x", "result": result,
     })
 
 
@@ -96,5 +95,56 @@ def test_task_bound_endpoint_rejects_oversized_candidate():
     response = client.post("/v1/verify/task-bound", json={
         "request": {"operation": "simplify", "expression": "x"},
         "candidate": " " * 10001,
+    })
+    assert response.status_code == 422
+
+
+def test_verification_session_keeps_request_fixed_and_appends_revisions(tmp_path, monkeypatch):
+    from mosaic import api as api_module
+    monkeypatch.setattr(api_module, "session_store", SessionStore(tmp_path / "sessions.sqlite3"))
+    create = client.post("/v1/verification-sessions", json={
+        "request": {"operation": "simplify", "expression": "(x**2 - 1)/(x - 1)"}
+    })
+    assert create.status_code == 201
+    session = create.json()
+    session_id = session["session_id"]
+    original_hash = session["request_sha256"]
+
+    first = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
+        "candidate": _candidate("(x**2 - 1)/(x - 1)", "x + 1")
+    })
+    assert first.status_code == 201
+    assert first.json()["revision"] == 1
+    assert first.json()["check"]["domain_status"] == "PRESERVED"
+
+    second = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
+        "candidate": _candidate("(x**2 - 1)/(x - 1)", "(x + 1)*(x - 1)/(x - 1)")
+    })
+    assert second.status_code == 201
+    assert second.json()["revision"] == 2
+
+    fetched = client.get(f"/v1/verification-sessions/{session_id}")
+    assert fetched.status_code == 200
+    body = fetched.json()
+    assert body["request_sha256"] == original_hash
+    assert body["request"]["expression"] == "(x**2 - 1)/(x - 1)"
+    assert [item["revision"] for item in body["revisions"]] == [1, 2]
+    assert [item["check"]["request_sha256"] for item in body["revisions"]] == [original_hash, original_hash]
+
+
+def test_verification_session_unknown_id_is_not_found():
+    response = client.get("/v1/verification-sessions/does-not-exist")
+    assert response.status_code == 404
+
+
+def test_verification_session_rejects_oversized_revision(tmp_path, monkeypatch):
+    from mosaic import api as api_module
+    monkeypatch.setattr(api_module, "session_store", SessionStore(tmp_path / "oversized.sqlite3"))
+    create = client.post("/v1/verification-sessions", json={
+        "request": {"operation": "simplify", "expression": "x"}
+    })
+    session_id = create.json()["session_id"]
+    response = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
+        "candidate": "x" * 10001
     })
     assert response.status_code == 422
