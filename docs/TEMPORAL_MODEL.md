@@ -81,3 +81,21 @@ The temporal models are descriptive data, not formal physical certificates. A ca
 Future extensions should add explicit clock calibration and synchronization records, monotonic versus civil-time semantics, event/state transition records, interval relations (including overlap), and domain-specific physical models. Each extension should state its assumptions and verification method. Relativistic comparisons must include reference frames and transformation rules; they must not be approximated by comparing unrelated timestamps.
 
 Tests cover strict ordering, overlapping uncertainty intervals, cross-clock rejection, duration bounds, and the separation of causal links from temporal comparisons.
+
+
+## Occurrence, observation, recording, and knowledge
+
+An event can happen before anyone detects it, and detection can precede the arrival of a report in a database or an agent's awareness. MOSAIC therefore gives these stages distinct records:
+
+- **Occurrence:** `EventOccurrence.occurred_during` locates the event itself as an interval on a declared clock. An interval is useful when the exact instant is unknown or the event unfolds over time.
+- **Measurement/observation:** `EventObservation.measurement_at` records when an observer or instrument registered evidence. It identifies the observer and binds the record to an evidence SHA-256 digest.
+- **Recording:** `EventObservation.recorded_at` records when the observation entered the information system. It may use a different clock from the measurement.
+- **Knowledge:** `EventKnowledge.learned_at` records when a named recipient learned of the event, with a reference to the observation that informed them.
+
+These timestamps are deliberately not compared just because they are numeric values. Different clock IDs require an explicit calibration or a domain-specific transformation before coordinate comparison. Even when clocks are comparable, the model does not assume that observation occurred at the event's onset, that recording was immediate, or that a recipient learned of the event when the database stored it.
+
+For example, a machine failure may occur during an interval on a plant clock, a sensor may detect it later on its own clock, a report may be persisted on a database clock, and an operator may learn of it through a separate notification system. These records describe different facts. They do not by themselves establish the cause of the failure or prove that the sensor's evidence is accurate.
+
+The evidence digest supports integrity checking and provenance; it does not prove the evidence is truthful. The observer and recipient identifiers identify whose observation or knowledge is represented; they do not certify that person's reliability. A causal or enabling relationship must still be represented explicitly, and requires its own evidence or verification.
+
+This separation is a key epistemic rule for MOSAIC: **the time an event occurs, the time it is measured, the time it is recorded, and the time someone knows about it are not interchangeable.** The model captures the distinctions without claiming to settle the metaphysics of time.
