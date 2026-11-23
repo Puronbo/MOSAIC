@@ -2,7 +2,7 @@ import json
 
 from mosaic.core.requests import MathRequest
 from mosaic.core.types import Operation
-from mosaic.verification.evidence import EvidenceItem, evidence_from_check
+from mosaic.verification.evidence import (\n    EvidenceItem, aggregate_evidence, evidence_from_check,\n    REGISTERED_EVIDENCE_SOURCES,\n)
 from mosaic.verification.task_bound import verify_task_bound_candidate
 
 
@@ -74,3 +74,45 @@ def test_two_findings_from_same_runtime_are_not_independent_votes():
     bundle = evidence_from_check(_check("x**2 + 2*x + 1"))
     assert bundle.assessment.independent_support_count == 1
     assert bundle.assessment.model_opinion_count == 0
+
+
+
+def test_distinct_registered_checker_groups_can_accumulate_support(monkeypatch):
+    bundle = evidence_from_check(_check("x**2 + 2*x + 1"))
+    first = bundle.items[0]
+    monkeypatch.setitem(REGISTERED_EVIDENCE_SOURCES, "independent.polynomial_checker.v1", "exact_polynomial_arithmetic")
+    independent = first.model_copy(update={
+        "evidence_id": "a" * 64,
+        "checker_id": "independent.polynomial_checker.v1",
+        "independence_group": "exact_polynomial_arithmetic",
+    })
+    combined = aggregate_evidence((first, independent))
+    assert combined.assessment.status == "MULTI_SOURCE_SUPPORT"
+    assert combined.assessment.independent_support_count == 2
+
+
+def test_independent_disagreement_on_same_claim_is_conflict(monkeypatch):
+    bundle = evidence_from_check(_check("x**2 + 2*x + 1"))
+    first = bundle.items[0]
+    monkeypatch.setitem(REGISTERED_EVIDENCE_SOURCES, "independent.polynomial_checker.v1", "exact_polynomial_arithmetic")
+    independent = first.model_copy(update={
+        "evidence_id": "b" * 64,
+        "checker_id": "independent.polynomial_checker.v1",
+        "independence_group": "exact_polynomial_arithmetic",
+        "finding": "refutes",
+    })
+    combined = aggregate_evidence((first, independent))
+    assert combined.assessment.status == "CONFLICT"
+    assert combined.assessment.claim_conflicts == ("algebraic_equivalence",)
+
+
+def test_unregistered_checker_cannot_inflate_independence():
+    bundle = evidence_from_check(_check("x**2 + 2*x + 1"))
+    forged = bundle.items[0].model_copy(update={
+        "evidence_id": "c" * 64,
+        "checker_id": "model.says.yes",
+        "independence_group": "new_vote",
+    })
+    import pytest
+    with pytest.raises(ValueError, match="not registered"):
+        aggregate_evidence((bundle.items[0], forged))
