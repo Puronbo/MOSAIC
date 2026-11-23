@@ -111,7 +111,7 @@ def test_verification_session_keeps_request_fixed_and_appends_revisions(tmp_path
     original_hash = session["request_sha256"]
 
     first = client.post(f"/v1/verification-sessions/{session_id}/revisions", json={
-        "candidate": _candidate("(x**2 - 1)/(x - 1)", "x + 1")
+        "candidate": _candidate("(x**2 - 1)/(x - 1)", "(x + 1)*(x - 1)/(x - 1)")
     })
     assert first.status_code == 201
     assert first.json()["revision"] == 1
