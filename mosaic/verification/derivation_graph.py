@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from mosaic.core.requests import MathRequest
 from mosaic.engines.algebra import ExpressionError
+from mosaic.verification.decomposition import get_decomposition_rule
 from mosaic.verification.derivation import (
     DerivationNode,
     DerivationTree,
@@ -64,18 +65,23 @@ def compile_derivation_obligation_graph(
         if not node.children:
             return (add_leaf(node.request),)
 
-        # The registered chain-rule contract is ordered:
-        # outer derivative, inner derivative, composition identity.
-        if node.rule_id != "calculus.chain_rule.integer_power.v1" or len(node.children) != 3:
-            raise ExpressionError("No obligation compiler is registered for this derivation rule.")
-
-        outer_ids = compile_node(node.children[0])
-        inner_ids = compile_node(node.children[1])
-        final_ids = compile_node(node.children[2])
-        prerequisites = set(outer_ids) | set(inner_ids)
-        for final_id in final_ids:
-            dependencies[final_id].update(prerequisites - {final_id})
-        return tuple(dict.fromkeys((*outer_ids, *inner_ids, *final_ids)))
+        rule = get_decomposition_rule(node.rule_id or "")
+        branch_ids = tuple(compile_node(child) for child in node.children)
+        for target_index, prerequisite_indices in rule.dependency_policy(len(branch_ids)):
+            if target_index < 0 or target_index >= len(branch_ids):
+                raise ExpressionError("Registered dependency policy references an invalid child.")
+            prerequisites: set[str] = set()
+            for prerequisite_index in prerequisite_indices:
+                if prerequisite_index < 0 or prerequisite_index >= len(branch_ids):
+                    raise ExpressionError("Registered dependency policy references an invalid prerequisite.")
+                prerequisites.update(branch_ids[prerequisite_index])
+            for target_id in branch_ids[target_index]:
+                dependencies[target_id].update(prerequisites - {target_id})
+        return tuple(dict.fromkeys(
+            obligation_id
+            for branch in branch_ids
+            for obligation_id in branch
+        ))
 
     compile_node(tree.root)
     nodes = tuple(
