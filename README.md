@@ -39,11 +39,11 @@ The current Python prototype includes:
 - a deterministic, allow-listed decomposition-rule registry;
 - bounded recursive derivation trees that validate complete expansion relative to registered rules;
 - compilation of validated derivation trees into dependency-aware obligation DAGs;
-- typed scoped absence claims, model-relative vacuum states, and particle-like excitation records;\n- regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
+- typed scoped absence claims, model-relative vacuum states, and particle-like excitation records;\n- model-bound physical state transitions and exact Decimal energy-ledger checks;\n- regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
 Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
 
-See [the temporal model](docs/TEMPORAL_MODEL.md) for event partial orders, uncertainty-aware clock measurements, explicit monotonic/civil/proper/coordinate clock semantics, bounded clock-calibration transforms, Allen-style temporal interval relations, duration bounds, state transitions, separate event-occurrence, observation, recording, and knowledge timestamps, and provenance-bound causal hypotheses that retain supporting and challenging evidence. See [absence and vacuum modeling](docs/ABSENCE_AND_VACUUM.md) for scoped absence claims, model-relative vacuum states, and particle-like excitations.
+See [the temporal model](docs/TEMPORAL_MODEL.md) for event partial orders, uncertainty-aware clock measurements, explicit monotonic/civil/proper/coordinate clock semantics, bounded clock-calibration transforms, Allen-style temporal interval relations, duration bounds, state transitions, separate event-occurrence, observation, recording, and knowledge timestamps, and provenance-bound causal hypotheses that retain supporting and challenging evidence. See [absence and vacuum modeling](docs/ABSENCE_AND_VACUUM.md) for scoped absence claims, model-relative vacuum states, and particle-like excitations. See [physical state transitions](docs/PHYSICAL_STATE_TRANSITIONS.md) for model-bound state changes and explicit energy accounting.
 
 See [recursive derivation trees](docs/RECURSIVE_DERIVATION_TREES.md) and [derivation-to-obligation graph compilation](docs/DERIVATION_OBLIGATION_GRAPHS.md) for the current decomposition contracts and trust limitations.
 
