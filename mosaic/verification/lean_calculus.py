@@ -269,6 +269,8 @@ def _source(raw: str, candidate_derivative: str | None = None) -> tuple[str, str
         derivative = _render(candidate_tree, "t")
         reconcile = f"  have h := {proof}\n  convert h using 1 <;> ring\n"
     source = (
+        "import Mathlib.Analysis.Calculus.Deriv.Add\n"
+        "import Mathlib.Analysis.Calculus.Deriv.Mul\n"
         "import Mathlib.Analysis.Calculus.Deriv.Pow\n"
         "theorem mosaic_polynomial_has_derivative (x : ℝ) :\n"
         f"    HasDerivAt (fun t : ℝ => {expression}) ({derivative}) x := by\n"
