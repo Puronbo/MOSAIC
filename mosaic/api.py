@@ -13,6 +13,7 @@ from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_can
 from mosaic.verification.evidence import EvidenceBundle, evidence_from_check
 from mosaic.verification.lean_kernel import LeanKernelCheck, verify_closed_nat_equality
 from mosaic.verification.lean_obligations import LeanIdentityVerification, verify_request_identity_with_lean
+from mosaic.verification.lean_polynomial import LeanPolynomialCheck, verify_polynomial_int_identity
 from mosaic.verification.lean_transformations import (
     LeanTransformationVerification, verify_request_transformation_with_lean,
 )
@@ -21,7 +22,7 @@ from mosaic.verification.sessions import (
 )
 
 
-app = FastAPI(title="MOSAIC API", version="0.7.0")
+app = FastAPI(title="MOSAIC API", version="0.8.0")
 session_store = SessionStore()
 
 
@@ -172,6 +173,15 @@ def verify_lean_closed_nat_equality(payload: LeanEqualityVerificationRequest):
     return verify_closed_nat_equality(payload.lhs, payload.rhs)
 
 
+@app.post(
+    "/v1/verify/lean/polynomial-int-identity",
+    response_model=LeanPolynomialCheck,
+)
+def verify_lean_polynomial_int_identity(payload: LeanEqualityVerificationRequest):
+    """Kernel-check a bounded polynomial identity using the pinned Mathlib project."""
+    return verify_polynomial_int_identity(payload.lhs, payload.rhs)
+
+
 @app.post("/v1/verify/lean/request-identity", response_model=LeanIdentityVerification)
 def verify_lean_request_identity(payload: VerificationSessionCreateRequest):
     """Formally check only the exact identity encoded in the supplied request."""
@@ -186,7 +196,7 @@ def verify_lean_transformation(payload: LeanTransformationVerificationRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "mosaic", "version": "0.7.0"}
+    return {"status": "ok", "service": "mosaic", "version": "0.8.0"}
 
 
 @app.post("/v1/math", response_model=MathResponse)
