@@ -124,3 +124,47 @@ def test_gateway_keeps_kernel_unavailable_distinct_from_proof(monkeypatch):
     result = evaluate_model_candidate(submission)
     assert result.status == "KERNEL_UNAVAILABLE"
     assert result.status != "FORMALLY_VERIFIED"
+
+
+def test_gateway_formally_checks_domain_preserving_transformation(monkeypatch):
+    from mosaic.core import model_gateway
+    from mosaic.verification.lean_transformations import LeanTransformationVerification
+
+    monkeypatch.setattr(
+        model_gateway, "verify_task_bound_candidate",
+        lambda request, candidate: TaskBoundCheck(
+            status="EXPERIMENTAL",
+            request_sha256="c" * 64,
+            candidate_sha256="d" * 64,
+            equal=True,
+            domain_status="PRESERVED",
+            explanation="equivalent and domain preserved",
+        ),
+    )
+    seen = {}
+
+    def fake_lean(request, result):
+        seen["result"] = result
+        return LeanTransformationVerification(
+            status="FORMALLY_VERIFIED",
+            explanation="Lean accepted the request-bound identity",
+        )
+
+    monkeypatch.setattr(
+        model_gateway, "verify_request_transformation_with_lean", fake_lean
+    )
+    submission = ModelCandidateSubmission(
+        request=MathRequest(
+            operation="expand",
+            expression="(x + 1)^2",
+        ),
+        candidate=json.dumps({
+            "operation": "expand",
+            "expression": "(x + 1)^2",
+            "variable": "x",
+            "result": "x^2 + 2*x + 1",
+        }),
+    )
+    result = evaluate_model_candidate(submission)
+    assert seen["result"] == "x^2 + 2*x + 1"
+    assert result.status == "FORMALLY_VERIFIED"
