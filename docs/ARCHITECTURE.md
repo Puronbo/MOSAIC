@@ -35,6 +35,8 @@ Agent outputs are untrusted proposals. Agreement between agents is not verificat
 5. Expand the restricted Lean bridge into request-bound proof obligations with explicit assumptions and a reproducible Lean toolchain.
 6. Add provider adapters, sandboxed execution, provenance logging, retries, and budget-aware scheduling.
 
+Nonlinear polynomial verification is deliberately deferred to a separate, optional Mathlib-backed Lake project. The dependency decision, proof scope, resource bounds, and real-kernel acceptance tests are documented in [LEAN_POLYNOMIAL_BACKEND.md](LEAN_POLYNOMIAL_BACKEND.md). Lean core's `omega` checker must not be confused with Mathlib's `ring` tactic.
+
 The request-bound Lean bridge now supports a second, distinct checker for
 universally quantified affine identities over `Int`. A restricted AST
 compiler permits only `x`, `y`, and `z`, bounded integer constants,
