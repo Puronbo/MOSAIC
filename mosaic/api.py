@@ -11,6 +11,7 @@ from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
 from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_candidate
 from mosaic.verification.evidence import EvidenceBundle, evidence_from_check
+from mosaic.verification.lean_kernel import LeanKernelCheck, verify_closed_nat_equality
 from mosaic.verification.sessions import (
     RevisionLimitReached, SessionStore, VerificationSession, VerificationRevision,
 )
@@ -95,6 +96,12 @@ def _candidate_feedback(check: TaskBoundCheck) -> tuple[CandidateFeedback, ...]:
     return tuple(feedback)
 
 
+class LeanEqualityVerificationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    lhs: str = Field(min_length=1, max_length=512)
+    rhs: str = Field(min_length=1, max_length=512)
+
+
 class VerificationSessionCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     request: MathRequest
@@ -147,6 +154,12 @@ def append_verification_revision(
     if revision is None:
         raise HTTPException(status_code=404, detail="Verification session not found.")
     return revision
+
+
+@app.post("/v1/verify/lean/closed-nat-equality", response_model=LeanKernelCheck)
+def verify_lean_closed_nat_equality(payload: LeanEqualityVerificationRequest):
+    """Kernel-check a bounded, closed Nat equality when Lean is installed."""
+    return verify_closed_nat_equality(payload.lhs, payload.rhs)
 
 
 @app.get("/health")
