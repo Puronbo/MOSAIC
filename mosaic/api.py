@@ -1,16 +1,39 @@
-"""FastAPI adapter for the initial MOSAIC operation set."""
+"""FastAPI adapter for MOSAIC mathematical operations and candidate verification."""
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
+
 from mosaic.core.requests import MathRequest
 from mosaic.core.responses import MathResponse
 from mosaic.core.types import Status
 from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
+from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_candidate
 
-app = FastAPI(title="MOSAIC API", version="0.1.0")
+
+app = FastAPI(title="MOSAIC API", version="0.2.0")
+
+
+class TaskBoundVerificationRequest(BaseModel):
+    """An exact mathematical task paired with an untrusted candidate payload."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    request: MathRequest
+    candidate: str = Field(min_length=1, max_length=10000)
+
+
+class TaskBoundVerificationResponse(BaseModel):
+    """Versioned machine-readable result of task-bound candidate checking."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: str = "1.0"
+    checker_id: str = "mosaic.task_bound_candidate.v1"
+    check: TaskBoundCheck
+
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "mosaic", "version": "0.1.0"}
+    return {"status": "ok", "service": "mosaic", "version": "0.2.0"}
+
 
 @app.post("/v1/math", response_model=MathResponse)
 def math_operation(request: MathRequest):
@@ -31,3 +54,13 @@ def math_operation(request: MathRequest):
                             explanation="This operation is registered but not implemented in the initial prototype.")
     except ExpressionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/v1/verify/task-bound", response_model=TaskBoundVerificationResponse)
+def verify_task_bound(payload: TaskBoundVerificationRequest):
+    """Check a candidate against the supplied request; never trust candidate task fields."""
+    try:
+        check = verify_task_bound_candidate(payload.request, payload.candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return TaskBoundVerificationResponse(check=check)
