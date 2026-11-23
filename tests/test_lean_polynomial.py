@@ -33,9 +33,9 @@ def test_generated_source_uses_only_internal_mathlib_ring_theorem():
         "(x + 1)^2", "x^2 + 2*x + 1"
     )
     assert variables == ("x",)
-    assert source == (
-        "import Mathlib.Tactic.Ring\\n"
+    assert source.splitlines() == [
+        "import Mathlib.Tactic.Ring",
         "theorem mosaic_polynomial_certificate (x : Int) : "
         "((x + (1 : Int)) ^ 2) = "
-        "(((x ^ 2) + ((2 : Int) * x)) + (1 : Int)) := by ring\\n"
-    )
+        "(((x ^ 2) + ((2 : Int) * x)) + (1 : Int)) := by ring",
+    ]
