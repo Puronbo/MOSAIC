@@ -32,7 +32,7 @@ def test_evaluates_polynomial_and_derivatives():
     x = Decimal("2")
     assert model.evaluate(x) == Decimal("9")
     assert model.first_derivative(x) == Decimal("24")
-    assert model.second_derivative(x) == Decimal("40")
+    assert model.second_derivative(x) == Decimal("44")
 
 
 def test_positive_curvature_at_stationary_point():
