@@ -93,7 +93,7 @@ def _linear_form(node: ast.AST) -> dict[str, int]:
             raise _Unsupported("multiplication must have an integer literal factor")
         scalar = left.get("", 0) if left_is_constant else right.get("", 0)
         form = right if left_is_constant else left
-        return _bounded_form({key: scalar * value for key, value in form.items() if key})
+        return _bounded_form({key: scalar * value for key, value in form.items()})
     raise _Unsupported("only addition, subtraction, and multiplication by integer literals are supported")
 
 
