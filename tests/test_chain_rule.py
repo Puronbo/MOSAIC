@@ -57,3 +57,16 @@ def test_non_differentiation_request_is_rejected():
     bad = MathRequest(operation=Operation.EXPAND, expression="(x+1)**2")
     with pytest.raises(ExpressionError):
         decompose_power_chain_rule(bad)
+
+
+def test_direct_execution_includes_and_checks_rule_preconditions():
+    execution = execute_power_chain_rule(request())
+    assert len(execution.graph_result.side_condition_results) == 3
+    assert all(item.status == "EXPERIMENTAL" for item in execution.graph_result.side_condition_results)
+    assert execution.graph_result.status == "EXPERIMENTAL"
+
+
+def test_direct_execution_does_not_silently_accept_log_domain_conditions():
+    execution = execute_power_chain_rule(request("(log(x))**2"))
+    assert all(item.status == "UNSUPPORTED" for item in execution.graph_result.side_condition_results)
+    assert execution.graph_result.status == "UNSUPPORTED"
