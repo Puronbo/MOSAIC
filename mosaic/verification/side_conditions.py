@@ -85,8 +85,14 @@ def _is_nonnegative_integer_power_of_polynomial(request: MathRequest) -> bool:
             return False
         inner = parse_expression(ast.unparse(root.left))
         whole = parse_expression(request.expression)
-        sp.Poly(inner)
-        sp.Poly(whole)
+        symbols = tuple(sorted(inner.free_symbols | whole.free_symbols, key=str))
+        if symbols and (
+            not inner.is_polynomial(*symbols)
+            or not whole.is_polynomial(*symbols)
+        ):
+            return False
+        if not symbols and (not inner.is_number or not whole.is_number):
+            return False
         variable = sp.Symbol(request.variable or "x")
         sp.diff(inner, variable)
         sp.diff(whole, variable)
