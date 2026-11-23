@@ -7,7 +7,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from mosaic.core.requests import MathRequest
-from mosaic.verification.decomposition import get_decomposition_rule
 from mosaic.verification.obligations import (
     VerificationObligation,
     verify_obligation_candidate,
@@ -74,6 +73,8 @@ def validate_obligation_graph(graph: ObligationGraph) -> tuple[ObligationNode, .
         if key in by_id:
             raise ValueError(f"duplicate obligation id: {key}")
         by_id[key] = node
+
+    from mosaic.verification.decomposition import get_decomposition_rule
 
     condition_ids: set[str] = set()
     for item in graph.side_conditions:
