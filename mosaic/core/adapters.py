@@ -4,6 +4,7 @@ Providers are untrusted proposal generators. This module does not verify math.
 """
 import asyncio
 import hashlib
+import json
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
