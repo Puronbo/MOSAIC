@@ -5,6 +5,8 @@ from pydantic import ValidationError
 
 from mosaic.core.temporality import (
     CausalLink,
+    StateTransition,
+    TemporalEvent,
     TemporalOrder,
     TemporalPoint,
     compare_temporal_points,
@@ -72,4 +74,25 @@ def test_causal_links_are_separate_directed_claims():
             source_event_id="event-A",
             target_event_id="event-A",
             relation="causes",
+        )
+
+
+
+def test_events_are_clock_located_and_transitions_record_state_change():
+    event = TemporalEvent(
+        event_id="event-1",
+        observed_at=point("42.5"),
+        description="system state updated",
+    )
+    transition = StateTransition(
+        event_id=event.event_id,
+        source_state_sha256="a" * 64,
+        target_state_sha256="b" * 64,
+    )
+    assert transition.event_id == event.event_id
+    with pytest.raises(ValidationError):
+        StateTransition(
+            event_id="event-1",
+            source_state_sha256="a" * 64,
+            target_state_sha256="a" * 64,
         )
