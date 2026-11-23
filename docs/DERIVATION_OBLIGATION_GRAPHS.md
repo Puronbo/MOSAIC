@@ -15,13 +15,25 @@ rule declares inner differentiability, domain definedness, and
 domain/branch preservation. Each contract is attached to the exact request
 that generated it and revalidated against the statically registered rule.
 
-A narrow checker, \`calculus.real_polynomial_domain.v1\`, now recognizes a
-nonnegative integer power of a polynomial. In this case the expression and
-its derivatives are polynomials, so the three declared real-domain
-preconditions can be marked \`EXPERIMENTAL\`. This is a conservative,
-restricted recognition rule: it does not claim to handle negative powers,
-rational functions, logarithms, roots, trigonometric expressions, or general
-branch-sensitive functions. Those remain \`UNSUPPORTED\`.
+The checker `calculus.rational_domain_constraints.v1` recognizes a
+nonnegative integer power of a rational expression. It preserves original
+denominator restrictions even when algebraic cancellation would hide them.
+For example, `((x**2 - 1)/(x - 1))**2` retains the condition
+`x - 1 != 0`.
+
+Restrictions are emitted as typed `DomainRestriction` records containing a
+stable request-bound identifier, a nonzero predicate, the normalized
+expression, the source construct, and its syntax location. This makes domain
+information consumable by later checkers and model adapters without requiring
+them to parse explanatory prose. The compatibility `domain_constraints`
+string view remains available.
+
+These restrictions are conditions, not solved excluded-point sets and not
+proofs that the conditions hold. The checker does not enumerate roots or
+remove restrictions after cancellation. Supported rational expressions and
+their derivatives remain conditional on the recorded restrictions and are
+marked `EXPERIMENTAL`. Negative outer powers, logarithms, roots,
+trigonometric expressions, and branch-sensitive functions remain unsupported.
 
 The checker result is separate from the immutable side-condition contract.
 It cannot be altered by supplying a candidate string. Graph validation
@@ -39,6 +51,6 @@ this same registered checker path, so it cannot bypass precondition evaluation.
   missing or unsatisfied.
 - \`INVALID_CERTIFICATE\` means a candidate failed certificate/schema checks.
 
-No status here is a formal proof. The polynomial checker relies on the
-restricted parser and symbolic polynomial classification; future checkers
+No status here is a formal proof. The rational-domain checker relies on the
+restricted parser and symbolic rational-function classification; future checkers
 must declare their supported domains and limitations explicitly.
