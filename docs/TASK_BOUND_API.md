@@ -132,13 +132,13 @@ aggregated. Conflicting findings are detected only when independent groups
 disagree about the same claim; support for domain preservation and refutation
 of algebraic equivalence are different claims, not a false conflict.
 
-**Current limitation:** the task-bound algebraic check and rational-domain
-comparison both rely on the same SymPy-backed symbolic runtime. Their findings
-are separately recorded, but both map to
-`sympy_symbolic_runtime`, so the bundle counts at most one independent source
-today. `MULTI_SOURCE_SUPPORT` is reserved for future separately registered
-implementations with distinct independence groups; it is not produced by
-duplicating model calls.
+**Current implementation:** the task-bound algebraic check and rational-domain
+comparison both rely on the same SymPy-backed symbolic runtime. For
+simplify/expand/factor, MOSAIC also runs a bounded exact rational-polynomial
+equivalence checker implemented with Python AST parsing and Fraction arithmetic,
+without SymPy. These map to separate implementation groups. This permits
+experimental multi-source corroboration for supported expressions, but does not
+establish domain equality or constitute a formal proof.
 
 Model outputs are not `EvidenceItem` records and do not contribute to the
 independent checker count. Model identity, agreement, confidence, and majority
@@ -146,3 +146,28 @@ vote cannot upgrade the result. Formal-kernel evidence will require a separate
 registered integration and its own explicit trust contract. Even multiple
 independent experimental checkers do not automatically establish a formal
 proof.
+
+
+## Optional Lean closed-natural-number equality endpoint
+
+`POST /v1/verify/lean/closed-nat-equality` accepts a strict JSON object with
+`lhs` and `rhs` strings (each at most 512 characters). The expressions must
+be closed natural-number arithmetic in a bounded grammar: non-negative integer
+literals, addition, multiplication, and bounded integer powers. MOSAIC
+generates the Lean theorem and proof script itself; caller-supplied Lean source,
+imports, macros, tactics, variables, and assumptions are not accepted.
+
+Possible statuses:
+
+- `FORMALLY_VERIFIED`: the configured Lean executable accepted the generated
+  theorem for this exact closed equality.
+- `REJECTED`: Lean rejected the equality theorem.
+- `KERNEL_UNAVAILABLE`: Lean is not installed or not on PATH.
+- `UNSUPPORTED`: an expression is outside the supported grammar.
+- `KERNEL_ERROR`: execution failed or exceeded the wall-clock limit.
+
+This is a narrow proof bridge, not general symbolic proof support. It does not
+prove identities with variables, rational-domain preservation, or arbitrary
+transformation obligations. The configured Lean executable is part of the
+trusted computing base; see [SECURITY.md](../SECURITY.md) for deployment
+limitations.
