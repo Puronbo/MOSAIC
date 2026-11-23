@@ -14,15 +14,17 @@ MOSAIC separates an untrusted proposal/execution layer from trusted verification
 
 ## Prototype layers
 
-- core: operation vocabulary and versioned request/response models;
+- core: operation vocabulary, versioned request/response models, and agent orchestration contracts;
 - engines: restricted parsing and SymPy-backed exact symbolic operations;
 - verification: conservative candidate checking; no Lean integration yet;
 - adapters: FastAPI endpoint; Python and MCP adapters are planned;
-- tests: regression tests for supported operations and rejected syntax.
+- tests: regression tests for supported operations, rejected syntax, and orchestration invariants.
 
 ## Trust and status policy
 
 The current identity routine reports EXPERIMENTAL even when SymPy simplifies a difference to zero. The attached object is a symbolic-zero candidate, not an independently checked proof certificate. The prototype does not emit FORMALLY_VERIFIED. A failed simplification is INCOMPLETE unless a separate sound procedure establishes a counterexample or refutation.
+
+Agent outputs are untrusted proposals. Agreement between agents is not verification; disagreement triggers review rather than an automatic verdict. See [AGENT_ORCHESTRATION.md](AGENT_ORCHESTRATION.md).
 
 ## Next milestones
 
@@ -31,4 +33,4 @@ The current identity routine reports EXPERIMENTAL even when SymPy simplifies a d
 3. Define canonical certificate schemas and independent checkers.
 4. Add Python SDK and MCP adapter over the same operation contract.
 5. Integrate a trusted proof assistant kernel for formal proof claims.
-6. Add agent orchestration only after task contracts, provenance, permissions, and adversarial verification are defined.
+6. Add provider adapters, sandboxed execution, provenance logging, retries, and budget-aware scheduling.
