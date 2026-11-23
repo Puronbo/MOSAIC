@@ -10,9 +10,11 @@ from mosaic.core.types import Status
 from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
 from mosaic.verification.task_bound import TaskBoundCheck, verify_task_bound_candidate
+from mosaic.verification.sessions import SessionStore, VerificationSession, VerificationRevision
 
 
-app = FastAPI(title="MOSAIC API", version="0.3.0")
+app = FastAPI(title="MOSAIC API", version="0.4.0")
+session_store = SessionStore()
 
 
 class TaskBoundVerificationRequest(BaseModel):
@@ -89,9 +91,59 @@ def _candidate_feedback(check: TaskBoundCheck) -> tuple[CandidateFeedback, ...]:
     return tuple(feedback)
 
 
+class VerificationSessionCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    request: MathRequest
+
+
+class VerificationSessionRevisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    candidate: str = Field(min_length=1, max_length=10000)
+
+
+@app.post("/v1/verification-sessions", response_model=VerificationSession, status_code=201)
+def create_verification_session(payload: VerificationSessionCreateRequest):
+    """Create a session whose mathematical request cannot be changed."""
+    return session_store.create(payload.request)
+
+
+@app.get("/v1/verification-sessions/{session_id}", response_model=VerificationSession)
+def get_verification_session(session_id: str):
+    session = session_store.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Verification session not found.")
+    return session
+
+
+@app.post(
+    "/v1/verification-sessions/{session_id}/revisions",
+    response_model=VerificationRevision,
+    status_code=201,
+)
+def append_verification_revision(
+    session_id: str, payload: VerificationSessionRevisionRequest
+):
+    """Append a candidate against the session's original, stored request."""
+    session = session_store.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Verification session not found.")
+    try:
+        check = verify_task_bound_candidate(session.request, payload.candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    feedback = _candidate_feedback(check)
+    revision = session_store.append(
+        session_id, payload.candidate, check,
+        tuple(item.model_dump(mode="json") for item in feedback),
+    )
+    if revision is None:
+        raise HTTPException(status_code=404, detail="Verification session not found.")
+    return revision
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "mosaic", "version": "0.3.0"}
+    return {"status": "ok", "service": "mosaic", "version": "0.4.0"}
 
 
 @app.post("/v1/math", response_model=MathResponse)
