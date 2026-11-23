@@ -142,10 +142,10 @@ establish domain equality or constitute a formal proof.
 
 Model outputs are not `EvidenceItem` records and do not contribute to the
 independent checker count. Model identity, agreement, confidence, and majority
-vote cannot upgrade the result. Formal-kernel evidence will require a separate
-registered integration and its own explicit trust contract. Even multiple
-independent experimental checkers do not automatically establish a formal
-proof.
+vote cannot upgrade the result. The optional Lean endpoint is a separate
+formal-checking path and is not silently mixed into experimental evidence.
+Even multiple independent experimental checkers do not automatically establish
+a formal proof.
 
 
 ## Optional Lean closed-natural-number equality endpoint
