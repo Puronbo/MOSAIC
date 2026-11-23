@@ -6,7 +6,7 @@ status requires both task-bound semantic checks and an accepted Lean proof.
 import json
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from mosaic.core.requests import MathRequest
 from mosaic.verification.lean_obligations import (
@@ -33,6 +33,21 @@ class ModelCandidateSubmission(BaseModel):
     model_id: str = Field(default="unspecified", min_length=1, max_length=160)
 
 
+class ModelCandidateFeedback(BaseModel):
+    """Structured revision guidance derived from checker output, not model confidence."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: Literal[
+        "DOMAIN_RESTRICTION_LOST", "ALGEBRAIC_MISMATCH",
+        "INVALID_CANDIDATE", "UNSUPPORTED_CHECK",
+        "REVIEW_RESULT", "FORMAL_CHECK_UNAVAILABLE",
+    ]
+    severity: Literal["error", "warning", "info"]
+    message: str
+    action: str
+    retryable: bool
+
+
 class ModelCandidateEvaluation(BaseModel):
     """Machine-readable result separating proposal acceptance from proof."""
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -50,6 +65,56 @@ class ModelCandidateEvaluation(BaseModel):
     task_bound_check: TaskBoundCheck
     lean_check: LeanIdentityVerification | LeanTransformationVerification | None = None
     explanation: str
+
+    @computed_field
+    @property
+    def feedback(self) -> tuple[ModelCandidateFeedback, ...]:
+        """Return actionable next steps without upgrading any verification status."""
+        if self.status == "FORMALLY_VERIFIED":
+            return ()
+        if self.status == "INVALID_CANDIDATE":
+            item = ModelCandidateFeedback(
+                code="INVALID_CANDIDATE", severity="error",
+                message="The candidate is malformed or is not bound to the supplied task.",
+                action="Use the strict candidate schema and copy operation, expression, and variable exactly from the original request.",
+                retryable=True,
+            )
+        elif self.status == "UNSUPPORTED":
+            item = ModelCandidateFeedback(
+                code="UNSUPPORTED_CHECK", severity="warning",
+                message="MOSAIC cannot currently evaluate every required condition for this candidate.",
+                action="Do not treat this result as accepted; use a checker that supports the missing semantics or narrow the claim.",
+                retryable=False,
+            )
+        elif self.status == "INCOMPLETE":
+            item = ModelCandidateFeedback(
+                code="DOMAIN_RESTRICTION_LOST", severity="error",
+                message="The candidate did not preserve all detected semantic conditions, including the original expression domain.",
+                action="Revise the candidate to preserve the original excluded values, then resubmit against the unchanged request.",
+                retryable=True,
+            )
+        elif self.status == "REJECTED":
+            item = ModelCandidateFeedback(
+                code="ALGEBRAIC_MISMATCH", severity="error",
+                message="The candidate did not match the independently recomputed result.",
+                action="Recompute the requested operation from the unchanged request and submit a corrected candidate.",
+                retryable=True,
+            )
+        elif self.status in {"KERNEL_UNAVAILABLE", "KERNEL_ERROR"}:
+            item = ModelCandidateFeedback(
+                code="FORMAL_CHECK_UNAVAILABLE", severity="warning",
+                message="The candidate passed task-bound checks, but the formal proof check could not complete.",
+                action="Do not claim formal verification; restore or inspect the Lean environment and retry the same request and candidate.",
+                retryable=True,
+            )
+        else:
+            item = ModelCandidateFeedback(
+                code="REVIEW_RESULT", severity="info",
+                message="The candidate passed available task-bound checks, but formal proof has not been established.",
+                action="Retain the complete request, candidate, hashes, and checker results; seek a supported formal proof before relying on it as verified.",
+                retryable=False,
+            )
+        return (item,)
 
 
 def evaluate_model_candidate(
