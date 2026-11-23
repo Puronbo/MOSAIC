@@ -12,6 +12,7 @@ from mosaic.verification.chain_rule import (
     decompose_power_chain_rule,
     verify_chain_rule_plan,
     execute_power_chain_rule,
+    _make_plan as _make_chain_plan,
 )
 
 
@@ -27,6 +28,7 @@ class DecompositionRule:
     verify: Callable[[MathRequest, object], bool]
     execute: Callable[[MathRequest], object]
     dependency_policy: Callable[[int], tuple[tuple[int, tuple[int, ...]], ...]]
+    children: Callable[[MathRequest], tuple[MathRequest, ...]]
 
 
 def _matches_power_chain(request: MathRequest) -> bool:
@@ -53,6 +55,12 @@ def _chain_rule_dependencies(child_count: int) -> tuple[tuple[int, tuple[int, ..
     return ((2, (0, 1)),)
 
 
+def _chain_rule_children(request: MathRequest) -> tuple[MathRequest, ...]:
+    """Return the ordered subrequests produced by the registered chain rule."""
+    _, outer, inner, final = _make_chain_plan(request)
+    return outer, inner, final
+
+
 def _verify_chain_plan(request: MathRequest, plan: object) -> bool:
     if not isinstance(plan, ChainRulePlan):
         return False
@@ -69,6 +77,7 @@ _RULES: tuple[DecompositionRule, ...] = (
         verify=_verify_chain_plan,
         execute=execute_power_chain_rule,
         dependency_policy=_chain_rule_dependencies,
+        children=_chain_rule_children,
     ),
 )
 _RULES_BY_ID = {rule.rule_id: rule for rule in _RULES}
