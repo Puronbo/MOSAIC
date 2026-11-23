@@ -20,6 +20,15 @@ class MosaicClient:
         response.raise_for_status()
         return response.json()
 
+    def ai_tool_schema(self) -> dict[str, Any]:
+        """Fetch the portable function-tool declaration for agent registration."""
+        response = httpx.get(
+            f"{self.base_url}/v1/ai/tool-schema",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def verify_model_candidate(
         self,
         request: MathRequest,
