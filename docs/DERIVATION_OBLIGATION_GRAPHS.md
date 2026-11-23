@@ -8,35 +8,36 @@ For the registered integer-power chain rule, the final composition identity
 depends on all terminal obligations in the outer- and inner-derivative
 branches. Nested applications preserve this dependency closure.
 
-## Rule preconditions are part of graph evaluation
+## Rule preconditions and conservative checking
 
 Every registered rule may declare request-bound side conditions. The chain
-rule currently declares inner differentiability, domain definedness, and
-domain/branch preservation. Each is explicitly `UNSUPPORTED` because no
-domain-aware checker is registered.
+rule declares inner differentiability, domain definedness, and
+domain/branch preservation. Each contract is attached to the exact request
+that generated it and revalidated against the statically registered rule.
 
-The compiler now attaches each condition to the exact request that generated
-it as a `RuleSideConditionNode`. Graph validation recomputes the expected
-condition from the statically registered rule and rejects altered, stale, or
-unknown contracts. This is integrity validation, not proof that the condition
-holds.
+A narrow checker, \`calculus.real_polynomial_domain.v1\`, now recognizes a
+nonnegative integer power of a polynomial. In this case the expression and
+its derivatives are polynomials, so the three declared real-domain
+preconditions can be marked \`EXPERIMENTAL\`. This is a conservative,
+restricted recognition rule: it does not claim to handle negative powers,
+rational functions, logarithms, roots, trigonometric expressions, or general
+branch-sensitive functions. Those remain \`UNSUPPORTED\`.
 
-The evaluator still runs the algebraic leaf checks so users retain diagnostic
-results. However, any unresolved side condition makes the aggregate graph
-status `UNSUPPORTED`, even when every algebraic candidate passes its
-experimental checker. Side conditions are separately reported in
-`side_condition_results`; they are never silently treated as satisfied and
-cannot be discharged by supplying an arbitrary candidate string.
+The checker result is separate from the immutable side-condition contract.
+It cannot be altered by supplying a candidate string. Graph validation
+recomputes the contract; graph evaluation invokes the built-in checker.
+Algebraic leaf checks still run for diagnostics.
 
 ## Status and trust boundary
 
-- `EXPERIMENTAL` means all algebraic obligations passed current experimental
-  checkers, with no unresolved rule preconditions.
-- `UNSUPPORTED` means at least one required rule precondition has no checker.
-- `INCOMPLETE` means required algebraic candidates or dependencies are
+- \`EXPERIMENTAL\` means all algebraic obligations and all applicable
+  preconditions passed current experimental checkers.
+- \`UNSUPPORTED\` means at least one required precondition has no registered
+  checker for the supplied expression.
+- \`INCOMPLETE\` means required algebraic candidates or dependencies are
   missing or unsatisfied.
-- `INVALID_CERTIFICATE` means a candidate failed certificate/schema checks.
+- \`INVALID_CERTIFICATE\` means a candidate failed certificate/schema checks.
 
-No status here is a formal proof. The registered rules remain allow-listed
-repository code, and future domain-aware checkers must explicitly discharge
-their own contracts before a derivation can be reported as fully evaluated.
+No status here is a formal proof. The polynomial checker relies on the
+restricted parser and symbolic polynomial classification; future checkers
+must declare their supported domains and limitations explicitly.
