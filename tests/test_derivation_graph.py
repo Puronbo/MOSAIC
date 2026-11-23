@@ -64,3 +64,66 @@ def test_evaluator_keeps_missing_leaf_obligations_incomplete():
     assert result.status == "INCOMPLETE"
     assert len(result.results) == 5
     assert all(item.status == "INCOMPLETE" for item in result.results)
+
+
+
+def test_compiled_graph_includes_unresolved_rule_preconditions():
+    source = request()
+    tree = build_derivation_tree(source)
+    graph = compile_derivation_obligation_graph(source, tree)
+    assert len(graph.side_conditions) == 6
+    assert {item.condition.status for item in graph.side_conditions} == {"UNSUPPORTED"}
+
+
+def test_unresolved_preconditions_cap_aggregate_status_after_leaf_checks():
+    import json
+
+    source = request()
+    tree = build_derivation_tree(source)
+    graph = compile_derivation_obligation_graph(source, tree)
+    candidates = {}
+    for node in graph.nodes:
+        if node.request.operation == Operation.VERIFY_IDENTITY:
+            candidates[node.obligation.obligation_id] = json.dumps({
+                "operation": "verify_identity",
+                "expression": node.request.expression,
+                "rhs": node.request.rhs,
+            })
+        elif node.request.operation == Operation.EXPAND:
+            from mosaic.engines.algebra import run_algebra
+            checked = run_algebra(node.request)
+            candidates[node.obligation.obligation_id] = json.dumps({
+                "operation": "expand",
+                "expression": node.request.expression,
+                "variable": node.request.variable,
+                "result": checked.result,
+            })
+        else:
+            # The current derivation compiler emits only these supported leaf types.
+            raise AssertionError(f"unexpected leaf operation: {node.request.operation}")
+
+    result = evaluate_derivation_tree(source, tree, candidates)
+    assert result.status == "UNSUPPORTED"
+    assert len(result.side_condition_results) == 6
+    assert all(item.status == "UNSUPPORTED" for item in result.side_condition_results)
+    assert all(item.status == "EXPERIMENTAL" for item in result.results)
+
+
+def test_compiled_graph_rejects_tampered_side_condition_contract():
+    from mosaic.verification.graph import validate_obligation_graph
+
+    source = request()
+    tree = build_derivation_tree(source)
+    graph = compile_derivation_obligation_graph(source, tree)
+    first = graph.side_conditions[0]
+    altered_condition = first.condition.model_copy(update={"statement": "pretend this is satisfied"})
+    altered_node = first.model_copy(update={"condition": altered_condition})
+    altered_graph = graph.model_copy(update={
+        "side_conditions": (altered_node,) + graph.side_conditions[1:]
+    })
+    try:
+        validate_obligation_graph(altered_graph)
+    except ValueError as exc:
+        assert "invalid side-condition contract" in str(exc)
+    else:
+        raise AssertionError("tampered side condition should be rejected")
