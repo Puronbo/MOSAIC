@@ -20,6 +20,29 @@ class MosaicClient:
         response.raise_for_status()
         return response.json()
 
+    def verify_model_candidate(
+        self,
+        request: MathRequest,
+        candidate: str,
+        *,
+        provider_id: str = "external",
+        model_id: str = "unspecified",
+    ) -> dict[str, Any]:
+        """Submit an AI proposal for task-bound and optional Lean verification."""
+        payload = {
+            "request": request.model_dump(mode="json"),
+            "candidate": candidate,
+            "provider_id": provider_id,
+            "model_id": model_id,
+        }
+        response = httpx.post(
+            f"{self.base_url}/v1/ai/candidate",
+            json=payload,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def verify_candidate(self, request: MathRequest, candidate: str) -> dict[str, Any]:
         """Submit an untrusted candidate for request-bound checking."""
         payload = {"request": request.model_dump(mode="json"), "candidate": candidate}
