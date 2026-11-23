@@ -34,3 +34,12 @@ Agent outputs are untrusted proposals. Agreement between agents is not verificat
 4. Add Python SDK and MCP adapter over the same operation contract.
 5. Expand the restricted Lean bridge into request-bound proof obligations with explicit assumptions and a reproducible Lean toolchain.
 6. Add provider adapters, sandboxed execution, provenance logging, retries, and budget-aware scheduling.
+
+The request-bound Lean bridge now supports a second, distinct checker for
+universally quantified affine identities over `Int`. A restricted AST
+compiler permits only `x`, `y`, and `z`, bounded integer constants,
+addition, subtraction, and multiplication by a constant. It emits explicit
+`Int` binders and uses Lean's `omega` tactic; generated proof source is
+fingerprinted. Nonlinear expressions, division, domain assumptions, and
+arbitrary source remain unsupported. The theorem proves equality for every
+integer assignment and must not be interpreted as a rational-domain proof.
