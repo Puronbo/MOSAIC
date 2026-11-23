@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from mosaic.core.requests import MathRequest
 from mosaic.engines.algebra import ExpressionError, run_algebra
 from mosaic.verification.exact_checker import verify_identity
+from mosaic.verification.side_conditions import check_domain_preservation
 
 
 class BoundIdentityClaim(BaseModel):
@@ -31,6 +32,8 @@ class TaskBoundCheck(BaseModel):
     request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     candidate_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     equal: bool | None = None
+    domain_status: Literal["PRESERVED", "EXPANDED", "RESTRICTED", "CHANGED", "UNSUPPORTED", "NOT_CHECKED"] = "NOT_CHECKED"
+    domain_explanation: str | None = None
     explanation: str
 
 
@@ -76,6 +79,25 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
                     candidate_sha256=candidate_hash, explanation="The requested differentiation variable is outside the supported symbol set.")
             expected = run_algebra(claim.operation, request.expression, request.variable)
             checked = verify_identity(claim.result, str(expected))
+            domain_check = None
+            if claim.operation in {"simplify", "expand", "factor"}:
+                domain_check = check_domain_preservation(request, claim.result)
+                if domain_check.status == "UNSUPPORTED":
+                    return TaskBoundCheck(
+                        status="UNSUPPORTED", request_sha256=request_hash,
+                        candidate_sha256=candidate_hash, equal=checked["equal"],
+                        domain_status=domain_check.status,
+                        domain_explanation=domain_check.explanation,
+                        explanation="Algebraic comparison completed, but domain preservation could not be checked.",
+                    )
+                if domain_check.status != "PRESERVED":
+                    return TaskBoundCheck(
+                        status="INCOMPLETE", request_sha256=request_hash,
+                        candidate_sha256=candidate_hash, equal=False,
+                        domain_status=domain_check.status,
+                        domain_explanation=domain_check.explanation,
+                        explanation="Candidate is algebraically comparable but does not preserve the original expression domain.",
+                    )
         else:
             return TaskBoundCheck(status="UNSUPPORTED", request_sha256=request_hash,
                 candidate_sha256=candidate_hash, explanation="Candidate operation is not supported by task-bound checking.")
@@ -86,6 +108,16 @@ def verify_task_bound_candidate(request: MathRequest, raw: str) -> TaskBoundChec
         return TaskBoundCheck(status="INVALID_CERTIFICATE", request_sha256=request_hash,
             candidate_sha256=candidate_hash, explanation="Candidate or requested expression is outside MOSAIC's restricted algebra grammar.")
 
-    return TaskBoundCheck(status=checked["status"], request_sha256=request_hash,
+    return TaskBoundCheck(
+        status=checked["status"], request_sha256=request_hash,
         candidate_sha256=candidate_hash, equal=checked["equal"],
-        explanation=checked["explanation"])
+        domain_status=(
+            domain_check.status if "domain_check" in locals() and domain_check is not None
+            else "NOT_CHECKED"
+        ),
+        domain_explanation=(
+            domain_check.explanation if "domain_check" in locals() and domain_check is not None
+            else None
+        ),
+        explanation=checked["explanation"],
+    )
