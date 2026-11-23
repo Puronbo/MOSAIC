@@ -68,6 +68,22 @@ jobs:
           from mosaic.verification.lean_transformations import verify_request_transformation_with_lean
           from mosaic.core.model_gateway import ModelCandidateSubmission, evaluate_model_candidate
           import json
+          from fastapi.testclient import TestClient
+          from mosaic.api import app
+
+          api_client = TestClient(app)
+          api_derivative = api_client.post("/v1/verify/lean/polynomial-real-derivative", json={
+              "expression": "x^3 + 2*x",
+              "candidate_derivative": "3*x^2 + 2",
+          })
+          assert api_derivative.status_code == 200, api_derivative.text
+          assert api_derivative.json()["status"] == "FORMALLY_VERIFIED", api_derivative.json()
+          api_wrong_derivative = api_client.post("/v1/verify/lean/polynomial-real-derivative", json={
+              "expression": "x^3 + 2*x",
+              "candidate_derivative": "3*x^2 + 3",
+          })
+          assert api_wrong_derivative.status_code == 200, api_wrong_derivative.text
+          assert api_wrong_derivative.json()["status"] == "REJECTED", api_wrong_derivative.json()
 
           positive = verify_polynomial_int_identity("(x + 1)**2", "x**2 + 2*x + 1")
           assert positive.status == "FORMALLY_VERIFIED", positive.model_dump()
