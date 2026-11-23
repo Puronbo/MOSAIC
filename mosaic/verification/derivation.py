@@ -9,8 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from mosaic.core.requests import MathRequest
 from mosaic.engines.algebra import ExpressionError
-from mosaic.verification.chain_rule import _make_plan
-from mosaic.verification.decomposition import applicable_decomposition_rules
+from mosaic.verification.decomposition import (
+    applicable_decomposition_rules,
+    get_decomposition_rule,
+)
 from mosaic.verification.obligations import request_fingerprint
 
 
@@ -29,10 +31,8 @@ class DerivationTree(BaseModel):
 
 
 def _expected_children(request: MathRequest, rule_id: str) -> tuple[MathRequest, ...]:
-    if rule_id == "calculus.chain_rule.integer_power.v1":
-        _, outer, inner, final = _make_plan(request)
-        return outer, inner, final
-    raise ExpressionError(f"No derivation expander is registered for rule: {rule_id}.")
+    rule = get_decomposition_rule(rule_id)
+    return rule.children(request)
 
 
 def build_derivation_tree(
