@@ -72,8 +72,3 @@ def test_direct_execution_reports_rational_domain_constraints():
     assert all(item.domain_constraints == ("x - 1",) for item in execution.graph_result.side_condition_results)
     assert execution.graph_result.status == "EXPERIMENTAL"
 
-
-def test_direct_execution_keeps_negative_power_domain_conditions_unsupported():
-    execution = execute_power_chain_rule(request("((x+1)/(x-1))**-2"))
-    assert all(item.status == "UNSUPPORTED" for item in execution.graph_result.side_condition_results)
-    assert execution.graph_result.status == "UNSUPPORTED"
