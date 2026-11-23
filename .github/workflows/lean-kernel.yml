@@ -8,9 +8,11 @@ on:
       - "mosaic/verification/lean_kernel.py"
       - "mosaic/verification/lean_linear.py"
       - "mosaic/verification/lean_obligations.py"
+      - "mosaic/verification/lean_transformations.py"
       - "tests/test_lean_kernel.py"
       - "tests/test_lean_linear.py"
       - "tests/test_lean_obligations.py"
+      - "tests/test_lean_transformations.py"
       - ".github/workflows/lean-kernel.yml"
   pull_request:
     branches: [main]
@@ -53,6 +55,7 @@ jobs:
           from mosaic.verification.lean_kernel import verify_closed_nat_equality
           from mosaic.verification.lean_linear import verify_linear_int_identity
           from mosaic.verification.lean_obligations import verify_request_identity_with_lean
+          from mosaic.verification.lean_transformations import verify_request_transformation_with_lean
 
           positive = verify_closed_nat_equality("(2 + 3) * 4", "20")
           assert positive.status == "FORMALLY_VERIFIED", positive.model_dump()
@@ -81,5 +84,13 @@ jobs:
           assert symbolic_bound.status == "FORMALLY_VERIFIED", symbolic_bound.model_dump()
           assert symbolic_bound.obligation.checker_id == "lean.kernel.linear_int_identity.v1"
           assert symbolic_bound.obligation.variables == ("x", "y")
-          print("Closed and symbolic Lean kernel obligation checks passed.")
+          transform_request = MathRequest(
+              operation=Operation.SIMPLIFY,
+              expression="2*x + x",
+          )
+          transformed = verify_request_transformation_with_lean(transform_request, "3*x")
+          assert transformed.status == "FORMALLY_VERIFIED", transformed.model_dump()
+          assert transformed.obligation.operation == "simplify"
+          assert transformed.obligation.variables == ("x",)
+          print("Closed, symbolic, and request-bound transformation Lean checks passed.")
           PY
