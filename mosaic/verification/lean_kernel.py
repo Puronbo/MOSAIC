@@ -7,6 +7,8 @@ generated theorem; unavailable Lean remains explicitly unavailable.
 """
 import ast
 import os
+import math
+import hashlib
 import shutil
 import subprocess
 import tempfile
@@ -44,6 +46,7 @@ class LeanKernelCheck(BaseModel):
     lhs_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     rhs_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     lean_version: str | None = None
+    proof_source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     explanation: str
 
 
@@ -101,8 +104,6 @@ def verify_closed_nat_equality(
     lean_executable: str = "lean",
 ) -> LeanKernelCheck:
     """Ask Lean to kernel-check a generated proof of a closed Nat equality."""
-    import hashlib
-
     lhs_hash = hashlib.sha256(lhs.encode("utf-8") if isinstance(lhs, str) else b"").hexdigest()
     rhs_hash = hashlib.sha256(rhs.encode("utf-8") if isinstance(rhs, str) else b"").hexdigest()
     try:
@@ -114,7 +115,7 @@ def verify_closed_nat_equality(
             explanation="The expression is outside the restricted closed-natural-number grammar.",
         )
 
-    if not isinstance(timeout_seconds, (int, float)) or timeout_seconds <= 0 or timeout_seconds > 30:
+    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0 or timeout_seconds > 30:
         return LeanKernelCheck(
             status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
             explanation="The Lean wall-clock limit must be between 0 and 30 seconds.",
@@ -131,6 +132,7 @@ def verify_closed_nat_equality(
         "theorem mosaic_certificate : "
         f"({rendered_lhs} : Nat) = ({rendered_rhs} : Nat) := by decide\n"
     )
+    proof_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
     try:
         with tempfile.TemporaryDirectory(prefix="mosaic-lean-") as directory:
             source_path = Path(directory) / "Certificate.lean"
@@ -154,21 +156,23 @@ def verify_closed_nat_equality(
         if completed.returncode == 0:
             return LeanKernelCheck(
                 status="FORMALLY_VERIFIED", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-                lean_version=version,
+                lean_version=version, proof_source_sha256=proof_hash,
                 explanation="Lean accepted the generated closed Nat equality proof using by decide; the configured Lean kernel checked the theorem.",
             )
         return LeanKernelCheck(
             status="REJECTED", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            lean_version=version,
+            lean_version=version, proof_source_sha256=proof_hash,
             explanation="Lean rejected the generated equality theorem; the candidate equality is not established.",
         )
     except subprocess.TimeoutExpired:
         return LeanKernelCheck(
             status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
+            proof_source_sha256=proof_hash,
             explanation="Lean exceeded the configured wall-clock limit; no formal verification result is available.",
         )
     except OSError:
         return LeanKernelCheck(
             status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
+            proof_source_sha256=proof_hash,
             explanation="Lean could not be executed; no formal verification result is available.",
         )
