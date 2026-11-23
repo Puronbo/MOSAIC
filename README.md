@@ -159,3 +159,11 @@ generated theorem is still checked by Lean's kernel, and its source hash and
 variable list are returned. Nonlinear products, division, powers, assumptions,
 and other variables remain unsupported. This proves an identity over all
 integer assignments, not a statement about rational-function domains.
+
+
+The additional `POST /v1/verify/lean/transformation` route accepts a normal
+`MathRequest` and a proposed result string. For `simplify`, `expand`, and
+`factor`, it can kernel-check affine integer equivalence between the exact
+request expression and result. The obligation binds both the request and
+candidate hashes. It does not establish canonical form, rational-domain
+preservation, or correctness for nonlinear expressions.
