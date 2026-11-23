@@ -2,7 +2,10 @@ from mosaic.core.requests import MathRequest
 from mosaic.core.types import Operation
 from mosaic.engines.algebra import ExpressionError
 from mosaic.verification.derivation import build_derivation_tree
-from mosaic.verification.derivation_graph import (\n    compile_derivation_obligation_graph,\n    evaluate_derivation_tree,\n)
+from mosaic.verification.derivation_graph import (
+    compile_derivation_obligation_graph,
+    evaluate_derivation_tree,
+)
 from mosaic.verification.graph import validate_obligation_graph
 
 
