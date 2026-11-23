@@ -165,6 +165,8 @@ def evaluate_obligation_graph(
     statuses = {result.status for result in ordered_results}
     if "INVALID_CERTIFICATE" in statuses:
         overall = "INVALID_CERTIFICATE"
+    elif any(result.status == "INCOMPLETE" for result in ordered_results):
+        overall = "INCOMPLETE"
     elif "UNSUPPORTED" in statuses or graph.side_conditions:
         overall = "UNSUPPORTED"
     elif all(result.status == "EXPERIMENTAL" and result.equal is True for result in ordered_results):
