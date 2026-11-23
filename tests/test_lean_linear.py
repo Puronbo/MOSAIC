@@ -79,3 +79,15 @@ def test_scalar_multiplication_preserves_affine_constant_term():
     form, variables = lean_linear._parse_linear("2*(x + 3)")
     assert form == {"x": 2, "": 6}
     assert variables == ("x",)
+
+
+def test_lean_unavailable_still_returns_affine_proof_fingerprint(monkeypatch):
+    monkeypatch.setattr(lean_linear.shutil, "which", lambda _: None)
+    result = lean_linear.verify_linear_int_identity("x + y", "y + x")
+    source = (
+        "import Lean\\n"
+        "theorem mosaic_certificate (x : Int) (y : Int) : "
+        "(x + y) = (y + x) := by omega\\n"
+    )
+    assert result.status == "KERNEL_UNAVAILABLE"
+    assert result.proof_source_sha256 == hashlib.sha256(source.encode()).hexdigest()
