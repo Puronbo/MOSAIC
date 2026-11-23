@@ -2,7 +2,10 @@ import json
 
 from mosaic.core.requests import MathRequest
 from mosaic.core.types import Operation
-from mosaic.verification.evidence import (\n    EvidenceItem, aggregate_evidence, evidence_from_check,\n    REGISTERED_EVIDENCE_SOURCES,\n)
+from mosaic.verification.evidence import (
+    EvidenceItem, aggregate_evidence, evidence_from_check,
+    REGISTERED_EVIDENCE_SOURCES,
+)
 from mosaic.verification.task_bound import verify_task_bound_candidate
 
 
