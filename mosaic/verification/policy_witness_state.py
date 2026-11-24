@@ -376,6 +376,7 @@ class PolicyWitnessStateStore:
         recovery_policy_checkpoint=None,
         recovery_policy_publisher_keyring=None,
         recovery_policy_checkpoint_keyring=None,
+        recovery_policy_checkpoint_store=None,
     ) -> bool:
         """Recover a quarantined witness only with exact approvals.
 
@@ -406,10 +407,15 @@ class PolicyWitnessStateStore:
                         checkpoint_keyring=recovery_policy_checkpoint_keyring,
                     )):
                 return False
+            from mosaic.verification.recovery_policy_checkpoint_state import RecoveryPolicyCheckpointStore
+            if (not isinstance(recovery_policy_checkpoint_store, RecoveryPolicyCheckpointStore)
+                    or not recovery_policy_checkpoint_store.matches_trusted_checkpoint(recovery_policy_checkpoint)):
+                return False
             effective_policy = recovery_policy_registry_entries[-1].policy
         elif any(value is not None for value in (
             recovery_policy_registry_entries, recovery_policy_checkpoint,
             recovery_policy_publisher_keyring, recovery_policy_checkpoint_keyring,
+            recovery_policy_checkpoint_store,
         )):
             return False
         effective_approvals = [] if approvals is None else approvals
