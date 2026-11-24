@@ -414,7 +414,56 @@ def verify_local_lean_environment_manifest(
     root = project.parent.parent
     try:
         payload = _strict_json_loads(manifest)
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"schema_version", "source", "environment", "execution", "scope"}
+            or payload.get("schema_version") != "mosaic.lean-build-provenance.v1"
+            or not isinstance(payload.get("scope"), str)
+            or not payload["scope"].strip()
+        ):
+            return False
+        source = payload["source"]
+        execution = payload["execution"]
         expected = payload["environment"]
+        if (
+            not isinstance(source, dict)
+            or set(source) != {"repository", "commit"}
+            or not isinstance(source.get("repository"), str)
+            or not source["repository"].strip()
+            or not isinstance(source.get("commit"), str)
+            or len(source["commit"]) != 40
+            or any(ch not in "0123456789abcdef" for ch in source["commit"])
+            or not isinstance(execution, dict)
+            or set(execution) != {"workflow", "run_id", "run_attempt", "runner_os"}
+            or not isinstance(execution.get("run_id"), str)
+            or not execution["run_id"].isdigit()
+            or not isinstance(expected, dict)
+        ):
+            return False
+        required_environment = {
+            "lean_toolchain", "lean_version_output", "lake_version_output",
+            "elan_version_output", "lean_binary_sha256", "lake_binary_sha256",
+            "elan_binary_sha256", "root_lean_toolchain_sha256",
+            "formal_lean_toolchain_sha256", "mathlib_revision",
+            "observed_mathlib_revision", "lake_manifest_sha256",
+            "lakefile_sha256", "lean_entrypoint_sha256", "python_version",
+            "platform",
+        }
+        if set(expected) != required_environment:
+            return False
+        for key in (
+            "lean_binary_sha256", "lake_binary_sha256", "elan_binary_sha256",
+            "root_lean_toolchain_sha256", "formal_lean_toolchain_sha256",
+            "lake_manifest_sha256", "lakefile_sha256", "lean_entrypoint_sha256",
+        ):
+            value = expected.get(key)
+            if not isinstance(value, str) or len(value) != 64 or any(
+                ch not in "0123456789abcdef" for ch in value
+            ):
+                return False
+        for key in ("lean_version_output", "lake_version_output", "elan_version_output", "python_version", "platform"):
+            if not isinstance(expected.get(key), str) or not expected[key].strip():
+                return False
         toolchain = (project / "lean-toolchain").read_text(encoding="utf-8").strip()
         root_toolchain = (root / "lean-toolchain").read_text(encoding="utf-8").strip()
         if toolchain != root_toolchain or toolchain != expected["lean_toolchain"]:
