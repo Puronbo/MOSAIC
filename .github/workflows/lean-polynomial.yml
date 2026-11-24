@@ -6,7 +6,6 @@ on:
     paths:
       - "formal/polynomial/**"
       - "scripts/create_lean_provenance.py"
-      - "scripts/create_lean_provenance.py"
       - "mosaic/verification/lean_polynomial.py"
       - "mosaic/verification/lean_calculus.py"
       - "mosaic/verification/lean_obligations.py"
@@ -25,6 +24,7 @@ on:
     branches: [main]
     paths:
       - "formal/polynomial/**"
+      - "scripts/create_lean_provenance.py"
       - "mosaic/verification/lean_polynomial.py"
       - "mosaic/verification/lean_calculus.py"
       - "mosaic/verification/lean_obligations.py"
