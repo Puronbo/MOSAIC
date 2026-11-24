@@ -1,6 +1,4 @@
 import base64
-from datetime import datetime, timezone
-
 import pytest
 
 from mosaic.verification.evidence_envelope import EvidenceEventOutcome
@@ -38,11 +36,11 @@ def signed(issued=ISSUED):
 
 
 def key(status="active", **dates):
+    dates.setdefault("activated_at_utc", "2026-11-01T00:00:00Z")
     return HistoricalLeanTrustedKey(
         key_id="key-1",
         public_key_b64=base64.b64encode(PUBLIC).decode(),
         status=status,
-        activated_at_utc="2026-11-01T00:00:00Z",
         **dates,
     )
 
