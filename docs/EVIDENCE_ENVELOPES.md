@@ -578,3 +578,33 @@ monotonic or remote witness checkpoint. SQLite's transaction durability does
 not itself make the machine or storage trustworthy. Do not copy only the main
 database file while WAL activity is in progress; use SQLite's backup API or
 a coordinated shutdown/backup procedure to preserve a consistent state.
+
+
+## Stateful independent policy checkpoint witnesses
+
+G-EP94 adds `mosaic.verification.policy_witness_state.PolicyWitnessStateStore`.
+Each witness runs with its own SQLite database and key custody, retains its
+last accepted checkpoint per log, and signs only after independently checking
+the complete supplied registry prefix and a strict extension of its retained
+checkpoint. A stale checkpoint, replay, unlinked extension, invalid registry
+prefix, or mismatched private/public key is not endorsed. State advancement is
+transactional and survives process restart.
+
+A witness that receives a cryptographically valid, genesis-rooted checkpoint
+with a different head at the same sequence records a durable incident and
+quarantines that log. It will not endorse further checkpoints while
+quarantined. Invalid fork packets do not trigger quarantine, and a checkpoint
+refresh that names the same registry head is not treated as equivocation.
+This design deliberately does not provide automatic witness recovery: a
+quarantined witness requires an out-of-band administrative recovery procedure
+or replacement from independently audited state. Reinitializing its database
+from an untrusted export would defeat its retained-history property.
+
+Witness databases must be held by genuinely separate custodians or systems;
+several databases under one administrator are not independent witnesses.
+The SQLite store remains vulnerable to privileged database and backup rollback.
+A signature proves that a configured key endorsed a checkpoint, not that the
+checkpoint is truthful or fresh. There is no network service, gossip,
+automated witness discovery, remote monotonic counter, or distributed
+consensus implementation in this milestone. The incident export shape is
+specified by `schemas/policy-witness-state-incident-v1.schema.json`.
