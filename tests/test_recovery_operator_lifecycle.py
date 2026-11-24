@@ -1272,3 +1272,31 @@ def test_portable_recovery_envelope_cli_fails_closed_on_untrusted_or_incomplete_
         cwd=root, capture_output=True, text=True, check=False)
     assert result.returncode == 2
     assert "error" in result.stdout
+
+
+def test_portable_recovery_envelope_cli_emits_runtime_provenance(tmp_path):
+    import hashlib
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    verifier = root / "scripts" / "verify_operator_lifecycle_recovery_envelope.py"
+    result = subprocess.run(
+        [sys.executable, str(verifier), "--provenance"],
+        cwd=root, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["provenance_schema_version"] == "1.0"
+    assert report["verifier"] == "verify_operator_lifecycle_recovery_envelope"
+    assert report["verifier_sha256"] == hashlib.sha256(verifier.read_bytes()).hexdigest()
+    assert report["python_version"]
+    assert set(report["dependency_versions"]) == {
+        "mosaic-math", "pydantic", "cryptography"}
+    manifest_digest = report.pop("manifest_sha256")
+    canonical = json.dumps(report, sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=False).encode("utf-8")
+    assert manifest_digest == hashlib.sha256(canonical).hexdigest()
+    assert (report["dependency_lock_sha256"] is None) == (
+        report["dependency_lock_file"] is None)
