@@ -6,6 +6,8 @@ on:
     paths:
       - "formal/polynomial/**"
       - "scripts/create_lean_provenance.py"
+      - "tests/test_lean_environment_pins.py"
+      - "schemas/lean-build-provenance-v1.schema.json"
       - "scripts/verify_lean_proof_receipt.py"
       - "mosaic/verification/lean_polynomial.py"
       - "mosaic/verification/lean_calculus.py"
@@ -201,7 +203,7 @@ jobs:
           PY
       - name: Replay exact signed Lean proof source with pinned toolchain
         run: |
-          python - <<'PY'
+          uv run --locked python - <<'PY'
           from mosaic.core.requests import MathRequest
           from mosaic.core.types import Operation
           import base64
