@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-restore-ledger-authority-rotation-head-v1.schema.json",
+  "title": "MOSAIC Signed Ledger Authority Rotation Head v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry_id", "rotation_sequence", "rotation_sha256", "active_key_id", "issued_at_utc", "signature_b64"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "registry_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "rotation_sequence": {"type": "integer", "minimum": 0},
+    "rotation_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "active_key_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "issued_at_utc": {"type": "string", "minLength": 20, "maxLength": 40},
+    "signature_b64": {"type": "string", "minLength": 1, "maxLength": 128}
+  },
+  "allOf": [
+    {"if": {"properties": {"rotation_sequence": {"const": 0}}}, "then": {"properties": {"rotation_sha256": {"type": "null"}}}},
+    {"if": {"properties": {"rotation_sequence": {"minimum": 1}}}, "then": {"properties": {"rotation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}}
+  ]
+}
