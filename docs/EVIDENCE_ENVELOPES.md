@@ -1091,3 +1091,21 @@ does not maintain a distributed monotonic counter or automatically discover
 new checkpoints. Legacy recovery remains available only when no strict policy
 is supplied, so production callers must explicitly configure this policy to
 obtain fail-closed enforcement.
+
+
+### G-EP112: contiguous lifecycle checkpoint advancement
+
+`verify_operator_lifecycle_checkpoint_advance` validates a proposed lifecycle
+checkpoint against one externally pinned predecessor. It requires the
+predecessor digest to match the external anchor, verifies both authority
+signatures, and requires an unchanged registry and authority identity, exactly
+one sequence increment, the candidate's predecessor digest to equal the
+predecessor digest, and strictly increasing issuance time. It returns a
+structured report with deterministic rejection reasons.
+
+This is deliberately a one-step verifier. A deployment must atomically retain
+the newly accepted candidate digest and sequence in its trusted configuration
+or control plane before accepting a later step. It does not discover skipped
+history, provide distributed consensus, or make a local database rollback
+resistant by itself. A caller must reject the report unless `accepted` is
+true, and must not advance its external anchor on rejection.
