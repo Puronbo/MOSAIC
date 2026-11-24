@@ -241,3 +241,14 @@ The theorem `exponent_partial_derivative` differentiates with respect to `t` whi
 \\]
 
 These are one-variable `HasDerivAt` statements for the two coordinate slices, not yet a single Fréchet-derivative theorem for the joint map `(x,t) ↦ x^(x+t)`. The positive-base hypothesis is essential to the real-power derivative rule used here. Higher mixed partials and a full two-variable smoothness result remain separate targets.
+
+
+The theorem `along_base_path_derivative` goes one step further: for any differentiable path `u(t)` that remains positive at the evaluation point, it differentiates `u(t)^(u(t)+t)`. Its formula is
+
+\\[
+\\frac{d}{dt}u(t)^{u(t)+t}
+=u'(t)(u(t)+t)u(t)^{u(t)+t-1}
++(u'(t)+1)u(t)^{u(t)+t}\\log u(t).
+\\]
+
+This combines the changing-base and changing-exponent contributions via the real-power chain rule. The hypothesis is local at the point where the derivative is evaluated; it does not assert that the path stays positive globally.
