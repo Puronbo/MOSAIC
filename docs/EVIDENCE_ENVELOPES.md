@@ -1166,3 +1166,31 @@ OperatorLifecycleCheckpointChainBundle packages a non-empty ordered suffix of si
 The verifier rejects a wrong registry or starting anchor, invalid signatures, skipped sequences, predecessor forks, non-monotonic issuance times, and mismatched externally expected ending sequence or digest. Its report records the number of transitions actually verified and deterministic errors. The JSON Schema is schemas/operator-lifecycle-checkpoint-chain-bundle-v1.schema.json; each member references the signed checkpoint v1 schema.
 
 A bundle is a portable proof of a contiguous signed suffix relative to its externally trusted starting checkpoint; it is not a trust root, distributed consensus, or proof that the authority's statements are substantively true. Deployments must independently provision the authority key and starting digest, and should pin the expected ending digest when accepting a particular head. A bundle cannot authenticate an omitted predecessor or repair a sequence gap by itself.
+
+
+
+### G-EP117: transactional restoration of lifecycle checkpoint-chain bundles
+
+`RecoveryOperatorLifecycleTrustAnchorStore.restore_checkpoint_chain_bundle(...)`
+restores a portable contiguous checkpoint suffix only after the complete bundle
+has been independently verified against the caller-supplied starting checkpoint,
+authority keyring, registry identity, external starting digest, and exact expected
+ending sequence and digest. Verification occurs before mutation; the database
+transaction then rechecks the current head while holding SQLite
+`BEGIN IMMEDIATE`.
+
+An empty store is initialized only when the caller explicitly sets
+`allow_initial=True`. This does not make the bundle's embedded starting anchor
+trusted: the starting checkpoint and its expected digest, authority keyring,
+and expected final head must still come from independently controlled sources.
+For a non-empty store, the supplied starting checkpoint must exactly match the
+retained local sequence and digest. The operation rejects stale predecessors,
+same-sequence forks, newer local heads, rollback attempts, invalid signatures,
+and incomplete or discontinuous bundles. An exact already-retained ending head
+is accepted idempotently after the entire supplied bundle has been verified.
+
+The final checkpoint head is written in one transaction, so rejected imports
+leave the local state unchanged and concurrent writers cannot overwrite a head
+that changed after pre-verification. SQLite atomicity and writer serialization
+do not protect against privileged replacement or rollback of the database file;
+deployments must continue to retain freshness anchors outside this store.
