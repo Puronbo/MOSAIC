@@ -135,3 +135,28 @@ def test_snapshot_rejects_noncompleted_proposal_in_completed_record():
             records=(invalid_record,),
             snapshot_sha256="0" * 64,
         )
+
+
+def test_quarantined_dependency_blocks_downstream_dispatch():
+    first = AgentTask(
+        task_id="remote-1",
+        role=AgentRole.SOLVER,
+        goal="External solve",
+    )
+    second = AgentTask(
+        task_id="followup-1",
+        role=AgentRole.CRITIC,
+        goal="Review external solve",
+        depends_on=("remote-1",),
+    )
+    tasks = [first, second]
+    records = initialize_task_records(tasks)
+    running = dispatch_ready_tasks(tasks, records, now=20.0, max_concurrency=1)
+    snapshot = SchedulerSnapshot.capture(tasks, running)
+    recovered = quarantine_interrupted_tasks(snapshot)
+    after_restart = dispatch_ready_tasks(
+        tasks, recovered.records, now=21.0, max_concurrency=2
+    )
+    by_id = {record.task_id: record for record in after_restart}
+    assert by_id["remote-1"].status == TaskStatus.FAILED
+    assert by_id["followup-1"].status == TaskStatus.PENDING
