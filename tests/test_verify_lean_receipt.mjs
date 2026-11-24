@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";\nimport { spawnSync } from "node:child_process";\nimport { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { verifyAttestation, parseJsonNoDuplicateKeys } from "../scripts/verify_lean_receipt.mjs";
 
 const vector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_vector.json", import.meta.url), "utf8"));
