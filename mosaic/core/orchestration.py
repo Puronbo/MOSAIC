@@ -1,6 +1,6 @@
-"""Trust-aware contracts for delegating mathematical work to agents.
+"""Trust-aware contracts and deterministic scheduling for mathematical agents.
 
-This module plans and records proposals; it does not execute agents or prove theorems.
+This module plans and records proposals; provider execution and proof checking are external.
 """
 import hashlib
 import json
@@ -57,6 +57,28 @@ class AgentProposal(BaseModel):
     assumptions: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
     status: TaskStatus = TaskStatus.COMPLETED
+
+
+class TaskRunRecord(BaseModel):
+    """Immutable scheduler state for one task attempt."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: str
+    status: TaskStatus = TaskStatus.PENDING
+    attempt: int = Field(default=0, ge=0)
+    started_at: float | None = None
+    deadline_at: float | None = None
+    proposal: AgentProposal | None = None
+    error: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def validate_timing(self):
+        if self.status == TaskStatus.RUNNING:
+            if self.started_at is None or self.deadline_at is None:
+                raise ValueError("running tasks require start and deadline timestamps")
+            if self.deadline_at <= self.started_at:
+                raise ValueError("task deadline must follow its start")
+        return self
 
 
 class ProposalAssessment(BaseModel):
@@ -119,22 +141,15 @@ def collision_review_tasks(
     *,
     max_proposals: int = 16,
 ) -> list[AgentTask]:
-    """Create bounded critic tasks plus a dependent review-synthesis task.
-
-    Each critic receives exactly one original proposal as untrusted data. The synthesis
-    task depends on all critic tasks and the original task. IDs are deterministic and
-    content-derived so plans can be replayed; no model/provider is invoked here.
-    """
+    """Create bounded critic tasks plus a dependent review-synthesis task."""
     if assessment.task_id != task.task_id:
         raise ValueError("assessment task_id does not match task")
     if not assessment.conflict_detected or assessment.disposition != "needs-adversarial-review":
         raise ValueError("collision review requires a conflicting assessment")
     if assessment.proposal_count != len(assessment.preserved_proposals):
         raise ValueError("assessment proposal records are incomplete")
-    if assessment.proposal_count > max_proposals:
+    if max_proposals < 1 or assessment.proposal_count > max_proposals:
         raise ValueError("collision exceeds the configured proposal review budget")
-    if max_proposals < 1:
-        raise ValueError("max_proposals must be positive")
     if any(p.task_id != task.task_id for p in assessment.preserved_proposals):
         raise ValueError("assessment contains a proposal for another task")
 
@@ -174,9 +189,8 @@ def collision_review_tasks(
             )
         )
 
-    synthesis_id = f"collision-{seed}-synthesis"
     synthesis = AgentTask(
-        task_id=synthesis_id,
+        task_id=f"collision-{seed}-synthesis",
         role=AgentRole.CRITIC,
         goal=(
             "Compare all independent collision reviews. Map disagreements, unresolved "
@@ -196,6 +210,116 @@ def collision_review_tasks(
         timeout_seconds=45,
     )
     return [*critic_tasks, synthesis]
+
+
+def initialize_task_records(tasks: list[AgentTask]) -> tuple[TaskRunRecord, ...]:
+    """Create pending records in deterministic topological order."""
+    return tuple(TaskRunRecord(task_id=task_id) for task_id in validate_task_graph(tasks))
+
+
+def dispatch_ready_tasks(
+    tasks: list[AgentTask],
+    records: tuple[TaskRunRecord, ...],
+    *,
+    now: float,
+    max_concurrency: int = 4,
+    max_attempts: int = 2,
+) -> tuple[TaskRunRecord, ...]:
+    """Expire deadlines, retry within budget, and dispatch ready tasks deterministically.
+
+    The caller supplies a monotonic clock value and performs provider calls separately.
+    A task is ready only after every dependency is COMPLETED. Failed or exhausted
+    dependencies block descendants rather than being treated as successful.
+    """
+    if now < 0 or max_concurrency < 1 or max_attempts < 1:
+        raise ValueError("invalid scheduler clock or budget")
+    order = validate_task_graph(tasks)
+    by_task = {task.task_id: task for task in tasks}
+    by_record = {record.task_id: record for record in records}
+    if len(by_record) != len(records) or set(by_record) != set(by_task):
+        raise ValueError("scheduler records must match task IDs exactly")
+
+    updated = dict(by_record)
+    for task_id, record in updated.items():
+        if record.status == TaskStatus.RUNNING and record.deadline_at <= now:
+            updated[task_id] = record.model_copy(
+                update={"status": TaskStatus.TIMED_OUT, "error": "deadline exceeded"}
+            )
+        record = updated[task_id]
+        if record.status == TaskStatus.TIMED_OUT and record.attempt < max_attempts:
+            updated[task_id] = record.model_copy(
+                update={
+                    "status": TaskStatus.PENDING,
+                    "started_at": None,
+                    "deadline_at": None,
+                    "error": None,
+                }
+            )
+
+    running = sum(record.status == TaskStatus.RUNNING for record in updated.values())
+    capacity = max(0, max_concurrency - running)
+    for task_id in order:
+        if capacity == 0:
+            break
+        record = updated[task_id]
+        task = by_task[task_id]
+        if record.status != TaskStatus.PENDING:
+            continue
+        if not all(updated[dep].status == TaskStatus.COMPLETED for dep in task.depends_on):
+            continue
+        updated[task_id] = record.model_copy(
+            update={
+                "status": TaskStatus.RUNNING,
+                "attempt": record.attempt + 1,
+                "started_at": now,
+                "deadline_at": now + task.timeout_seconds,
+                "proposal": None,
+                "error": None,
+            }
+        )
+        capacity -= 1
+    return tuple(updated[task_id] for task_id in order)
+
+
+def complete_task(
+    task: AgentTask,
+    records: tuple[TaskRunRecord, ...],
+    proposal: AgentProposal,
+) -> tuple[TaskRunRecord, ...]:
+    """Record one untrusted proposal for a currently running matching task."""
+    by_record = {record.task_id: record for record in records}
+    if len(by_record) != len(records) or task.task_id not in by_record:
+        raise ValueError("scheduler record for task is missing or duplicated")
+    record = by_record[task.task_id]
+    if record.status != TaskStatus.RUNNING:
+        raise ValueError("only a running task can be completed")
+    if proposal.task_id != task.task_id:
+        raise ValueError("proposal task_id does not match task")
+    if proposal.role != task.role:
+        raise ValueError("proposal role does not match task role")
+    by_record[task.task_id] = record.model_copy(
+        update={"status": TaskStatus.COMPLETED, "proposal": proposal}
+    )
+    return tuple(by_record[item.task_id] for item in records)
+
+
+def fail_task(
+    task: AgentTask,
+    records: tuple[TaskRunRecord, ...],
+    *,
+    error: str,
+) -> tuple[TaskRunRecord, ...]:
+    """Record a bounded failure; failures are not silently retried or treated as success."""
+    by_record = {record.task_id: record for record in records}
+    if len(by_record) != len(records) or task.task_id not in by_record:
+        raise ValueError("scheduler record for task is missing or duplicated")
+    record = by_record[task.task_id]
+    if record.status != TaskStatus.RUNNING:
+        raise ValueError("only a running task can fail")
+    by_record[task.task_id] = record.model_copy(
+        update={"status": TaskStatus.FAILED, "error": error[:2000]}
+    )
+    return tuple(by_record[item.task_id] for item in records)
 
 
 def validate_task_graph(tasks: list[AgentTask]) -> list[str]:
