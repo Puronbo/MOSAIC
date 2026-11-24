@@ -76,3 +76,11 @@ The mosaic.core.scheduler_persistence module captures the full task graph and an
 
 
 Crash recovery quarantines both RUNNING and TIMED_OUT tasks. A timeout does not prove a remote worker stopped, so it is not automatically retried after a restart; downstream tasks remain blocked until the ambiguous outcome is reconciled.
+
+
+
+## Receipt coverage and conservative review completion
+
+`assess_receipt_coverage` requires an exact one-to-one match between the review obligations and their stored checker receipts. It revalidates each receipt digest and request fingerprint, then checks the originating task, agent, finding, request hash, and allow-listed checker binding. Missing, duplicate, extra, stale, or cross-wired records are rejected. Non-success checker outcomes remain unresolved rather than being counted as discharged.
+
+Even when every routed obligation has a `FORMALLY_VERIFIED` receipt, the coverage assessment's mathematical status remains `EXPERIMENTAL`. Review findings may cover only part of a claim, and receipt coverage is not a proof of the original task. The gate reports whether the explicitly requested checks were recorded as successful; it does not infer completeness of the mathematical argument or replace trusted-kernel verification of the exact proposition.
