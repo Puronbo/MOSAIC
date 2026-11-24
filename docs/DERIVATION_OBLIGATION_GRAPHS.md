@@ -268,3 +268,22 @@ domain, including affine directional paths. It is stronger than the special
 path `u(s)^(u(s)+s)`, but it is still a pathwise chain-rule theorem rather
 than a bundled Fréchet derivative of the two-variable map. The pinned Lean
 integration workflow is the acceptance gate for the new theorem.
+
+
+The joint exponent family now also has a full Fréchet chain-rule theorem,
+`MosaicRealExponentShift.joint_map_fderiv`. For differentiable maps
+\(f,g:E\to\mathbb R\) on a real normed space, with \(f(z)>0\), it
+differentiates
+\[
+z\longmapsto f(z)^{f(z)+g(z)}.
+\]
+The derivative is the continuous linear map
+\[
+(f(z)+g(z))f(z)^{f(z)+g(z)-1}f'
++f(z)^{f(z)+g(z)}\log(f(z))(f'+g').
+\]
+Here \(f'\) and \(g'\) are the Fréchet derivatives at the selected point;
+scalar multiplication and addition are operations on continuous linear maps.
+This formulation works on arbitrary real normed domains, not only on a
+one-dimensional path. The pinned Lean kernel workflow remains the acceptance
+gate; the theorem is not described as verified until that workflow succeeds.
