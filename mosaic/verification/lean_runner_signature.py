@@ -405,7 +405,6 @@ def verify_local_lean_environment_manifest(
     Mathlib checkout, Lake inputs, and proof entrypoint before replay. It does
     not authenticate the host or replace artifact-attestation verification.
     """
-    import platform
     import shutil
 
     if not isinstance(manifest, bytes):
@@ -437,6 +436,12 @@ def verify_local_lean_environment_manifest(
             or set(execution) != {"workflow", "run_id", "run_attempt", "runner_os"}
             or not isinstance(execution.get("run_id"), str)
             or not execution["run_id"].isdigit()
+            or not isinstance(execution.get("run_attempt"), str)
+            or not execution["run_attempt"].isdigit()
+            or not isinstance(execution.get("workflow"), str)
+            or not execution["workflow"].strip()
+            or not isinstance(execution.get("runner_os"), str)
+            or not execution["runner_os"].strip()
             or not isinstance(expected, dict)
         ):
             return False
@@ -464,6 +469,14 @@ def verify_local_lean_environment_manifest(
         for key in ("lean_version_output", "lake_version_output", "elan_version_output", "python_version", "platform"):
             if not isinstance(expected.get(key), str) or not expected[key].strip():
                 return False
+        for key in ("mathlib_revision", "observed_mathlib_revision"):
+            value = expected.get(key)
+            if not isinstance(value, str) or len(value) != 40 or any(
+                ch not in "0123456789abcdef" for ch in value
+            ):
+                return False
+        if expected.get("lean_toolchain") != "leanprover/lean4:v4.36.0":
+            return False
         toolchain = (project / "lean-toolchain").read_text(encoding="utf-8").strip()
         root_toolchain = (root / "lean-toolchain").read_text(encoding="utf-8").strip()
         if toolchain != root_toolchain or toolchain != expected["lean_toolchain"]:
