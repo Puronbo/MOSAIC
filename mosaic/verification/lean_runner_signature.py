@@ -29,6 +29,7 @@ class SignedLeanAttestation(BaseModel):
     request_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     proof_artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    proof_source: str = Field(min_length=1, max_length=10000)
     checker_id: str = Field(min_length=1, max_length=160)
     kernel_id: str = "Lean"
     kernel_version: str = Field(min_length=1, max_length=160)
@@ -45,6 +46,7 @@ class SignedLeanAttestation(BaseModel):
         request_sha256: str,
         artifact_sha256: str,
         proof_artifact_sha256: str,
+        proof_source: str,
         checker_id: str,
         kernel_version: str,
         outcome: EvidenceEventOutcome,
@@ -56,6 +58,8 @@ class SignedLeanAttestation(BaseModel):
             raise ValueError("signed attestations require a completed pass or failure")
         if not isinstance(private_key, bytes) or len(private_key) != 32:
             raise ValueError("Ed25519 private key must be exactly 32 raw bytes")
+        if hashlib.sha256(proof_source.encode("utf-8")).hexdigest() != proof_artifact_sha256:
+            raise ValueError("proof source does not match its SHA-256 digest")
         payload = {
             "schema_version": "1.0",
             "receipt_id": receipt_id,
@@ -64,6 +68,7 @@ class SignedLeanAttestation(BaseModel):
             "request_sha256": request_sha256,
             "artifact_sha256": artifact_sha256,
             "proof_artifact_sha256": proof_artifact_sha256,
+            "proof_source": proof_source,
             "checker_id": checker_id,
             "kernel_id": "Lean",
             "kernel_version": kernel_version,
@@ -102,6 +107,7 @@ class SignedLeanAttestation(BaseModel):
             kernel_id=self.kernel_id,
             kernel_version=self.kernel_version,
             proof_artifact_sha256=self.proof_artifact_sha256,
+            runner_proof_source=self.proof_source,
             runner_id=self.runner_id,
             runner_receipt_id=self.receipt_id,
             runner_request_sha256=self.request_sha256,
@@ -124,6 +130,7 @@ def verify_evidence_event_signature(event: EvidenceEvent, public_keys: dict[str,
         or not event.kernel_id
         or not event.kernel_version
         or not event.proof_artifact_sha256
+        or not event.runner_proof_source
     ):
         return False
     public_key = public_keys.get(event.runner_key_id)
@@ -137,6 +144,7 @@ def verify_evidence_event_signature(event: EvidenceEvent, public_keys: dict[str,
             request_sha256=event.runner_request_sha256,
             artifact_sha256=event.artifact_sha256,
             proof_artifact_sha256=event.proof_artifact_sha256,
+            proof_source=event.runner_proof_source,
             checker_id=event.tool_id,
             kernel_version=event.kernel_version,
             outcome=event.outcome,
@@ -166,6 +174,7 @@ def sign_transformation_result(
         or verification.status not in {"FORMALLY_VERIFIED", "REJECTED"}
         or check.status != verification.status
         or not check.proof_source_sha256
+        or not check.proof_source
         or not check.lean_version
     ):
         raise ValueError("no completed Lean kernel outcome is available")
@@ -192,6 +201,7 @@ def sign_transformation_result(
         request_sha256=request_hash,
         artifact_sha256=artifact_hash,
         proof_artifact_sha256=check.proof_source_sha256,
+        proof_source=check.proof_source,
         checker_id=check.checker_id,
         kernel_version=version,
         outcome=(
