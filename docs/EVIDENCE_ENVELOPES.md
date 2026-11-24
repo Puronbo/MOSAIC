@@ -781,3 +781,31 @@ The older direct-policy path remains available when the enforcement flag is
 false for backwards compatibility. Production deployments should enable the
 flag and source the checkpoint and keyrings from separately controlled trust
 configuration.
+
+
+### Durable recovery-policy checkpoint state (G-EP101)
+
+`RecoveryPolicyCheckpointStore` in
+`mosaic.verification.recovery_policy_checkpoint_state` persists a trusted
+recovery-policy registry head in SQLite (WAL, FULL synchronous writes).
+`pin_checkpoint` verifies the complete signed registry and checkpoint
+before pinning or advancing the head. It rejects older checkpoints, records
+rollback incidents, checks that previously retained registry entries remain
+an exact prefix, and quarantines the registry on same-sequence equivocation
+or history divergence. The state survives process restart.
+
+Fail-closed witness recovery now additionally requires this store and checks
+that the supplied signed checkpoint exactly matches its non-quarantined local
+head. A registry/checkpoint pair that verifies cryptographically but is not
+the locally pinned head cannot authorize recovery.
+
+The first `pin_checkpoint` is an explicit trust-on-first-use operation, not
+proof of freshness. Bootstrap it from an independently authenticated
+checkpoint; do not blindly pin a checkpoint received alongside an untrusted
+registry. SQLite protects against ordinary process restarts and concurrent
+transactions, not a privileged attacker who can replace or roll back the
+database and all backups. Deployments should back up the database using
+SQLite's backup API or a coordinated shutdown and retain an external
+freshness anchor. A policy rollback incident requires an explicit
+administrative investigation and re-bootstrap; this store never silently
+clears quarantine.
