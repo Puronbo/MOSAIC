@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-checkpoint-v1.schema.json",
+  "title": "MOSAIC signed operator lifecycle checkpoint v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "registry_id",
+    "sequence",
+    "previous_checkpoint_sha256",
+    "issued_at_utc",
+    "authority_key_id",
+    "operator_keys",
+    "signature_b64"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "registry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "previous_checkpoint_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "issued_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 40
+    },
+    "authority_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "operator_keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key_id",
+          "public_key_b64",
+          "activated_at_utc",
+          "revoked_at_utc"
+        ],
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "public_key_b64": {
+            "type": "string",
+            "minLength": 44,
+            "maxLength": 44
+          },
+          "activated_at_utc": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 40
+          },
+          "revoked_at_utc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 20,
+            "maxLength": 40
+          }
+        }
+      }
+    },
+    "signature_b64": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}
