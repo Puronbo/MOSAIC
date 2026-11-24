@@ -70,3 +70,6 @@ For deployments that need writer authentication, `AuthenticatedReceipt` wraps a 
 ## Scheduler crash-recovery snapshots
 
 The mosaic.core.scheduler_persistence module captures the full task graph and an exact scheduler record for every task. It validates unique IDs, graph acyclicity/dependencies, completed-task proposal presence, and proposal-to-task role/ID binding. Snapshots are canonicalized, size-bounded, SHA-256 checked, and can be persisted locally through an atomic append-only store. Loading restores recorded proposals and task statuses; it does not call providers or automatically dispatch pending/running work. Deployments must define how to reconcile tasks that were RUNNING at process death, because a persisted RUNNING state is not proof that a remote provider stopped or completed. The digest is tamper-evident, not authenticated; protect the store and use a separately authenticated storage layer where required.
+
+
+`quarantine_interrupted_tasks` applies the conservative restart rule: every persisted RUNNING task becomes FAILED with an explicit unknown-provider-outcome message. It does not retry or mark such work successful. Operators must reconcile the provider outcome before creating a new attempt, avoiding duplicate remote side effects after an ambiguous crash.
