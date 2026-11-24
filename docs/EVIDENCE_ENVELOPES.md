@@ -137,6 +137,24 @@ controlled by a trusted registry, with explicit rotation and revocation
 policies. The library's `generate_ed25519_keypair` helper is for key
 provisioning/testing; it does not persist or protect keys.
 
+The signed attestation schema is versioned as `1.0`; unknown versions are
+rejected rather than interpreted as compatible. Its canonical payload uses
+UTF-8 JSON with lexicographically sorted keys, compact separators, and
+`ensure_ascii=False`. The conformance vector in
+`tests/fixtures/lean_receipt_v1_vector.json` fixes the canonical payload hash,
+raw key pair, and deterministic Ed25519 signature so independent
+implementations can test byte-for-byte compatibility.
+
+Consumers can maintain a `LeanTrustedKey` registry and call
+`verify_with_keyring`. Keys marked `active` can verify current receipts;
+`retired` keys remain usable for historical verification; `revoked` keys
+are rejected. This registry is an application-supplied trust policy, not a
+remote key-discovery service. The current receipt format has no signed
+issuance timestamp, so a revoked key is rejected for all receipts rather
+than attempting to infer whether a receipt predates revocation. Rotation
+requires publishing the new key under a new key ID and retaining old
+non-revoked keys while historical verification is required.
+
 This is an asymmetric signature protocol, not remote attestation of the
 runner's machine. It proves that the holder of the configured private key
 signed the bound statement. It does not independently prove that the machine
@@ -198,8 +216,9 @@ python scripts/verify_lean_proof_receipt.py \\
 ```
 
 The public-key file contains the base64-encoded 32-byte Ed25519 public key.
-The verifier checks the receipt signature, source digest, exact manifest
-digest and identifiers, original request fingerprint, and candidate digest.
+The verifier rejects duplicate JSON object keys and unknown bundle fields,
+then checks the receipt signature, source digest, exact manifest digest and
+identifiers, original request fingerprint, and candidate digest.
 The optional replay flag independently executes the exact signed proof source
 with the local pinned Lake project. The key embedded in the receipt is only
 compared with the supplied trust key; it is never trusted merely because it
