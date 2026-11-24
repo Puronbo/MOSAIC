@@ -116,3 +116,8 @@ F_{k+m}(n)=n^mF_k(n),\qquad
 \]
 
 Here `m` is a natural-number step and `r` is the iteration order. The formal statement includes `m = 0` (the zero-step difference is zero at positive iteration orders); no positivity claim for arbitrary-step differences is included unless separately proved with the required positive-step assumptions.
+
+
+### Shift-operator algebra
+
+The exponent-shift module now exposes `shiftOperator`, with kernel-checked laws for the identity shift, composition (`T_a(T_b f) = T_(a+b) f`), its action on the exponent-increment sequence, and commutation with the unit forward-difference operator. These are natural-indexed forward shifts. There is no inverse shift in this API: a natural sequence has no generally defined values at negative indices, so an inverse law would require a separately specified domain (for example, a bi-infinite integer-indexed sequence).
