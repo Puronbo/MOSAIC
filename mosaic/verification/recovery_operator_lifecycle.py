@@ -1295,6 +1295,53 @@ def verify_operator_lifecycle_restore_ledger_head_with_rotation_chain(
                 authorization_time_utc=authorization_time_utc))
 
 
+def verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
+    head: SignedOperatorLifecycleRestoreLedgerHead, *,
+    rotation_head: "SignedOperatorLifecycleLedgerAuthorityRotationHead",
+    rotations: tuple[SignedOperatorLifecycleLedgerAuthorityRotation, ...] | list[SignedOperatorLifecycleLedgerAuthorityRotation],
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str, expected_event_sequence: int,
+    expected_ledger_entry_sha256: str,
+    expected_initial_key_id: str,
+    expected_rotation_sequence: int,
+    expected_rotation_sha256: str | None,
+    expected_receipt_sha256: str | None = None,
+    authorization_time_utc: str | None = None,
+) -> bool:
+    """Verify a restore-ledger head under an externally pinned rotation-chain state.
+
+    The caller supplies the independently retained rotation head and exact
+    expected rotation sequence/digest. The restore-ledger head must be signed
+    by the active key in that verified chain and must not predate its final
+    key transition. This composes two distinct signed evidence layers without
+    treating either issuance timestamp as trusted wall-clock time.
+    """
+    if not verify_operator_lifecycle_ledger_authority_rotation_head(
+        rotation_head, rotations=rotations, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_initial_key_id=expected_initial_key_id,
+        expected_rotation_sequence=expected_rotation_sequence,
+        expected_rotation_sha256=expected_rotation_sha256,
+        authorization_time_utc=authorization_time_utc,
+    ):
+        return False
+    if not isinstance(head, SignedOperatorLifecycleRestoreLedgerHead):
+        return False
+    if rotations and head.issued_at_utc < rotations[-1].effective_at_utc:
+        return False
+    return (
+        head.ledger_authority_key_id == rotation_head.active_key_id
+        and verify_operator_lifecycle_restore_ledger_head(
+            head, authority_keyring=authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_event_sequence=expected_event_sequence,
+            expected_ledger_entry_sha256=expected_ledger_entry_sha256,
+            expected_receipt_sha256=expected_receipt_sha256,
+            authorization_time_utc=authorization_time_utc,
+        )
+    )
+
+
 class SignedOperatorLifecycleLedgerAuthorityRotationHead(BaseModel):
     """Externally retainable signed checkpoint of the authority-rotation chain."""
     model_config = ConfigDict(extra="forbid", frozen=True)
