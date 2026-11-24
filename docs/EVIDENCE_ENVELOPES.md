@@ -1557,9 +1557,15 @@ before the `manifest_sha256` field is added. The output follows
 This is descriptive execution metadata, not a signed attestation. Environment
 variables such as `GITHUB_SHA` and `GITHUB_RUN_ID` are caller/runtime
 metadata and can be spoofed outside the corresponding trusted CI environment.
-A missing lock-file digest is explicit: this repository's current
-`pyproject.toml` uses lower-bounded dependencies and does not yet provide a
-complete transitive dependency lock. Consequently, this output improves
-inspection and auditability but does **not** claim bit-for-bit reproducible
-installation or execution. It also does not prove that the verifier or its
+The repository now checks in `uv.lock`, which records the resolved
+transitive dependency graph and artifact hashes. The lock resolver workflow
+uses uv 0.9.11 and Python 3.11 to update the lock; the main test workflow uses
+`uv sync --locked --extra dev` and `uv run --locked`, refusing to silently
+re-resolve dependencies. A missing lock-file digest remains explicit for
+source checkouts where the lock is absent.
+
+This pins dependency inputs for the supported CI environment, but does not
+claim bit-for-bit reproducible execution across every operating system,
+architecture, or external service. The manifest is still descriptive, not a
+signed runner attestation. It also does not prove that the verifier or its
 dependencies are correct, nor that the reported verification result is true.
