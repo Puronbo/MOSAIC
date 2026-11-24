@@ -273,4 +273,24 @@ theorem difference_shift_commute (f : Nat → ℝ) (m k : Nat) :
     Nat.add_left_comm, Nat.add_comm]
 
 
+
+/-- The first m-step difference is the base-power increment times the value. -/
+theorem arbitrary_step_first_difference (n m k : Nat) :
+    value n (k + m) - value n k =
+      ((n : ℝ) ^ m - 1) * value n k := by
+  rw [arbitrary_shift]
+  ring
+
+/-- A zero-sized step has zero difference at every positive iteration order. -/
+theorem zero_step_difference (n k r : Nat) :
+    iteratedDifferenceBy n 0 (r + 1) k = 0 := by
+  induction r with
+  | zero =>
+      simp [iteratedDifferenceBy, forwardDifferenceBy]
+  | succ r ih =>
+      simp only [iteratedDifferenceBy, forwardDifferenceBy]
+      rw [ih (k := k), ih (k := k)]
+      ring
+
+
 end MosaicExponentShift
