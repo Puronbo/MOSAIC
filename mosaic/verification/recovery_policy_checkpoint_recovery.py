@@ -200,10 +200,13 @@ def rebootstrap_recovery_policy_checkpoint_store(
     policy: RecoveryPolicyCheckpointRebootstrapPolicy,
     operator_keyring: dict,
     authorization_time_utc: str | None = None,
+    operator_lifecycle_checkpoint=None, lifecycle_authority_keyring: dict | None = None,
+    expected_lifecycle_checkpoint_sha256: str | None = None,
 ) -> bool:
     """Atomically start a new retained epoch; old histories and incidents remain intact.
 
-    Supply a trusted authorization_time_utc to enforce current key lifecycle status.
+    An optional signed operator lifecycle checkpoint is verified against an
+    externally retained digest and must contain every participating operator key.
     If omitted, the latest signed approval time is used for backward compatibility.
     """
     if not store._verify(entries, checkpoint, publisher_keyring, checkpoint_keyring):
@@ -238,6 +241,27 @@ def rebootstrap_recovery_policy_checkpoint_store(
                     or activated_at > authorized_at or signed_at > authorized_at):
                 return False
     except (ValueError, TypeError):
+        return False
+    lifecycle_checkpoint_data = None
+    lifecycle_checkpoint_digest = None
+    if operator_lifecycle_checkpoint is not None:
+        from mosaic.verification.recovery_operator_lifecycle import verify_operator_lifecycle_checkpoint
+        if (not isinstance(expected_lifecycle_checkpoint_sha256, str)
+                or not verify_operator_lifecycle_checkpoint(
+                    operator_lifecycle_checkpoint, authority_keyring=lifecycle_authority_keyring or {},
+                    expected_registry_id=operator_lifecycle_checkpoint.registry_id,
+                    expected_sequence=operator_lifecycle_checkpoint.sequence,
+                    expected_checkpoint_sha256=expected_lifecycle_checkpoint_sha256,
+                    authorization_time_utc=authorization_time_utc)):
+            return False
+        snapshot = {item.key_id: item for item in operator_lifecycle_checkpoint.operator_keys}
+        for key_id, _ in signed_operators:
+            if (key_id not in snapshot or key_id not in operator_keyring
+                    or snapshot[key_id].model_dump(mode="json") != operator_keyring[key_id].model_dump(mode="json")):
+                return False
+        lifecycle_checkpoint_data = operator_lifecycle_checkpoint.model_dump(mode="json")
+        lifecycle_checkpoint_digest = operator_lifecycle_checkpoint.digest()
+    elif expected_lifecycle_checkpoint_sha256 is not None or lifecycle_authority_keyring is not None:
         return False
     lifecycle_evidence = []
     for key_id, signed_at_utc in signed_operators:
@@ -296,6 +320,9 @@ def rebootstrap_recovery_policy_checkpoint_store(
             "authorization_time_utc": authorization_time_utc,
             "operator_lifecycle_evidence": lifecycle_evidence,
         }
+        if lifecycle_checkpoint_data is not None:
+            audit_data["operator_lifecycle_checkpoint"] = lifecycle_checkpoint_data
+            audit_data["operator_lifecycle_checkpoint_sha256"] = lifecycle_checkpoint_digest
         audit = _canonical(audit_data).decode()
         previous = db.execute(
             "SELECT audit_sha256 FROM recovery_policy_rebootstrap_audit "
@@ -391,8 +418,10 @@ def _verify_rebootstrap_audit_export_v1(
     export: dict, *, operator_keyring: dict, publisher_keyring: dict,
     checkpoint_keyring: dict | None,
     expected_head_sha256: str | None = None,
+    lifecycle_authority_keyring: dict | None = None,
+    expected_lifecycle_checkpoint_sha256: str | None = None,
 ) -> bool:
-    """Verify audit chain, every operator signature, policy threshold, and saved registry proof."""
+    """Verify audit chain, signatures, registry proof, and optional lifecycle proof."""
     if not isinstance(export, dict) or set(export) != {
         "schema_version", "registry_id", "record_count", "records", "head_sha256"
     }:
@@ -429,7 +458,10 @@ def _verify_rebootstrap_audit_export_v1(
         current_audit_fields = legacy_audit_fields | {
             "authorization_time_utc", "operator_lifecycle_evidence"
         }
-        if set(audit) not in (legacy_audit_fields, current_audit_fields):
+        checkpoint_audit_fields = current_audit_fields | {
+            "operator_lifecycle_checkpoint", "operator_lifecycle_checkpoint_sha256"
+        }
+        if set(audit) not in (legacy_audit_fields, current_audit_fields, checkpoint_audit_fields):
             return False
         if (item["previous_audit_sha256"] != previous
                 or item["epoch"] != audit["epoch"]
@@ -461,6 +493,30 @@ def _verify_rebootstrap_audit_export_v1(
                     trusted_checkpoint=checkpoint,
                     checkpoint_keyring=checkpoint_keyring,
                 )):
+            return False
+        if "operator_lifecycle_checkpoint" in audit:
+            try:
+                from mosaic.verification.recovery_operator_lifecycle import (
+                    SignedOperatorLifecycleCheckpoint, verify_operator_lifecycle_checkpoint,
+                )
+                lifecycle = SignedOperatorLifecycleCheckpoint.model_validate(audit["operator_lifecycle_checkpoint"])
+                lifecycle_digest = audit["operator_lifecycle_checkpoint_sha256"]
+                if (lifecycle_digest != lifecycle.digest()
+                        or (expected_lifecycle_checkpoint_sha256 is not None and lifecycle_digest != expected_lifecycle_checkpoint_sha256)
+                        or not verify_operator_lifecycle_checkpoint(
+                            lifecycle, authority_keyring=lifecycle_authority_keyring or {},
+                            expected_registry_id=lifecycle.registry_id, expected_sequence=lifecycle.sequence,
+                            expected_checkpoint_sha256=lifecycle_digest,
+                            authorization_time_utc=audit["authorization_time_utc"])):
+                    return False
+                lifecycle_keys = {key.key_id: key for key in lifecycle.operator_keys}
+                for key_id in [intent.operator_key_id] + [approval.operator_key_id for approval in approvals]:
+                    record = operator_keyring.get(key_id)
+                    if key_id not in lifecycle_keys or record is None or lifecycle_keys[key_id].model_dump(mode="json") != record.model_dump(mode="json"):
+                        return False
+            except (ValueError, TypeError, KeyError):
+                return False
+        elif expected_lifecycle_checkpoint_sha256 is not None:
             return False
         if "operator_lifecycle_evidence" in audit:
             try:
@@ -510,6 +566,8 @@ def _verify_rebootstrap_audit_export_v1(
 def verify_rebootstrap_audit_export_report(
     export: dict, *, operator_keyring: dict, publisher_keyring: dict,
     checkpoint_keyring: dict | None, expected_head_sha256: str | None = None,
+    lifecycle_authority_keyring: dict | None = None,
+    expected_lifecycle_checkpoint_sha256: str | None = None,
 ) -> RecoveryPolicyCheckpointAuditVerificationReport:
     """Return diagnostics without treating retained legacy rows as verified."""
     registry_id = export.get("registry_id", "") if isinstance(export, dict) else ""
@@ -522,6 +580,8 @@ def verify_rebootstrap_audit_export_report(
     valid = _verify_rebootstrap_audit_export_v1(
         export, operator_keyring=operator_keyring, publisher_keyring=publisher_keyring,
         checkpoint_keyring=checkpoint_keyring, expected_head_sha256=expected_head_sha256,
+        lifecycle_authority_keyring=lifecycle_authority_keyring,
+        expected_lifecycle_checkpoint_sha256=expected_lifecycle_checkpoint_sha256,
     )
     verified = sum(1 for item in records if isinstance(item, dict) and item.get("record_version") == "v1") if valid else 0
     status = "invalid" if not valid else "legacy_unverifiable" if legacy else "empty" if not records else "verified"
@@ -536,6 +596,8 @@ def verify_rebootstrap_audit_export_report(
 def verify_rebootstrap_audit_export(
     export: dict, *, operator_keyring: dict, publisher_keyring: dict,
     checkpoint_keyring: dict | None, expected_head_sha256: str | None = None,
+    lifecycle_authority_keyring: dict | None = None,
+    expected_lifecycle_checkpoint_sha256: str | None = None,
 ) -> bool:
     """Strict boolean wrapper; legacy records are deliberately not accepted."""
     return verify_rebootstrap_audit_export_report(
