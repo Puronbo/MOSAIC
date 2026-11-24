@@ -253,5 +253,5 @@ def test_authenticated_receipt_rejects_modified_tag_and_receipt():
         altered_tag.verify(key, request)
     altered_receipt = receipt.model_copy(update={"explanation": "tampered"})
     envelope = sealed.model_copy(update={"receipt": altered_receipt})
-    with pytest.raises(ValueError, match="authentication failed"):
+    with pytest.raises(ValueError, match="integrity"):
         envelope.verify(key, request)
