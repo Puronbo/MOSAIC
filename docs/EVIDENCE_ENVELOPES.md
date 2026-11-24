@@ -1109,3 +1109,23 @@ or control plane before accepting a later step. It does not discover skipped
 history, provide distributed consensus, or make a local database rollback
 resistant by itself. A caller must reject the report unless `accepted` is
 true, and must not advance its external anchor on rejection.
+
+
+### G-EP113: durable lifecycle trust-anchor compare-and-swap
+
+`RecoveryOperatorLifecycleTrustAnchorStore` persists one lifecycle head per
+registry in SQLite using WAL mode, full synchronous durability, and
+`BEGIN IMMEDIATE` writer serialization. Initial provisioning is insert-only;
+it cannot silently replace an existing anchor. Advancement checks the stored
+sequence and digest against the caller's expected predecessor, verifies the
+signed contiguous transition, and commits the new sequence/digest in the same
+transaction. Competing writers based on one predecessor cannot both advance;
+a stale retry is rejected.
+
+Provision the initial sequence and digest from an independent trusted channel.
+After restart, read the retained anchor and require the next candidate to extend
+it. If a process stops before commit, SQLite transaction rollback leaves the
+old anchor; after commit, the new anchor is durable. This store is not itself
+an external root of trust: privileged replacement or rollback of the database
+file remains possible. Deployments needing that threat model must replicate or
+seal the head in an independently protected control plane.
