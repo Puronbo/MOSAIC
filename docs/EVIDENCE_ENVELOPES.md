@@ -181,6 +181,32 @@ The proof receipt's Ed25519 key is ephemeral in CI. Its standalone signature
 is therefore not a persistent identity; the GitHub artifact attestation is
 the externally verifiable binding to the repository workflow and commit.
 
+### Independent receipt verification
+
+After downloading both artifacts, first verify their GitHub attestations as
+shown above. Then provide the original request JSON, exact candidate bytes,
+and a trusted Ed25519 public key to the standalone verifier:
+
+```sh
+python scripts/verify_lean_proof_receipt.py \\
+  --receipt lean-proof-attestation.json \\
+  --manifest lean-provenance.json \\
+  --request original-request.json \\
+  --candidate candidate.txt \\
+  --public-key-b64 trusted-public-key.txt \\
+  --replay
+```
+
+The public-key file contains the base64-encoded 32-byte Ed25519 public key.
+The verifier checks the receipt signature, source digest, exact manifest
+digest and identifiers, original request fingerprint, and candidate digest.
+The optional replay flag independently executes the exact signed proof source
+with the local pinned Lake project. The key embedded in the receipt is only
+compared with the supplied trust key; it is never trusted merely because it
+appears in the receipt. For the ephemeral CI key, obtain and trust that key
+only after the GitHub artifact attestation for the receipt has been verified.
+
+
 The manifest and attestation establish the provenance of the declared and
 observed environment metadata. They do not by themselves attest every
 individual theorem invocation, preserve each generated temporary proof source,
