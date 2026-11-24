@@ -35,8 +35,8 @@ def _load_policy(policy: dict[str, Any] | str | Path) -> dict[str, Any]:
         if not isinstance(value[field], str) or not value[field]:
             raise AttestationPolicyError(f"policy field {field} must be a nonempty string")
     for field in ("require_github_hosted_runner", "require_verified_timestamp"):
-        if type(value[field]) is not bool:
-            raise AttestationPolicyError(f"policy field {field} must be boolean")
+        if value[field] is not True:
+            raise AttestationPolicyError(f"policy field {field} must remain enabled")
     if value["source_repository_uri"] != "https://github.com/" + value["repository"]:
         raise AttestationPolicyError("source_repository_uri must match repository")
     if value["signer_workflow"] != value["repository"] + "/" + value["workflow_path"]:
