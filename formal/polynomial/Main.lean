@@ -284,13 +284,6 @@ theorem arbitrary_step_first_difference (n m k : Nat) :
 /-- A zero-sized step has zero difference at every positive iteration order. -/
 theorem zero_step_difference (n k r : Nat) :
     iteratedDifferenceBy n 0 (r + 1) k = 0 := by
-  induction r with
-  | zero =>
-      simp [iteratedDifferenceBy, forwardDifferenceBy]
-  | succ r ih =>
-      simp only [iteratedDifferenceBy, forwardDifferenceBy]
-      rw [ih (k := k), ih (k := k)]
-      ring
-
+  simp [iteratedDifferenceBy, forwardDifferenceBy]
 
 end MosaicExponentShift
