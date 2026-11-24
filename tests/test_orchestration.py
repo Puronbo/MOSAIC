@@ -325,3 +325,20 @@ def test_obligation_verification_task_budget_is_enforced():
     )
     with pytest.raises(ValueError, match="budget"):
         obligation_verification_tasks(original, assessment, max_obligations=1)
+
+
+
+def test_verifier_routing_rejects_forged_obligation_provenance():
+    from mosaic.core.orchestration import ReviewAssessment
+
+    original, reviews, records = _completed_review_fixture()
+    assessment = assess_completed_reviews(
+        original, reviews, tuple(r for r in records if r.task_id != original.task_id)
+    )
+    forged = assessment.model_copy(update={
+        "obligations": (
+            assessment.obligations[0].model_copy(update={"source_task_id": "unknown-review"}),
+        )
+    })
+    with pytest.raises(ValueError, match="source"):
+        obligation_verification_tasks(original, forged)
