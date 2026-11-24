@@ -244,3 +244,33 @@ def test_recovery_governance_rejects_revoked_and_reused_keys(tmp_path):
         operator_keyring={"operator-1": OPERATOR_KEY, "operator-2": revoked},
         witness_keyring={"witness-1": WITNESS_KEY}, signer_keyring=SIGNERS,
     )
+
+
+def test_recovery_persists_every_coapproval_in_audit(tmp_path):
+    selected_item, competing_item = entry(2), entry(3)
+    selected_cp, competing_cp = checkpoint(selected_item), checkpoint(competing_item)
+    target = PolicyWitnessStateStore(tmp_path / "audited-target.sqlite3")
+    assert endorse(target, selected_cp, selected_item) is not None
+    assert endorse(target, competing_cp, competing_item) is None
+    selected_snapshot = snapshot_for(tmp_path / "audited-source.sqlite3", selected_item)
+    auth = make_authorization(selected_snapshot, target.incidents(selected_cp.log_id))
+    approver_private, approver_public = generate_ed25519_keypair()
+    approver_key = key("operator-2", approver_public)
+    approval = SignedPolicyWitnessRecoveryApproval.sign(
+        authorization=auth, operator_key_id="operator-2",
+        approved_at_utc="2026-11-24T05:20:00Z", private_key=approver_private,
+    )
+    assert target.recover_from_signed_snapshot(
+        selected_snapshot, witness_keyring={"witness-1": WITNESS_KEY},
+        signer_keyring=SIGNERS,
+        operator_keyring={"operator-1": OPERATOR_KEY, "operator-2": approver_key},
+        authorization=auth, entries=[selected_item],
+        recovery_policy=PolicyWitnessRecoveryPolicy(minimum_approvals=2),
+        approvals=[approval],
+    )
+    import json
+    stored = json.loads(target.recovery_records(selected_cp.log_id)[0]["approvals_json"])
+    assert stored == [approval.model_dump(mode="json")]
+    assert SignedPolicyWitnessRecoveryApproval.model_validate(stored[0]).verify(
+        auth, {"operator-2": approver_key}
+    )
