@@ -39,6 +39,10 @@ class EvidenceEvent(BaseModel):
     kernel_id: str | None = Field(default=None, max_length=160)
     kernel_version: str | None = Field(default=None, max_length=80)
     proof_artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runner_id: str | None = Field(default=None, max_length=160)
+    runner_receipt_id: str | None = Field(default=None, max_length=120)
+    runner_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runner_mac_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
     def validate_event(self):
@@ -54,7 +58,19 @@ class EvidenceEvent(BaseModel):
                 raise ValueError("kernel-check events must have outcome PASSED or FAILED")
             if not self.kernel_id or not self.kernel_version or not self.proof_artifact_sha256:
                 raise ValueError("kernel events require kernel identity, version, and proof artifact digest")
-        elif any(value is not None for value in (self.kernel_id, self.kernel_version, self.proof_artifact_sha256)):
+            runner_fields = (
+                self.runner_id, self.runner_receipt_id,
+                self.runner_request_sha256, self.runner_mac_sha256,
+            )
+            if any(value is not None for value in runner_fields) and not all(
+                value is not None for value in runner_fields
+            ):
+                raise ValueError("authenticated runner metadata must be supplied as a complete set")
+        elif any(value is not None for value in (
+            self.kernel_id, self.kernel_version, self.proof_artifact_sha256,
+            self.runner_id, self.runner_receipt_id, self.runner_request_sha256,
+            self.runner_mac_sha256,
+        )):
             raise ValueError("kernel metadata is only valid for FORMAL_KERNEL_CHECK")
         return self
 
