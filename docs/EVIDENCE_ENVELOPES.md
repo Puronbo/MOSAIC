@@ -1002,3 +1002,32 @@ The execution-time check depends on the caller's keyring being a current and
 authoritative lifecycle snapshot and on a trustworthy authorization clock.
 A stale or attacker-controlled keyring/time can defeat the check; key
 revocation distribution and clock trust remain deployment responsibilities.
+
+
+
+### Persisted operator lifecycle evidence for recovery (G-EP108)
+
+New rebootstrap audit records retain the canonical authorization time and,
+for every proposing or approving operator, the exact operator key record
+available to the transaction: key ID, public-key material, activation and
+revocation boundary, signed timestamp, authorization-time timestamp, and
+booleans recording lifecycle eligibility at signing and execution. Each key
+record has a SHA-256 digest, and the complete evidence is included in the
+hash-linked audit payload. Independent audit verification recomputes the
+digests, checks the key records against the supplied operator keyring,
+re-evaluates both lifecycle decisions, and rejects altered or inconsistent
+evidence. Historical G-EP103 v1 records without these fields remain
+verifiable under their original format.
+
+The key record in this evidence is a snapshot supplied by the transaction's
+operator keyring. It is not itself a cryptographically signed key-registry
+statement. The audit hash chain protects the retained bytes against
+undetected alteration relative to a trusted external audit-head anchor, but
+does not prove that the keyring snapshot was authoritative when captured.
+Deployments requiring independent proof of lifecycle state must distribute
+and verify signed key-registry checkpoints (or another externally governed
+key-state attestation) and retain the corresponding trust anchor. The
+authorization timestamp must likewise come from a trusted clock. A
+subsequent revocation does not retroactively invalidate an approval that
+was authorized at execution; later compromise handling requires its own
+incident and recovery policy.
