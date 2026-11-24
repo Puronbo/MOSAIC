@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/policy-publisher-key-v1.schema.json",
+  "title": "MOSAIC Policy Publisher Key v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "key_id",
+    "public_key_b64",
+    "activated_at_utc",
+    "revoked_at_utc"
+  ],
+  "properties": {
+    "key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "public_key_b64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{43}=$"
+    },
+    "activated_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "revoked_at_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    }
+  }
+}
