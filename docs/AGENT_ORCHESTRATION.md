@@ -38,10 +38,14 @@ Every proposal records its task ID, agent ID, role, claim, rationale, assumption
 
 Retries must be bounded and recorded as new attempts. Preserve provider/model identifiers, prompt and context hashes, timestamps, resource use, task dependencies, raw outputs, and checker versions. Never silently overwrite a conflicting proposal.
 
+## Deterministic scheduler
+
+`initialize_task_records`, `dispatch_ready_tasks`, `complete_task`, and `fail_task` provide a provider-neutral state machine. The caller supplies a monotonic clock value and invokes its chosen provider adapter outside the core. Dispatch is deterministic, bounded by `max_concurrency`, and only starts tasks whose dependencies are `COMPLETED`. Deadlines transition running tasks to `TIMED_OUT`; retries are bounded by `max_attempts`. Exhausted timeouts and failures remain non-success states and block dependent work. Completion requires a proposal bound to the exact task ID and role. Scheduler records preserve attempt count, start/deadline, proposal, and failure information. This is scheduling state management, not process isolation, provider execution, or mathematical verification.
+
 ## Security boundaries
 
 Treat prompts, model responses, retrieved documents, and tool outputs as untrusted data. Do not allow an agent to choose arbitrary tools or permissions. Use explicit capability allow-lists, secret isolation, egress controls, per-agent quotas, output-size limits, and process isolation for symbolic computation. Redact secrets before logging.
 
 ## Current implementation
 
-`mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, dependency graph validation, and conservative proposal aggregation. Collision assessments preserve the original proposals and expose deterministic claim groups and conflicting proposal indexes; they intentionally do not choose a winner or infer semantic equivalence. `collision_review_tasks` turns those indexes into a bounded, deterministic critic-and-synthesis dependency plan. It does not call model APIs, execute agents, provide a scheduler, or verify mathematics. Those integrations remain separate milestones.
+`mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, dependency graph validation, and conservative proposal aggregation. Collision assessments preserve the original proposals and expose deterministic claim groups and conflicting proposal indexes; they intentionally do not choose a winner or infer semantic equivalence. `collision_review_tasks` turns those indexes into a bounded, deterministic critic-and-synthesis dependency plan. It does not call model APIs, execute agents, provide provider isolation, or verify mathematics. The scheduler manages state and dispatch eligibility only; provider execution remains an external adapter.
