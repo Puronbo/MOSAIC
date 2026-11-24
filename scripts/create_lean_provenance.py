@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -49,11 +50,13 @@ def required_ci_metadata() -> dict[str, str]:
             "missing required GitHub Actions provenance metadata: "
             + ", ".join(missing)
         )
-    if "/" not in values["repository"] or values["repository"].startswith("/") or values["repository"].endswith("/"):
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", values["repository"]):
         raise SystemExit("GITHUB_REPOSITORY must have owner/repository form")
     for key in ("run_id", "run_attempt"):
-        if not values[key].isdigit():
-            raise SystemExit(f"{required[key]} must be numeric")
+        if not values[key].isdigit() or int(values[key]) < 1:
+            raise SystemExit(f"{required[key]} must be a positive integer")
+    if values["runner_os"] not in {"Linux", "Windows", "macOS"}:
+        raise SystemExit("RUNNER_OS must be Linux, Windows, or macOS")
     return values
 
 
