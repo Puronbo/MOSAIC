@@ -303,8 +303,8 @@ artifact-attestation verifier, then apply MOSAIC's stricter producer policy
 to the verifier's JSON result. The policy is stored in
 `policies/github-lean-attestation-v1.json` and pins:
 
-- Repository name and immutable GitHub repository ID
-  (`Puronbo/MOSAIC`, ID `1468522236`).
+- Repository name plus immutable GitHub repository and owner IDs
+  (`Puronbo/MOSAIC`, repository ID `1468522236`, owner ID `297216003`).
 - The only authorized signer/build workflow:
   `.github/workflows/lean-polynomial.yml`.
 - Protected source ref `refs/heads/main`.
