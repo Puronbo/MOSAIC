@@ -21,6 +21,7 @@ POLICY = HistoricalTrustPolicy(
     policy_version="1.0.0",
     allowed_kernel_ids=("Lean",),
     allowed_checker_ids=("lean",),
+    allow_revoked_key_history=True,
 )
 POLICY_RECORD = HistoricalTrustPolicyRecord(
     policy_sha256=POLICY.digest(),
