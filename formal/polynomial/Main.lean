@@ -471,6 +471,15 @@ theorem exponent_partial_derivative (x t : ℝ) (hx : 0 < x) :
   simpa [jointValue, value, add_comm] using derivative x t hx
 
 
+/-- The second derivative in the exponent coordinate. Since the base is
+fixed, each differentiation contributes one factor of the logarithm. -/
+theorem exponent_second_derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt (fun s : ℝ => jointValue x s * Real.log x)
+      (jointValue x t * (Real.log x) ^ 2) t := by
+  have h := (derivative x t hx).mul_const (Real.log x)
+  simpa [jointValue, value, pow_two, mul_assoc] using h
+
+
 /-- Evaluate the joint exponent family along a differentiable base path. -/
 noncomputable def alongBasePath (u : ℝ → ℝ) (t : ℝ) : ℝ :=
   u t ^ (u t + t)
