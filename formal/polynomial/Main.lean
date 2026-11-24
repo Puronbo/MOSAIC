@@ -487,4 +487,23 @@ theorem along_base_path_derivative
     convert hu.add (hasDerivAt_id t) using 1 <;> funext s <;> simp
   simpa [alongBasePath, mul_assoc] using hu.rpow hexponent hx
 
+
+/-- Evaluate the positive-base exponent family along two differentiable
+coordinate paths. -/
+noncomputable def alongJointPath (u v : ℝ → ℝ) (s : ℝ) : ℝ :=
+  u s ^ (u s + v s)
+
+/-- General two-coordinate path chain rule. The derivative separates into
+the changing-base contribution and the changing-exponent contribution. -/
+theorem along_joint_path_derivative
+    (u v : ℝ → ℝ) (u' v' t : ℝ)
+    (hu : HasDerivAt u u' t) (hv : HasDerivAt v v' t)
+    (hx : 0 < u t) :
+    HasDerivAt (fun s : ℝ => alongJointPath u v s)
+      (u' * (u t + v t) * u t ^ (u t + v t - 1) +
+        (u' + v') * alongJointPath u v t * Real.log (u t)) t := by
+  have hexponent : HasDerivAt (fun s : ℝ => u s + v s) (u' + v') t := by
+    convert hu.add hv using 1 <;> funext s <;> simp
+  simpa [alongJointPath, mul_assoc] using hu.rpow hexponent hx
+
 end MosaicRealExponentShift
