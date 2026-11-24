@@ -106,3 +106,13 @@ The natural-number base is intentional. It avoids silently treating negative bas
 ### Higher-order finite differences
 
 The exponent-shift formalization now defines `forwardDifference` and recursively defined `iteratedDifference`. Its target theorem is `iterated_difference`: for natural base `n`, shift `k`, and order `r`, the r-th forward difference of `(n : ℝ)^(n+k)` equals `((n : ℝ)-1)^r` times the original value. A positivity corollary is restricted to `2 ≤ n`. This is a finite-difference theorem over a natural-indexed sequence embedded in the reals; it does not assert arbitrary real/complex base semantics or continuous differentiation.
+
+
+The arbitrary-step extension defines `arbitrary_shift`, `forwardDifferenceBy`, and `iteratedDifferenceBy`. Its target identity is
+
+\[
+F_{k+m}(n)=n^mF_k(n),\qquad
+\Delta_m^rF_k(n)=(n^m-1)^rF_k(n).
+\]
+
+Here `m` is a natural-number step and `r` is the iteration order. The formal statement includes `m = 0` (the zero-step difference is zero at positive iteration orders); no positivity claim for arbitrary-step differences is included unless separately proved with the required positive-step assumptions.
