@@ -169,4 +169,46 @@ theorem zero_base_after_first_step (k : Nat) (hk : 1 ≤ k) :
   have hne : 0 + k ≠ 0 := by omega
   simp [hne]
 
+
+/-- One forward finite difference of a sequence. -/
+def forwardDifference (f : Nat → ℝ) (k : Nat) : ℝ :=
+  f (k + 1) - f k
+
+/-- The r-th iterated forward difference of the exponent-shift sequence. -/
+def iteratedDifference (n : Nat) : Nat → Nat → ℝ
+  | 0, k => value n k
+  | r + 1, k => forwardDifference (iteratedDifference n r) k
+
+/-- Every order of forward difference has the same geometric form. -/
+theorem iterated_difference (n k r : Nat) :
+    iteratedDifference n r k =
+      ((n : ℝ) - 1) ^ r * value n k := by
+  induction r generalizing k with
+  | zero =>
+      simp [iteratedDifference, value]
+  | succ r ih =>
+      simp only [iteratedDifference, forwardDifference]
+      rw [ih (k + 1), ih k, successor]
+      ring
+
+/-- The second forward difference is the square of the base-minus-one
+multiplier times the current value. -/
+theorem second_difference (n k : Nat) :
+    forwardDifference (fun j => forwardDifference (fun i => value n i) j) k =
+      ((n : ℝ) - 1) ^ 2 * value n k := by
+  simpa [forwardDifference, iteratedDifference] using
+    (iterated_difference n k 2)
+
+/-- All iterated differences are strictly positive when n ≥ 2. -/
+theorem iterated_difference_pos (n k r : Nat) (hn : 2 ≤ n) :
+    0 < iteratedDifference n r k := by
+  rw [iterated_difference]
+  have hbase : 1 < (n : ℝ) := by
+    exact_mod_cast (show 1 < n by omega)
+  have hvalue : 0 < value n k := by
+    unfold value
+    exact pow_pos (by exact_mod_cast (show 0 < n by omega)) _
+  exact mul_pos (pow_pos (by linarith) _) hvalue
+
+
 end MosaicExponentShift
