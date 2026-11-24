@@ -697,3 +697,32 @@ operator key can authorize a bad recovery. Operator key custody, separation
 of duties, evidence retention, and freshness anchors remain deployment
 responsibilities. This recovery mechanism is local SQLite state, not
 distributed consensus or hardware anti-rollback protection.
+
+
+## Multi-operator recovery governance
+
+Deployments can pass a `PolicyWitnessRecoveryPolicy` and a list of
+`SignedPolicyWitnessRecoveryApproval` records to
+`recover_from_signed_snapshot(...)`. The original recovery authorization is
+the first operator's signed proposal. Additional approvals sign its exact
+authorization digest, so they cannot be transferred to another snapshot,
+incident history, evidence digest, or reason.
+
+The policy supports a minimum approval count (including the proposal signer),
+required operator key IDs, and prohibited operator key IDs. Every counted
+identity must have a valid lifecycle at its signed approval time. Duplicate
+key IDs, duplicate public keys, revoked keys, key reuse with the witness or
+registry signers, malformed policy constraints, and approvals for a different
+authorization are rejected. The approval policy is supplied by the caller and
+must itself be provisioned through a trusted deployment configuration; this
+module does not establish who is entitled to set that policy.
+
+The default remains a one-operator threshold for compatibility with earlier
+deployments. Security-sensitive deployments should explicitly configure a
+threshold and required identities. The signed approval records are inputs to
+the recovery operation; the durable recovery audit currently stores the
+proposal authorization digest and signed proposal. Deployments requiring
+long-term audit of each co-approval should retain the supplied approval
+records alongside their evidence package. Revocation is evaluated against
+each approval's signed time, so key compromise discovered later requires an
+explicit deployment policy for retrospective invalidation.
