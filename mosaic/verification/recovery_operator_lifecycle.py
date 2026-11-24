@@ -1295,6 +1295,119 @@ def verify_operator_lifecycle_restore_ledger_head_with_rotation_chain(
                 authorization_time_utc=authorization_time_utc))
 
 
+class SignedOperatorLifecycleLedgerAuthorityRotationHead(BaseModel):
+    """Externally retainable signed checkpoint of the authority-rotation chain."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    rotation_sequence: int = Field(ge=0)
+    rotation_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    active_key_id: str = Field(min_length=1, max_length=160)
+    issued_at_utc: str = Field(min_length=20, max_length=40)
+    signature_b64: str = Field(min_length=1, max_length=128)
+
+    @classmethod
+    def sign(cls, *, registry_id: str, rotation_sequence: int,
+             rotation_sha256: str | None, active_key_id: str,
+             issued_at_utc: str, private_key: bytes) -> "SignedOperatorLifecycleLedgerAuthorityRotationHead":
+        if not isinstance(private_key, bytes) or len(private_key) != 32:
+            raise ValueError("Ed25519 private key must be exactly 32 raw bytes")
+        if (rotation_sequence == 0) != (rotation_sha256 is None):
+            raise ValueError("genesis rotation head has sequence zero and no digest")
+        payload = {
+            "schema_version": "1.0", "registry_id": registry_id,
+            "rotation_sequence": rotation_sequence, "rotation_sha256": rotation_sha256,
+            "active_key_id": active_key_id,
+            "issued_at_utc": _canonical_timestamp(issued_at_utc),
+        }
+        signature = Ed25519PrivateKey.from_private_bytes(private_key).sign(_canonical(payload))
+        return cls(**payload, signature_b64=base64.b64encode(signature).decode("ascii"))
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+def verify_operator_lifecycle_ledger_authority_rotation_head(
+    head: SignedOperatorLifecycleLedgerAuthorityRotationHead, *,
+    rotations: tuple[SignedOperatorLifecycleLedgerAuthorityRotation, ...] | list[SignedOperatorLifecycleLedgerAuthorityRotation],
+    authority_keyring: dict[str, PolicyPublisherKey], expected_registry_id: str,
+    expected_initial_key_id: str, expected_rotation_sequence: int,
+    expected_rotation_sha256: str | None,
+    authorization_time_utc: str | None = None,
+) -> bool:
+    if not isinstance(head, SignedOperatorLifecycleLedgerAuthorityRotationHead):
+        return False
+    report = verify_operator_lifecycle_ledger_authority_rotation_chain(
+        rotations, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_initial_key_id=expected_initial_key_id,
+        authorization_time_utc=authorization_time_utc)
+    if (not report.accepted or head.registry_id != expected_registry_id
+            or head.rotation_sequence != expected_rotation_sequence
+            or head.rotation_sha256 != expected_rotation_sha256
+            or head.rotation_sequence != len(rotations)
+            or head.rotation_sha256 != report.ending_rotation_sha256
+            or head.active_key_id != report.active_key_id):
+        return False
+    authority = authority_keyring.get(head.active_key_id)
+    if authority is None or not authority.permits(head.active_key_id, head.issued_at_utc):
+        return False
+    try:
+        if _canonical_timestamp(head.issued_at_utc) != head.issued_at_utc:
+            return False
+        if authorization_time_utc is not None and (
+            _canonical_timestamp(authorization_time_utc) != authorization_time_utc
+            or authorization_time_utc < head.issued_at_utc
+        ):
+            return False
+        signature = base64.b64decode(head.signature_b64, validate=True)
+        if len(signature) != 64:
+            return False
+        payload = head.model_dump(mode="json", exclude={"signature_b64"})
+        Ed25519PublicKey.from_public_bytes(authority.public_key()).verify(signature, _canonical(payload))
+        return True
+    except (ValueError, TypeError, InvalidSignature):
+        return False
+
+
+def verify_operator_lifecycle_ledger_authority_rotation_head_advance(
+    rotations: tuple[SignedOperatorLifecycleLedgerAuthorityRotation, ...] | list[SignedOperatorLifecycleLedgerAuthorityRotation],
+    previous_head: SignedOperatorLifecycleLedgerAuthorityRotationHead,
+    candidate_head: SignedOperatorLifecycleLedgerAuthorityRotationHead, *,
+    authority_keyring: dict[str, PolicyPublisherKey], expected_registry_id: str,
+    expected_initial_key_id: str, authorization_time_utc: str | None = None,
+) -> bool:
+    """Require a candidate external pin to extend the exact previously pinned rotation."""
+    if (not isinstance(previous_head, SignedOperatorLifecycleLedgerAuthorityRotationHead)
+            or not isinstance(candidate_head, SignedOperatorLifecycleLedgerAuthorityRotationHead)
+            or previous_head.registry_id != expected_registry_id
+            or candidate_head.registry_id != expected_registry_id
+            or candidate_head.rotation_sequence <= previous_head.rotation_sequence
+            or candidate_head.issued_at_utc < previous_head.issued_at_utc):
+        return False
+    if not verify_operator_lifecycle_ledger_authority_rotation_head(
+        previous_head, rotations=rotations[:previous_head.rotation_sequence],
+        authority_keyring=authority_keyring, expected_registry_id=expected_registry_id,
+        expected_initial_key_id=expected_initial_key_id,
+        expected_rotation_sequence=previous_head.rotation_sequence,
+        expected_rotation_sha256=previous_head.rotation_sha256,
+        authorization_time_utc=authorization_time_utc):
+        return False
+    if not verify_operator_lifecycle_ledger_authority_rotation_head(
+        candidate_head, rotations=rotations,
+        authority_keyring=authority_keyring, expected_registry_id=expected_registry_id,
+        expected_initial_key_id=expected_initial_key_id,
+        expected_rotation_sequence=candidate_head.rotation_sequence,
+        expected_rotation_sha256=candidate_head.rotation_sha256,
+        authorization_time_utc=authorization_time_utc):
+        return False
+    if previous_head.rotation_sequence:
+        prior = rotations[previous_head.rotation_sequence - 1]
+        if prior.digest() != previous_head.rotation_sha256:
+            return False
+    return True
+
+
 class OperatorLifecycleRestoreLedgerReport(BaseModel):
     """Verification result for an externally anchored restoration receipt ledger."""
     model_config = ConfigDict(extra="forbid", frozen=True)
