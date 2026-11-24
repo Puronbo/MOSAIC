@@ -295,7 +295,28 @@ def _strict_json_loads(raw: str | bytes):
             result[key] = value
         return result
 
-    return json.loads(raw, object_pairs_hook=unique_object)
+    def reject_constant(value):
+        raise ValueError(f"non-standard JSON constant: {value}")
+
+    def validate_unicode(value):
+        if isinstance(value, str):
+            if any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+                raise ValueError("JSON strings must contain valid Unicode scalar values")
+        elif isinstance(value, list):
+            for item in value:
+                validate_unicode(item)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                validate_unicode(key)
+                validate_unicode(item)
+
+    parsed = json.loads(
+        raw,
+        object_pairs_hook=unique_object,
+        parse_constant=reject_constant,
+    )
+    validate_unicode(parsed)
+    return parsed
 
 
 def verify_attested_environment_manifest(
