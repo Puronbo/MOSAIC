@@ -371,14 +371,47 @@ class PolicyWitnessStateStore:
         entries: list[SignedPolicyRegistryEntry],
         recovery_policy=None,
         approvals=None,
+        require_trusted_recovery_policy: bool = False,
+        recovery_policy_registry_entries=None,
+        recovery_policy_checkpoint=None,
+        recovery_policy_publisher_keyring=None,
+        recovery_policy_checkpoint_keyring=None,
     ) -> bool:
-        """Recover a quarantined witness only with an exact signed approval."""
+        """Recover a quarantined witness only with exact approvals.
+
+        When require_trusted_recovery_policy is true, the policy is obtained
+        exclusively from a signed registry whose complete chain matches an
+        independently retained signed checkpoint. Direct policy overrides are
+        not accepted in this mode.
+        """
         from mosaic.verification.policy_witness_snapshot import SignedPolicyWitnessSnapshot
         from mosaic.verification.policy_witness_recovery import SignedPolicyWitnessRecoveryAuthorization
         from mosaic.verification.policy_witness_recovery_governance import (
             PolicyWitnessRecoveryPolicy, verify_policy_witness_recovery_approvals,
         )
         effective_policy = recovery_policy or PolicyWitnessRecoveryPolicy(minimum_approvals=1)
+        if require_trusted_recovery_policy:
+            from mosaic.verification.policy_witness_recovery_policy_registry import (
+                SignedPolicyWitnessRecoveryPolicyCheckpoint,
+                verify_policy_witness_recovery_policy_registry,
+            )
+            if (recovery_policy is not None
+                    or recovery_policy_registry_entries is None
+                    or not isinstance(recovery_policy_checkpoint, SignedPolicyWitnessRecoveryPolicyCheckpoint)
+                    or not isinstance(recovery_policy_publisher_keyring, dict)
+                    or not verify_policy_witness_recovery_policy_registry(
+                        recovery_policy_registry_entries,
+                        publisher_keyring=recovery_policy_publisher_keyring,
+                        trusted_checkpoint=recovery_policy_checkpoint,
+                        checkpoint_keyring=recovery_policy_checkpoint_keyring,
+                    )):
+                return False
+            effective_policy = recovery_policy_registry_entries[-1].policy
+        elif any(value is not None for value in (
+            recovery_policy_registry_entries, recovery_policy_checkpoint,
+            recovery_policy_publisher_keyring, recovery_policy_checkpoint_keyring,
+        )):
+            return False
         effective_approvals = [] if approvals is None else approvals
         if (not isinstance(snapshot, SignedPolicyWitnessSnapshot)
                 or not isinstance(authorization, SignedPolicyWitnessRecoveryAuthorization)
