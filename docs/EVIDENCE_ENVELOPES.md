@@ -1072,3 +1072,22 @@ audit evidence. Omitting lifecycle checkpoint arguments remains a compatibility
 path for older deployments; it does not provide this stronger lifecycle
 governance. The lifecycle authority and expected digest remain external trust
 anchors, and the checkpoint chain is not a distributed consensus mechanism.
+
+
+### G-EP111: fail-closed lifecycle trust policy
+
+`RecoveryOperatorLifecycleTrustPolicy` pins the operator lifecycle registry ID,
+authority key ID, minimum accepted sequence, and exact expected checkpoint
+digest. Supplying this policy to recovery execution makes the lifecycle
+checkpoint mandatory: missing checkpoints, absent authority keys, mismatched
+digests, wrong registry/authority identities, or insufficient sequence are
+rejected before state mutation. The same policy can be supplied to independent
+audit verification, which rejects audit records without the pinned checkpoint.
+
+The exact digest pin is the freshness/rollback anchor; the sequence floor alone
+is not sufficient. Deployments must update the policy through their trusted
+configuration channel when accepting a new lifecycle checkpoint. The library
+does not maintain a distributed monotonic counter or automatically discover
+new checkpoints. Legacy recovery remains available only when no strict policy
+is supplied, so production callers must explicitly configure this policy to
+obtain fail-closed enforcement.
