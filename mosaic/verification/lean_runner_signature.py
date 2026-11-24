@@ -229,3 +229,35 @@ def _canonical(payload: dict) -> bytes:
     return json.dumps(
         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
+
+def run_and_sign_transformation(
+    request,
+    result: str,
+    *,
+    receipt_id: str,
+    runner_id: str,
+    key_id: str,
+    private_key: bytes,
+) -> tuple[object, SignedLeanAttestation]:
+    """Execute MOSAIC's request-bound Lean verifier and sign its completed result.
+
+    Deploy this function only inside the isolated runner process that owns the
+    Ed25519 private key. The caller receives the verification result and its
+    signed attestation; consumers need only the corresponding public key.
+    """
+    from mosaic.verification.lean_transformations import (
+        verify_request_transformation_with_lean,
+    )
+
+    verification = verify_request_transformation_with_lean(request, result)
+    attestation = sign_transformation_result(
+        verification,
+        request,
+        result,
+        receipt_id=receipt_id,
+        runner_id=runner_id,
+        key_id=key_id,
+        private_key=private_key,
+    )
+    return verification, attestation
+
