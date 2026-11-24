@@ -477,7 +477,7 @@ theorem exponent_second_derivative (x t : ℝ) (hx : 0 < x) :
     HasDerivAt (fun s : ℝ => jointValue x s * Real.log x)
       (jointValue x t * (Real.log x) ^ 2) t := by
   have h := (derivative x t hx).mul_const (Real.log x)
-  simpa [jointValue, value, pow_two, mul_assoc] using h
+  simpa [jointValue, value, pow_two, add_comm, mul_assoc] using h
 
 
 /-- Evaluate the joint exponent family along a differentiable base path. -/
