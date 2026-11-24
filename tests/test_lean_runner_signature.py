@@ -513,7 +513,7 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
 
     def fake_run(command, **kwargs):
         if command[:2] == ["git", "rev-parse"]:
-            output = "c" * 40
+            output = "b" * 40 if Path(kwargs["cwd"]) == root else "c" * 40
         elif command == ["lake", "env", "lean", "--version"]:
             output = "Lean version 4.36.0"
         elif command == ["lake", "--version"]:
@@ -558,6 +558,13 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
     }
     manifest = json.dumps(manifest_payload).encode()
     assert module.verify_local_lean_environment_manifest(manifest, project_dir=project)
+    altered_source = {
+        **manifest_payload,
+        "source": {**manifest_payload["source"], "commit": "d" * 40},
+    }
+    assert not module.verify_local_lean_environment_manifest(
+        json.dumps(altered_source).encode(), project_dir=project
+    )
     altered = dict(environment, lake_binary_sha256="0" * 64)
     altered_payload = {**manifest_payload, "environment": altered}
     assert not module.verify_local_lean_environment_manifest(
