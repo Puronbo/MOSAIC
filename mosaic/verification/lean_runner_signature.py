@@ -8,6 +8,9 @@ responsibilities.
 import base64
 import hashlib
 import json
+import subprocess
+import tempfile
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -271,3 +274,57 @@ def run_and_sign_transformation(
     )
     return verification, attestation
 
+
+
+def replay_attested_proof_source(
+    attestation: SignedLeanAttestation,
+    public_key: bytes,
+    *,
+    timeout_seconds: float = 30.0,
+    lake_executable: str = "lake",
+) -> bool | None:
+    """Re-run the exact signed proof source in the pinned Mathlib Lake project.
+
+    Returns True when the observed Lean exit status matches the signed outcome,
+    False when it does not, and None when the replay environment is unavailable
+    or execution times out. A successful replay independently checks the
+    retained source in the current environment; it does not attest the original
+    runner host.
+    """
+    import shutil
+
+    if not attestation.verify(public_key):
+        return False
+    if not math_is_finite_positive(timeout_seconds):
+        return None
+    executable = shutil.which(lake_executable)
+    project_dir = Path(__file__).resolve().parents[2] / "formal" / "polynomial"
+    if executable is None or not (project_dir / "lakefile.lean").is_file():
+        return None
+    try:
+        with tempfile.TemporaryDirectory(prefix="mosaic-proof-replay-") as directory:
+            source_path = Path(directory) / "AttestedCertificate.lean"
+            source_path.write_text(attestation.proof_source, encoding="utf-8")
+            completed = subprocess.run(
+                [executable, "env", "lean", str(source_path)],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        expected_pass = attestation.outcome == EvidenceEventOutcome.PASSED
+        return (completed.returncode == 0) == expected_pass
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def math_is_finite_positive(value: float) -> bool:
+    import math
+
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(value)
+        and 0 < value <= 120
+    )
