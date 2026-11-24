@@ -283,7 +283,7 @@ def export_rebootstrap_audit(store, *, registry_id: str) -> dict:
         "registry_id": registry_id,
         "record_count": len(records),
         "records": records,
-        "head_sha256": records[-1]["audit_sha256"] if records else "0" * 64,
+        "head_sha256": next((item["audit_sha256"] for item in reversed(records) if item["audit_sha256"] is not None), "0" * 64),
     }
 
 
