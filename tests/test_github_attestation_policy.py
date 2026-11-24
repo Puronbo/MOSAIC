@@ -160,3 +160,11 @@ def test_policy_rejects_disabled_security_requirements_and_mismatched_repository
                 expected_commit=COMMIT, expected_run_id=RUN_ID,
                 expected_subject_sha256=SUBJECT,
             )
+
+
+def test_verified_timestamp_must_be_timezone_aware_iso8601():
+    for value in ("not-a-timestamp", "2026-11-24T01:00:00"):
+        result = verified_result()
+        result[0]["verificationResult"]["verifiedTimestamps"][0]["timestamp"] = value
+        with pytest.raises(AttestationPolicyError):
+            check(result)
