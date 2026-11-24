@@ -119,3 +119,28 @@ def test_ed25519_signer_requires_raw_private_key_bytes(bad_key):
             checker_id="checker", kernel_version="Lean 4",
             outcome=EvidenceEventOutcome.PASSED, private_key=bad_key,
         )
+
+def test_isolated_runner_entrypoint_executes_verifier_then_signs(monkeypatch):
+    from mosaic.verification import lean_transformations
+    from mosaic.verification.lean_runner_signature import run_and_sign_transformation
+
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    calls = []
+
+    def fake_runner(actual_request, actual_result):
+        calls.append((actual_request, actual_result))
+        return verification
+
+    monkeypatch.setattr(
+        lean_transformations, "verify_request_transformation_with_lean", fake_runner
+    )
+    returned, attestation = run_and_sign_transformation(
+        request, result, receipt_id="runner-entrypoint",
+        runner_id="isolated-runner", key_id="trusted-key",
+        private_key=private,
+    )
+    assert returned is verification
+    assert calls == [(request, result)]
+    assert attestation.verify(public)
+
