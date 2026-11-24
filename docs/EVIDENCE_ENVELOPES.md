@@ -638,3 +638,31 @@ therefore be accompanied by an independently communicated latest snapshot
 digest/checkpoint and protected key custody. This is a portable recovery
 format, not a remote backup service, hardware monotonic counter, or
 distributed consensus protocol.
+
+
+## Multi-witness snapshot reconciliation
+
+The read-only helper `reconcile_policy_witness_snapshots(...)` verifies each
+witness snapshot signature and its complete genesis-rooted checkpoint history,
+then compares the exact checkpoint digests across witnesses. It reports one of:
+
+- `agreement`: every supplied witness has the same complete history;
+- `compatible_extension`: histories share the complete shorter history and
+  one or more witnesses retain a verified extension;
+- `divergence`: histories differ at a checkpoint sequence;
+- `invalid_input`: a signature, witness identity, log scope, or checkpoint
+  history failed validation.
+
+The report includes verified/rejected witness key IDs, the common-prefix
+length, the first divergent sequence when present, head digests, and retained
+quarantine indicators. The function is deliberately read-only: it does not
+import snapshots, change quarantine state, endorse a checkpoint, or select a
+winner. Duplicate witness key IDs are rejected rather than counted as
+independent witnesses.
+
+A compatible extension is not automatically fresh. A consumer must compare
+the selected candidate against a separately provisioned freshness anchor.
+Agreement does not prove that all witnesses have the latest state. Divergence
+requires preserving all snapshots and investigating the signed histories with
+independent evidence; witness count or majority vote cannot determine which
+history is truthful. The report is a decision aid, not consensus or recovery.
