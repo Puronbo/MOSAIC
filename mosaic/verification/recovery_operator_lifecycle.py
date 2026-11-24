@@ -205,6 +205,7 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
     protect against privileged rollback of the database file itself.
     """
     def __init__(self, database_path: str):
+        import json
         import sqlite3
         self._sqlite3 = sqlite3
         self._database_path = str(database_path)
