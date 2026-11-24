@@ -19,6 +19,58 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
+export function parseJsonNoDuplicateKeys(source) {
+  let index = 0;
+  const whitespace = () => { while (/\\s/.test(source[index] ?? "") && index < source.length) index += 1; };
+  const string = () => {
+    const start = index;
+    if (source[index++] !== '" '.trim()) throw new Error("expected JSON string");
+    while (index < source.length) {
+      const char = source[index++];
+      if (char === "\\\\") { index += 1; continue; }
+      if (char === '"') return JSON.parse(source.slice(start, index));
+      if (char.charCodeAt(0) < 0x20) throw new Error("control character in JSON string");
+    }
+    throw new Error("unterminated JSON string");
+  };
+  const value = () => {
+    whitespace();
+    const char = source[index];
+    if (char === '"' ) return string();
+    if (char === "{") {
+      index += 1; whitespace(); const result = {}; const keys = new Set();
+      if (source[index] === "}") { index += 1; return result; }
+      while (true) {
+        whitespace(); const key = string();
+        if (keys.has(key)) throw new Error(`duplicate JSON key: ${key}`);
+        keys.add(key); whitespace();
+        if (source[index++] !== ":") throw new Error("expected colon");
+        result[key] = value(); whitespace();
+        const separator = source[index++];
+        if (separator === "}") return result;
+        if (separator !== ",") throw new Error("expected comma or object end");
+      }
+    }
+    if (char === "[") {
+      index += 1; whitespace(); const result = [];
+      if (source[index] === "]") { index += 1; return result; }
+      while (true) {
+        result.push(value()); whitespace(); const separator = source[index++];
+        if (separator === "]") return result;
+        if (separator !== ",") throw new Error("expected comma or array end");
+      }
+    }
+    for (const [literal, parsed] of [["true", true], ["false", false], ["null", null]]) {
+      if (source.startsWith(literal, index)) { index += literal.length; return parsed; }
+    }
+    const number = source.slice(index).match(/^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?/);
+    if (number) { index += number[0].length; return Number(number[0]); }
+    throw new Error("invalid JSON value");
+  };
+  const parsed = value(); whitespace();
+  if (index !== source.length) throw new Error("trailing data after JSON value");
+  return parsed;
+}
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -66,7 +118,7 @@ if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
     process.exit(2);
   }
   try {
-    const document = JSON.parse(readFileSync(receiptPath, "utf8"));
+    const document = parseJsonNoDuplicateKeys(readFileSync(receiptPath, "utf8"));
     const attestation = document.attestation ?? document;
     if (!verifyAttestation(attestation, trustedPublicKeyB64)) {
       process.stderr.write("Invalid or untrusted Lean attestation\\n");
