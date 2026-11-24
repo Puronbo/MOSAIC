@@ -3,7 +3,19 @@ import copy
 from mosaic.verification.recovery_operator_lifecycle import (
     SignedOperatorLifecycleCheckpoint, verify_operator_lifecycle_checkpoint,
 )
-from test_recovery_policy_checkpoint_rebootstrap import identity
+import base64
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
+from mosaic.verification.policy_governance import PolicyPublisherKey
+
+
+def identity(name):
+    private = Ed25519PrivateKey.generate()
+    raw = private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+    public = private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    return raw, PolicyPublisherKey(
+        key_id=name, public_key_b64=base64.b64encode(public).decode(),
+        activated_at_utc="2026-01-01T00:00:00.000000Z")
 
 
 def test_signed_operator_lifecycle_checkpoint_detects_tampering_and_rollback():
