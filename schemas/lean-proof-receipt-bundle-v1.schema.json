@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/lean-proof-receipt-bundle-v1.schema.json",
+  "title": "MOSAIC Portable Lean Proof Receipt Bundle v1",
+  "description": "Transport envelope for a signed Lean attestation and its externally bound environment provenance and replay record. GitHub artifact attestation verification remains an external trust prerequisite.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "attestation", "public_key_b64",
+    "environment_manifest_sha256", "replay"
+  ],
+  "properties": {
+    "schema_version": { "const": "mosaic.signed-lean-proof-receipt.v1" },
+    "attestation": { "$ref": "lean-runner-attestation-v1.schema.json" },
+    "public_key_b64": {
+      "type": "string",
+      "minLength": 44,
+      "maxLength": 44,
+      "pattern": "^[A-Za-z0-9+/]{43}=$"
+    },
+    "environment_manifest_sha256": { "$ref": "lean-runner-attestation-v1.schema.json#/$defs/sha256" },
+    "replay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exact_signed_source_replayed"],
+      "properties": {
+        "exact_signed_source_replayed": { "const": true }
+      }
+    }
+  }
+}
