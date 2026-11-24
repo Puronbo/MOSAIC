@@ -342,3 +342,96 @@ def test_verifier_routing_rejects_forged_obligation_provenance():
     })
     with pytest.raises(ValueError, match="source"):
         obligation_verification_tasks(original, forged)
+
+
+
+def test_review_assessment_rejects_empty_and_noncritic_review_sets():
+    original = AgentTask(task_id="root-x", role=AgentRole.SOLVER, goal="Solve")
+    with pytest.raises(ValueError, match="at least one"):
+        assess_completed_reviews(original, [], ())
+    solver_task = AgentTask(task_id="solver-review", role=AgentRole.SOLVER, goal="Not a critic", depends_on=("root-x",))
+    with pytest.raises(ValueError, match="critic role"):
+        assess_completed_reviews(original, [solver_task], ())
+
+
+def test_review_assessment_rejects_critic_without_original_dependency():
+    original = AgentTask(task_id="root-y", role=AgentRole.SOLVER, goal="Solve")
+    critic = AgentTask(task_id="orphan-critic", role=AgentRole.CRITIC, goal="Review")
+    with pytest.raises(ValueError, match="depend on the original"):
+        assess_completed_reviews(original, [critic], ())
+
+
+def test_review_assessment_rejects_running_or_failed_critic():
+    original, reviews, records = _completed_review_fixture()
+    incomplete = tuple(
+        record.model_copy(update={"status": TaskStatus.RUNNING, "proposal": None,
+                                  "started_at": 1.0, "deadline_at": 20.0})
+        if record.task_id == reviews[0].task_id else record
+        for record in records if record.task_id != original.task_id
+    )
+    with pytest.raises(ValueError, match="not completed"):
+        assess_completed_reviews(original, reviews, incomplete)
+
+
+def test_review_assessment_enforces_finding_budget():
+    original = AgentTask(task_id="root-budget", role=AgentRole.SOLVER, goal="Solve")
+    critic = AgentTask(task_id="critic-budget", role=AgentRole.CRITIC, goal="Review", depends_on=("root-budget",))
+    records = initialize_task_records([original, critic])
+    records = dispatch_ready_tasks([original, critic], records, now=1)
+    records = complete_task(original, records, AgentProposal(
+        task_id="root-budget", agent_id="solver", role=AgentRole.SOLVER, claim="candidate"
+    ))
+    records = dispatch_ready_tasks([original, critic], records, now=2)
+    records = complete_task(critic, records, AgentProposal(
+        task_id="critic-budget", agent_id="critic", role=AgentRole.CRITIC, claim="review",
+        findings=tuple(
+            ReviewFinding(finding_id=f"f-{i}", kind=ReviewFindingKind.UNRESOLVED, statement=f"Check {i}")
+            for i in range(2)
+        ),
+    ))
+    with pytest.raises(ValueError, match="budget"):
+        assess_completed_reviews(original, [critic], (next(r for r in records if r.task_id == critic.task_id),), max_findings=1)
+
+
+def test_review_assessment_rejects_duplicate_review_task_ids():
+    original, reviews, records = _completed_review_fixture()
+    with pytest.raises(ValueError, match="unique"):
+        assess_completed_reviews(original, [reviews[0], reviews[0]], ())
+
+
+def test_obligation_routing_rejects_oversized_finding_context():
+    from mosaic.core.orchestration import ReviewAssessment, ReviewObligation
+
+    original = AgentTask(task_id="root-large", role=AgentRole.SOLVER, goal="Solve")
+    finding = ReviewFinding(
+        finding_id="huge",
+        kind=ReviewFindingKind.EVIDENCE_REQUIRED,
+        statement="x" * 4000,
+        evidence_refs=("e" * 2500,),
+    )
+    digest = __import__("hashlib").sha256(b"critic-large:huge").hexdigest()[:12]
+    assessment = ReviewAssessment(
+        original_task_id=original.task_id,
+        review_task_ids=("critic-large",),
+        completed_review_count=1,
+        obligations=(ReviewObligation(
+            obligation_id=f"obligation-{digest}",
+            source_task_id="critic-large",
+            source_agent_id="critic",
+            finding=finding,
+        ),),
+        disposition="independent-checks-required",
+    )
+    with pytest.raises(ValueError, match="size limit"):
+        obligation_verification_tasks(original, assessment)
+
+
+def test_review_assessment_rejects_malformed_proposal_status_and_missing_proposal():
+    original, reviews, records = _completed_review_fixture()
+    no_proposal = tuple(
+        record.model_copy(update={"proposal": None})
+        if record.task_id == reviews[0].task_id else record
+        for record in records if record.task_id != original.task_id
+    )
+    with pytest.raises(ValueError, match="not completed"):
+        assess_completed_reviews(original, reviews, no_proposal)
