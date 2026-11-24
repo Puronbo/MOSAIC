@@ -666,3 +666,34 @@ Agreement does not prove that all witnesses have the latest state. Divergence
 requires preserving all snapshots and investigating the signed histories with
 independent evidence; witness count or majority vote cannot determine which
 history is truthful. The report is a decision aid, not consensus or recovery.
+
+
+## Signed authorization for witness recovery
+
+A quarantined stateful witness can now be recovered with
+`PolicyWitnessStateStore.recover_from_signed_snapshot(...)`, but only by
+presenting a `SignedPolicyWitnessRecoveryAuthorization`. The Ed25519 approval
+binds the log ID, exact selected snapshot digest, digest of the witness's
+current retained incident history, digest of the independently reviewed
+evidence, a reason, operator key ID, and approval time. The operator key is
+lifecycle-checked and must be cryptographically distinct from the snapshot
+witness key and the registry signer keys.
+
+Recovery re-verifies the selected witness snapshot and its complete
+genesis-rooted checkpoint chain, checks that the local witness is currently
+quarantined, and compares the authorization's incident digest with the exact
+local incident history inside one SQLite transaction. A changed incident
+history, altered snapshot, wrong operator key, replayed authorization, or
+unquarantined store is rejected. On success, the selected checkpoint history
+is retained alongside prior conflicting history, the quarantine is cleared,
+and the complete signed authorization is persisted in an append-only recovery
+audit table. Original incidents are never deleted.
+
+The evidence digest is a binding to evidence bytes supplied and reviewed by
+the external operator workflow; this library does not retrieve, inspect, or
+judge those bytes. The reason and signed approval document an accountable
+decision, not mathematical truth. A compromised or improperly provisioned
+operator key can authorize a bad recovery. Operator key custody, separation
+of duties, evidence retention, and freshness anchors remain deployment
+responsibilities. This recovery mechanism is local SQLite state, not
+distributed consensus or hardware anti-rollback protection.
