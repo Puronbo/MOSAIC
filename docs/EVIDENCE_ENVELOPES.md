@@ -940,3 +940,31 @@ conflicting administrative decisions, and privileged rollback remains
 detectable only when compared with an independently retained audit-head
 anchor. Successful concurrency tests do not establish independent human
 approval or trustworthy evidence.
+
+
+
+### Competing valid recovery proposals (G-EP106)
+
+G-EP106 tests two separately threshold-approved proposals that bind the same
+quarantined retained head and incident-history digest but select different,
+independently publisher-signed and checkpoint-signed registry forks. The
+proposals use disjoint operator identities and distinct evidence digests.
+They race through independent store instances against one SQLite database.
+
+Exactly one proposal may commit. The test then verifies that the trusted head,
+new epoch entries, and sole audit record all identify the winning proposal;
+the losing fork is not trusted; and the incident history is unchanged.
+It verifies the winner's audit export with the combined operator keyring and
+an externally retained audit-head digest. A second attempt with the losing
+proposal must fail without changing the audit export, trusted head, or
+incident history.
+
+This is a state-transition integrity test, not a method for deciding which
+proposal is substantively correct. Both candidate forks can be validly
+signed and structurally verified; authorization is determined by the
+threshold policy and the exact state-bound intent. Whichever proposal wins
+the database race is not thereby proven wiser or truer. A production process
+must resolve competing evidence and authorize a single intended selection
+before enabling simultaneous submissions where deterministic priority is
+required. The test covers one shared SQLite database, not competing copies,
+distributed consensus, or independent human judgment.
