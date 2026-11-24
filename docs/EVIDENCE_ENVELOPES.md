@@ -418,3 +418,30 @@ GitHub's verified timestamp objects are cryptographically verified transparency
 log or timestamp-authority evidence; they are distinct from workflow-controlled
 predicate fields. See the
 [GitHub CLI verification reference](https://cli.github.com/manual/gh_attestation_verify).
+
+
+## Content-addressed historical trust policies
+
+Historical v2 receipts now carry `trust_policy_sha256` inside the Ed25519
+signature. The digest is SHA-256 over the exact canonical UTF-8 JSON bytes of
+an immutable `HistoricalTrustPolicy` document. The normative policy shape is
+`schemas/historical-trust-policy-v1.schema.json`; the registry record is
+content-addressed and includes policy activation and optional retirement
+times. A policy change creates a new digest and must not overwrite the old
+policy document.
+
+The verifier receives an explicit map of trusted policy records. It rejects
+unknown digests, digest/document mismatches, policies not active at the
+independently verified timestamp, and receipts whose checker or kernel is
+outside the policy allowlists. Policy rules also explicitly govern whether
+retired-key or revoked-key history is accepted and bound the allowed lag
+between signed issuance and independent timestamp evidence. The selected
+policy digest is part of the signed receipt, so a caller cannot silently
+substitute a more permissive current policy during historical verification.
+
+Policy registry distribution and the truth of activation/retirement metadata
+remain external trust responsibilities. A registry operator must preserve
+immutable policy documents and authenticate registry updates; a local SHA-256
+digest establishes content identity, not publisher authenticity. Policy
+timestamps are evaluated against the independently verified artifact
+timestamp, never the runner's wall clock.
