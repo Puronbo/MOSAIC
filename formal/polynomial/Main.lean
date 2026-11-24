@@ -525,7 +525,9 @@ theorem joint_map_fderiv
       ((f z + g z) * f z ^ (f z + g z - 1) • f' +
         (f z ^ (f z + g z) * Real.log (f z)) • (f' + g')) z := by
   have hexponent : HasFDerivAt (fun w : E => f w + g w) (f' + g') z := by
-    simpa using hf.add hg
-  simpa [jointMap] using hf.rpow hexponent hx
+    exact hf.add hg
+  have h := hf.rpow hexponent hx
+  convert h using 1 <;> simp [jointMap, smul_add, add_smul, mul_comm,
+    mul_left_comm, mul_assoc]
 
 end MosaicRealExponentShift
