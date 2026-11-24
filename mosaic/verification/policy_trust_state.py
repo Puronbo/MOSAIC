@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterable
 
 from mosaic.verification.lean_runner_signature import _canonical
 from mosaic.verification.policy_governance import PolicyPublisherKey
@@ -38,15 +38,19 @@ class PolicyCheckpointStore:
             Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
-    def _connect(self):
+    @contextmanager
+    def _connection(self):
         connection = sqlite3.connect(self.database_path, timeout=30, isolation_level=None)
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("PRAGMA synchronous=FULL")
-        return connection
+        try:
+            connection.execute("PRAGMA foreign_keys=ON")
+            connection.execute("PRAGMA synchronous=FULL")
+            yield connection
+        finally:
+            connection.close()
 
     def _initialize(self):
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS policy_trust_heads (
@@ -227,7 +231,7 @@ class PolicyCheckpointStore:
         with self._connect() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
-                "SELECT quarantined FROM policy_trust_heads WHERE log_id=?",
+                "SELECT quarantined, checkpoint_json FROM policy_trust_heads WHERE log_id=?",
                 (checkpoint.log_id,),
             ).fetchone()
             if row is None or not row["quarantined"]:
@@ -254,7 +258,7 @@ class PolicyCheckpointStore:
                  checkpoint_sha256, reason)
                 VALUES (?, ?, ?, ?, ?, ?)""",
                 (checkpoint.log_id, checkpoint.sequence,
-                 row["quarantined"] and "QUARANTINED" or "",
+                 self._decode(row["checkpoint_json"]).head_entry_sha256,
                  checkpoint.head_entry_sha256, digest,
                  "explicit recovery: " + operator_reason.strip()),
             )
