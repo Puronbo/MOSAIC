@@ -127,7 +127,7 @@ class PolicyWitnessStateStore:
             previous = self._decode(row["checkpoint_json"]) if row else None
 
             if previous and checkpoint.sequence == previous.sequence:
-                if (checkpoint.digest() != previous.digest()
+                if (checkpoint.head_entry_sha256 != previous.head_entry_sha256
                         and checkpoint.previous_checkpoint_sha256 is None
                         and verify_policy_checkpoint(
                             checkpoint, entries=entries,
