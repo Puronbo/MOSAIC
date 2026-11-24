@@ -388,7 +388,7 @@ theorem derivative_sign (x t : ℝ) (hx : 0 < x) :
 
 
 /-- The secant slope based at t with nonzero real step h. -/
-def secantSlope (x t h : ℝ) : ℝ :=
+noncomputable def secantSlope (x t h : ℝ) : ℝ :=
   h⁻¹ • (value x (t + h) - value x t)
 
 /-- As the nonzero step tends to zero, the secant slope converges to the
