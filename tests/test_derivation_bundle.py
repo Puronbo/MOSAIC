@@ -54,11 +54,12 @@ def test_derivation_bundle_rejects_duplicate_candidate_ids_on_replay():
     source = request()
     tree = build_derivation_tree(source)
     bundle = create_derivation_bundle(source, tree, {})
+    from mosaic.verification.derivation_bundle import DerivationCandidate
+
     duplicate = bundle.model_copy(update={
         "candidates": (
-            # The graph contains exactly one obligation for this leaf.
-            {"obligation_id": "x", "payload": "{}"},
-            {"obligation_id": "x", "payload": "{}"},
+            DerivationCandidate(obligation_id="x", payload="{}"),
+            DerivationCandidate(obligation_id="x", payload="{}"),
         )
     })
     # The modified model is rejected by the digest before candidate processing.
