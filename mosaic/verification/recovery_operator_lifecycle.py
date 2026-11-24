@@ -408,6 +408,33 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         except (ValueError, TypeError, self._sqlite3.Error):
             return ()
 
+    def export_restore_ledger_head(
+        self, *, registry_id: str, ledger_authority_key_id: str,
+        issued_at_utc: str, private_key: bytes,
+        receipt_authority_keyring: dict[str, PolicyPublisherKey],
+    ) -> "SignedOperatorLifecycleRestoreLedgerHead | None":
+        """Sign the current ledger head only after verifying its complete local history."""
+        ledger = self.read_checkpoint_chain_restore_ledger(registry_id)
+        if not ledger:
+            return None
+        terminal = ledger[-1]
+        report = verify_operator_lifecycle_restore_ledger(
+            ledger, expected_registry_id=registry_id,
+            expected_event_sequence=terminal["event_sequence"],
+            expected_ledger_entry_sha256=terminal["ledger_entry_sha256"],
+            authority_keyring=receipt_authority_keyring)
+        if not report.accepted:
+            return None
+        try:
+            return SignedOperatorLifecycleRestoreLedgerHead.sign(
+                registry_id=registry_id, event_sequence=report.ending_event_sequence,
+                ledger_entry_sha256=report.ending_ledger_entry_sha256,
+                receipt_sha256=terminal["receipt_sha256"],
+                ledger_authority_key_id=ledger_authority_key_id,
+                issued_at_utc=issued_at_utc, private_key=private_key)
+        except (ValueError, TypeError):
+            return None
+
     def restore_checkpoint_chain_bundle(
         self, bundle: "OperatorLifecycleCheckpointChainBundle",
         starting_checkpoint: SignedOperatorLifecycleCheckpoint, *,
@@ -908,6 +935,75 @@ def verify_operator_lifecycle_checkpoint_chain_restore_receipt(
         return False
 
 
+
+
+class SignedOperatorLifecycleRestoreLedgerHead(BaseModel):
+    """Portable, separately signed checkpoint of a verified restoration-ledger head."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    event_sequence: int = Field(ge=1)
+    ledger_entry_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    receipt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    ledger_authority_key_id: str = Field(min_length=1, max_length=160)
+    issued_at_utc: str = Field(min_length=20, max_length=40)
+    signature_b64: str = Field(min_length=1, max_length=128)
+
+    @classmethod
+    def sign(cls, *, registry_id: str, event_sequence: int,
+             ledger_entry_sha256: str, receipt_sha256: str,
+             ledger_authority_key_id: str, issued_at_utc: str,
+             private_key: bytes) -> "SignedOperatorLifecycleRestoreLedgerHead":
+        if not isinstance(private_key, bytes) or len(private_key) != 32:
+            raise ValueError("Ed25519 private key must be exactly 32 raw bytes")
+        payload = {
+            "schema_version": "1.0", "registry_id": registry_id,
+            "event_sequence": event_sequence, "ledger_entry_sha256": ledger_entry_sha256,
+            "receipt_sha256": receipt_sha256,
+            "ledger_authority_key_id": ledger_authority_key_id,
+            "issued_at_utc": _canonical_timestamp(issued_at_utc),
+        }
+        signature = Ed25519PrivateKey.from_private_bytes(private_key).sign(_canonical(payload))
+        return cls(**payload, signature_b64=base64.b64encode(signature).decode("ascii"))
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+def verify_operator_lifecycle_restore_ledger_head(
+    head: SignedOperatorLifecycleRestoreLedgerHead, *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str, expected_event_sequence: int,
+    expected_ledger_entry_sha256: str,
+    expected_receipt_sha256: str | None = None,
+    authorization_time_utc: str | None = None,
+) -> bool:
+    """Verify an independently retained signature and exact external ledger-head pin."""
+    if not isinstance(head, SignedOperatorLifecycleRestoreLedgerHead):
+        return False
+    authority = authority_keyring.get(head.ledger_authority_key_id) if isinstance(authority_keyring, dict) else None
+    if (authority is None or head.registry_id != expected_registry_id
+            or head.event_sequence != expected_event_sequence
+            or head.ledger_entry_sha256 != expected_ledger_entry_sha256
+            or (expected_receipt_sha256 is not None and head.receipt_sha256 != expected_receipt_sha256)
+            or not authority.permits(head.ledger_authority_key_id, head.issued_at_utc)):
+        return False
+    try:
+        if _canonical_timestamp(head.issued_at_utc) != head.issued_at_utc:
+            return False
+        if authorization_time_utc is not None:
+            if _canonical_timestamp(authorization_time_utc) != authorization_time_utc:
+                return False
+            if authorization_time_utc < head.issued_at_utc:
+                return False
+        signature = base64.b64decode(head.signature_b64, validate=True)
+        if len(signature) != 64:
+            return False
+        payload = head.model_dump(mode="json", exclude={"signature_b64"})
+        Ed25519PublicKey.from_public_bytes(authority.public_key()).verify(signature, _canonical(payload))
+        return True
+    except (ValueError, TypeError, InvalidSignature):
+        return False
 
 
 class OperatorLifecycleRestoreLedgerReport(BaseModel):
