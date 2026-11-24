@@ -47,7 +47,7 @@ class VerificationReceipt(BaseModel):
         if self.checker_id not in _ALLOWED_CHECKERS:
             raise ValueError("receipt checker is not allow-listed")
         if self.checker_result is not None:
-            if self.checker_result.get("status") != self.status:
+            if self.checker_result.status != self.status:
                 raise ValueError("receipt status does not match nested checker result")
         elif self.status in {"FORMALLY_VERIFIED", "REJECTED", "KERNEL_UNAVAILABLE", "KERNEL_ERROR"}:
             raise ValueError("checker outcome requires its structured result")
