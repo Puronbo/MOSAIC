@@ -15,6 +15,7 @@ from mosaic.verification.lean_runner_signature import (
     generate_ed25519_keypair,
     sign_transformation_result,
     verify_evidence_event_signature,
+    replay_attested_proof_source,
 )
 from mosaic.verification.obligations import request_fingerprint
 
@@ -177,3 +178,33 @@ def test_evidence_event_rejects_proof_source_digest_mismatch():
             **event.model_dump(),
             "runner_proof_source": "forged source",
         })
+
+
+def test_replay_uses_exact_signed_source_and_public_key(monkeypatch, tmp_path):
+    from mosaic.verification import lean_runner_signature
+
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    signed = sign_transformation_result(
+        verification, request, result, receipt_id="replay-test",
+        runner_id="runner", key_id="key", private_key=private,
+    )
+    observed = {}
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["source"] = Path(command[-1]).read_text(encoding="utf-8")
+        observed["cwd"] = kwargs["cwd"]
+        return Completed()
+
+    import shutil
+    from pathlib import Path
+
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/lake")
+    monkeypatch.setattr(lean_runner_signature.subprocess, "run", fake_run)
+    assert replay_attested_proof_source(signed, public) is True
+    assert observed["source"] == signed.proof_source
+    assert observed["command"][:3] == ["/usr/bin/lake", "env", "lean"]
