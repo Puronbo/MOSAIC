@@ -227,10 +227,15 @@ def rebootstrap_recovery_policy_checkpoint_store(
         if _canonical_timestamp(authorization_time_utc) != authorization_time_utc:
             return False
         authorized_at = datetime.fromisoformat(authorization_time_utc.replace("Z", "+00:00"))
-        for key_id in [intent.operator_key_id] + [approval.operator_key_id for approval in approvals]:
+        signed_operators = [(intent.operator_key_id, intent.approved_at_utc)] + [
+            (approval.operator_key_id, approval.approved_at_utc) for approval in approvals
+        ]
+        for key_id, signed_at_utc in signed_operators:
             record = operator_keyring.get(key_id)
+            signed_at = datetime.fromisoformat(signed_at_utc.replace("Z", "+00:00"))
+            activated_at = datetime.fromisoformat(record.activated_at_utc.replace("Z", "+00:00")) if record else None
             if (record is None or not record.permits(key_id, authorization_time_utc)
-                    or datetime.fromisoformat(record.activated_at_utc.replace("Z", "+00:00")) > authorized_at):
+                    or activated_at > authorized_at or signed_at > authorized_at):
                 return False
     except (ValueError, TypeError):
         return False
