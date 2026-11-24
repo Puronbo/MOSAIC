@@ -208,3 +208,74 @@ def evidence_bundle_to_envelope(
         artifact_sha256=artifact_hash,
         events=tuple(events),
     )
+
+def verify_transformation_with_evidence(
+    request,
+    result: str,
+    *,
+    envelope_id: str,
+    event_id: str,
+    claim: str,
+):
+    """Run MOSAIC's request-bound Lean path and envelope its completed result.
+
+    Only FORMALLY_VERIFIED and REJECTED subprocess outcomes produce kernel
+    events. Unsupported input, missing Lean, timeouts, and execution errors
+    return the verification result with no event/envelope. This is an
+    in-process provenance adapter, not a cryptographic attestation boundary:
+    callers must trust the MOSAIC process and its configured Lean executable.
+    """
+    import hashlib
+
+    from mosaic.verification.lean_transformations import (
+        verify_request_transformation_with_lean,
+    )
+
+    verification = verify_request_transformation_with_lean(request, result)
+    check = verification.check
+    obligation = verification.obligation
+    if (
+        check is None
+        or obligation is None
+        or verification.status not in {"FORMALLY_VERIFIED", "REJECTED"}
+        or check.status != verification.status
+        or not check.proof_source_sha256
+        or not check.lean_version
+    ):
+        return verification, None
+
+    artifact_hash = hashlib.sha256(result.encode("utf-8")).hexdigest()
+    if obligation.candidate_sha256 != artifact_hash:
+        raise ValueError("Lean obligation is not bound to the supplied candidate artifact")
+    if check.checker_id != obligation.checker_id:
+        raise ValueError("Lean checker identity does not match the verified obligation")
+
+    mathlib_revision = getattr(check, "mathlib_revision", None)
+    tool_version = check.lean_version
+    if mathlib_revision:
+        tool_version = f"{tool_version}; Mathlib {mathlib_revision}"
+
+    event = EvidenceEvent(
+        event_id=event_id,
+        kind=EvidenceEventKind.FORMAL_KERNEL_CHECK,
+        outcome=(
+            EvidenceEventOutcome.PASSED
+            if verification.status == "FORMALLY_VERIFIED"
+            else EvidenceEventOutcome.FAILED
+        ),
+        artifact_sha256=artifact_hash,
+        method=f"Request-bound Lean obligation {obligation.obligation_id}",
+        tool_id=check.checker_id,
+        tool_version=tool_version,
+        kernel_id="Lean",
+        kernel_version=tool_version,
+        proof_artifact_sha256=check.proof_source_sha256,
+    )
+    envelope = create_evidence_envelope(
+        envelope_id=envelope_id,
+        claim=claim,
+        artifact_sha256=artifact_hash,
+        events=(event,),
+    )
+    return verification, envelope
+
