@@ -67,4 +67,53 @@ theorem no_nat_solution_n_pow_eq_three (n : Nat) : n^n ≠ 3 := by
     have hpow : 2^n ≤ n^n := nat_pow_mono hn2
     omega
 
+/-- The map x ↦ x * log x is strictly increasing for x > 1. -/
+theorem strictMonoOn_mul_log : StrictMonoOn (fun x : ℝ => x * Real.log x) (Set.Ioi 1) := by
+  intro a ha b hb hab
+  have hloga : 0 < Real.log a := Real.log_pos ha
+  have hlogab : Real.log a < Real.log b :=
+    Real.log_lt_log (by linarith) hab
+  calc
+    a * Real.log a < b * Real.log a :=
+      mul_lt_mul_of_pos_right hab hloga
+    _ < b * Real.log b :=
+      mul_lt_mul_of_pos_left hlogab (by linarith)
+
+/-- Any positive real solution of x^x = 3 is greater than one. -/
+theorem one_lt_of_pos_rpow_eq_three {x : ℝ}
+    (hx : 0 < x) (heq : x ^ x = 3) : 1 < x := by
+  by_contra h
+  have hle : x ≤ 1 := le_of_not_gt h
+  have hlog : x * Real.log x = Real.log 3 := by
+    calc
+      x * Real.log x = Real.log (x ^ x) := by
+        rw [Real.log_rpow hx x]
+        ring
+      _ = Real.log 3 := congrArg Real.log heq
+  have hlogx : Real.log x ≤ 0 := Real.log_nonpos hx.le hle
+  have hprod : x * Real.log x ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hx.le hlogx
+  have hthree : 0 < Real.log 3 := Real.log_pos (by norm_num)
+  linarith
+
+/-- The equation x^x = 3 has at most one positive real solution. -/
+theorem eq_of_pos_rpow_eq_three {x y : ℝ}
+    (hx : 0 < x) (hy : 0 < y)
+    (hxeq : x ^ x = 3) (hyeq : y ^ y = 3) : x = y := by
+  have hxgt : 1 < x := one_lt_of_pos_rpow_eq_three hx hxeq
+  have hygt : 1 < y := one_lt_of_pos_rpow_eq_three hy hyeq
+  have hxlog : x * Real.log x = Real.log 3 := by
+    calc
+      x * Real.log x = Real.log (x ^ x) := by
+        rw [Real.log_rpow hx x]
+        ring
+      _ = Real.log 3 := congrArg Real.log hxeq
+  have hylog : y * Real.log y = Real.log 3 := by
+    calc
+      y * Real.log y = Real.log (y ^ y) := by
+        rw [Real.log_rpow hy y]
+        ring
+      _ = Real.log 3 := congrArg Real.log hyeq
+  exact strictMonoOn_mul_log.injOn
+    (Set.mem_Ioi.mpr hxgt) (Set.mem_Ioi.mpr hygt) (hxlog.trans hylog.symm)
+
 end MosaicPolynomial
