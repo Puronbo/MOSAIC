@@ -274,3 +274,70 @@ def test_recovery_persists_every_coapproval_in_audit(tmp_path):
     assert SignedPolicyWitnessRecoveryApproval.model_validate(stored[0]).verify(
         auth, {"operator-2": approver_key}
     )
+
+
+def test_recovery_can_require_registry_policy_and_trusted_checkpoint(tmp_path):
+    from mosaic.verification.policy_witness_recovery_governance import SignedPolicyWitnessRecoveryApproval
+    from mosaic.verification.policy_witness_recovery_policy_registry import (
+        SignedPolicyWitnessRecoveryPolicyCheckpoint,
+        SignedPolicyWitnessRecoveryPolicyEntry,
+    )
+
+    selected_item, competing_item = entry(2), entry(3)
+    selected_cp, competing_cp = checkpoint(selected_item), checkpoint(competing_item)
+    target = PolicyWitnessStateStore(tmp_path / "checkpoint-governed-target.sqlite3")
+    assert endorse(target, selected_cp, selected_item) is not None
+    assert endorse(target, competing_cp, competing_item) is None
+    snapshot = snapshot_for(tmp_path / "checkpoint-governed-source.sqlite3", selected_item)
+    authorization = make_authorization(snapshot, target.incidents(selected_cp.log_id))
+
+    approver_private, approver_public = generate_ed25519_keypair()
+    operators = {
+        "operator-1": OPERATOR_KEY,
+        "operator-2": key("operator-2", approver_public),
+    }
+    approval = SignedPolicyWitnessRecoveryApproval.sign(
+        authorization=authorization, operator_key_id="operator-2",
+        approved_at_utc="2026-11-24T05:20:00Z", private_key=approver_private,
+    )
+    policy = PolicyWitnessRecoveryPolicy(minimum_approvals=2)
+    policy_entry = SignedPolicyWitnessRecoveryPolicyEntry.sign(
+        registry_id="production-recovery", sequence=0,
+        previous_entry_sha256=None, policy=policy,
+        published_at_utc="2026-11-24T05:30:00Z",
+        publisher_key_id="entry-publisher", private_key=ENTRY_PRIVATE,
+    )
+    policy_checkpoint = SignedPolicyWitnessRecoveryPolicyCheckpoint.sign(
+        entry=policy_entry, issued_at_utc="2026-11-24T05:31:00Z",
+        signer_key_id="log-signer", private_key=LOG_PRIVATE,
+    )
+    common = {
+        "witness_keyring": {"witness-1": WITNESS_KEY},
+        "signer_keyring": SIGNERS, "operator_keyring": operators,
+        "authorization": authorization, "entries": [selected_item],
+        "approvals": [approval], "require_trusted_recovery_policy": True,
+        "recovery_policy_registry_entries": [policy_entry],
+        "recovery_policy_publisher_keyring": {"entry-publisher": SIGNERS["entry-publisher"]},
+        "recovery_policy_checkpoint_keyring": {"log-signer": SIGNERS["log-signer"]},
+    }
+
+    assert not target.recover_from_signed_snapshot(
+        snapshot, recovery_policy_checkpoint=None, **common
+    )
+    wrong_private, wrong_public = generate_ed25519_keypair()
+    wrong_key = key("log-signer", wrong_public)
+    wrong_checkpoint = SignedPolicyWitnessRecoveryPolicyCheckpoint.sign(
+        entry=policy_entry, issued_at_utc="2026-11-24T05:31:00Z",
+        signer_key_id="log-signer", private_key=wrong_private,
+    )
+    assert not target.recover_from_signed_snapshot(
+        snapshot, recovery_policy_checkpoint=wrong_checkpoint,
+        recovery_policy_checkpoint_keyring={"log-signer": wrong_key}, **{
+            k: v for k, v in common.items() if k != "recovery_policy_checkpoint_keyring"
+        }
+    )
+    assert target.is_quarantined(selected_cp.log_id)
+    assert target.recover_from_signed_snapshot(
+        snapshot, recovery_policy_checkpoint=policy_checkpoint, **common
+    )
+    assert not target.is_quarantined(selected_cp.log_id)
