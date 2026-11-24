@@ -12,6 +12,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from mosaic.verification.evidence_envelope import (
@@ -25,7 +27,7 @@ from mosaic.verification.obligations import request_fingerprint
 class SignedLeanAttestation(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: str = "1.0"
+    schema_version: Literal["1.0"] = "1.0"
     receipt_id: str = Field(min_length=1, max_length=120)
     runner_id: str = Field(min_length=1, max_length=160)
     key_id: str = Field(min_length=1, max_length=160)
@@ -107,6 +109,8 @@ class SignedLeanAttestation(BaseModel):
             return False
         try:
             signature = base64.b64decode(self.signature_b64, validate=True)
+            if len(signature) != 64:
+                return False
             Ed25519PublicKey.from_public_bytes(public_key).verify(
                 signature, _canonical(_unsigned(self))
             )
@@ -141,6 +145,32 @@ class SignedLeanAttestation(BaseModel):
             runner_signature_algorithm="Ed25519",
             runner_key_id=self.key_id,
         )
+
+
+
+class LeanTrustedKey(BaseModel):
+    """One key in a consumer-managed rotation/revocation registry."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    key_id: str = Field(min_length=1, max_length=160)
+    public_key_b64: str = Field(min_length=44, max_length=44)
+    status: Literal["active", "retired", "revoked"]
+
+
+def verify_with_keyring(
+    attestation: SignedLeanAttestation,
+    keyring: dict[str, LeanTrustedKey],
+) -> bool:
+    """Verify using an explicit key registry; revoked keys never validate."""
+    record = keyring.get(attestation.key_id)
+    if record is None or record.key_id != attestation.key_id or record.status == "revoked":
+        return False
+    try:
+        public_key = base64.b64decode(record.public_key_b64, validate=True)
+    except (ValueError, TypeError):
+        return False
+    return len(public_key) == 32 and attestation.verify(public_key)
 
 
 def verify_evidence_event_signature(event: EvidenceEvent, public_keys: dict[str, bytes]) -> bool:
