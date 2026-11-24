@@ -530,6 +530,8 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
         "elan_version_output": "elan 4.1",
         "mathlib_revision": "c" * 40,
         "observed_mathlib_revision": "c" * 40,
+        "python_version": "3.14.0",
+        "platform": "test-platform",
     }
     for name, binary in binary_paths.items():
         environment[f"{name}_binary_sha256"] = hashlib.sha256(Path(binary).read_bytes()).hexdigest()
