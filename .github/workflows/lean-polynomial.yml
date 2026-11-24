@@ -10,6 +10,9 @@ on:
       - "mosaic/verification/lean_calculus.py"
       - "mosaic/verification/lean_obligations.py"
       - "mosaic/verification/lean_transformations.py"
+      - "mosaic/verification/lean_runner_signature.py"
+      - "mosaic/verification/evidence_envelope.py"
+      - "tests/test_lean_runner_signature.py"
       - "mosaic/core/model_gateway.py"
       - "mosaic/core/tool_schema.py"
       - "mosaic/engines/algebra.py"
@@ -63,6 +66,8 @@ jobs:
         run: lake env lean Main.lean
       - name: Install MOSAIC
         run: python -m pip install -e ".[dev]"
+      - name: Record pinned environment manifest for proof binding
+        run: python scripts/create_lean_provenance.py lean-provenance.json
       - name: Exercise bounded polynomial and derivative proofs with real Lean kernel
         run: |
           python - <<'PY'
@@ -189,6 +194,9 @@ jobs:
           python - <<'PY'
           from mosaic.core.requests import MathRequest
           from mosaic.core.types import Operation
+          import hashlib
+          import json
+          from pathlib import Path
           from mosaic.verification.lean_runner_signature import (
               generate_ed25519_keypair,
               replay_attested_proof_source,
@@ -196,6 +204,9 @@ jobs:
           )
 
           private_key, public_key = generate_ed25519_keypair()
+          manifest_bytes = Path("lean-provenance.json").read_bytes()
+          manifest = json.loads(manifest_bytes)
+          environment = manifest["environment"]
           request = MathRequest(operation=Operation.SIMPLIFY, expression="x + 1")
           verification, attestation = run_and_sign_transformation(
               request, "1 + x",
@@ -203,14 +214,20 @@ jobs:
               runner_id="github-hosted-lean-runner",
               key_id="ephemeral-ci-key",
               private_key=private_key,
+              environment_manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+              source_commit=manifest["source"]["commit"],
+              workflow_run_id=manifest["execution"]["run_id"],
+              lean_toolchain=environment["lean_toolchain"],
+              mathlib_revision=environment["mathlib_revision"],
           )
           assert verification.status == "FORMALLY_VERIFIED", verification.model_dump()
           assert attestation.proof_source
+          assert attestation.environment_manifest_sha256 == hashlib.sha256(manifest_bytes).hexdigest()
+          assert attestation.source_commit == manifest["source"]["commit"]
+          assert attestation.workflow_run_id == manifest["execution"]["run_id"]
           assert replay_attested_proof_source(attestation, public_key) is True
           print("Exact signed proof source replayed successfully under pinned Lean/Mathlib.")
           PY
-      - name: Record observed pinned Lean and Mathlib environment
-        run: python scripts/create_lean_provenance.py lean-provenance.json
       - name: Attest Lean environment provenance
         if: github.event_name == 'push'
         uses: actions/attest@v4
