@@ -1194,3 +1194,28 @@ leave the local state unchanged and concurrent writers cannot overwrite a head
 that changed after pre-verification. SQLite atomicity and writer serialization
 do not protect against privileged replacement or rollback of the database file;
 deployments must continue to retain freshness anchors outside this store.
+
+
+
+### G-EP118: signed receipts for checkpoint-chain restoration
+
+`restore_checkpoint_chain_bundle_with_receipt(...)` combines the guarded
+G-EP117 restoration path with a portable Ed25519-signed receipt. The receipt
+binds the exact bundle digest, registry, externally anchored starting sequence
+and digest, resulting ending sequence and digest, number of verified
+transitions, authority key ID, and canonical issuance time. It is returned only
+when the complete chain verifies and the store accepts the restoration (or an
+exact idempotent replay); rejected imports produce no receipt.
+
+`verify_operator_lifecycle_checkpoint_chain_restore_receipt(...)` independently
+re-verifies every bundle transition and the receipt signature and field
+bindings. Verification requires the caller's authority keyring, starting
+checkpoint and independently retained starting digest, and expected ending
+sequence and digest. The versioned JSON Schema is
+`schemas/operator-lifecycle-checkpoint-chain-restore-receipt-v1.schema.json`.
+
+The receipt is signed evidence of an accepted restore operation as reported by
+the restoring process. It is not a trusted timestamp, proof of durable storage
+outside the store's stated SQLite guarantees, proof that the authority's
+snapshot is substantively correct, or protection against later privileged
+database rollback. Retain the receipt and expected final digest independently.
