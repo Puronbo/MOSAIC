@@ -1243,3 +1243,32 @@ def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
         envelope, **wrong_head_pin)
     assert not rejected_report.accepted
     assert "restore:external_head_pin_mismatch" in rejected_report.errors
+
+
+def test_portable_recovery_envelope_cli_fails_closed_on_untrusted_or_incomplete_inputs(tmp_path):
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    verifier = root / "scripts" / "verify_operator_lifecycle_recovery_envelope.py"
+    envelope = tmp_path / "envelope.json"
+    trust = tmp_path / "trust.json"
+    envelope.write_text(json.dumps({}), encoding="utf-8")
+    trust.write_text(json.dumps({}), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(verifier), "--envelope", str(envelope),
+         "--trust", str(trust)],
+        cwd=root, capture_output=True, text=True, check=False)
+    assert result.returncode == 2
+    assert '"accepted": false' in result.stdout
+    assert "schema_version" in result.stdout or "registry_id" in result.stdout
+
+    envelope.write_text("{not-json", encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(verifier), "--envelope", str(envelope),
+         "--trust", str(trust)],
+        cwd=root, capture_output=True, text=True, check=False)
+    assert result.returncode == 2
+    assert "error" in result.stdout
