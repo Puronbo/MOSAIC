@@ -170,3 +170,125 @@ def test_inconclusive_check_remains_inconclusive_in_profile():
     assert profile.independent_check_inconclusive_recorded
     assert not profile.independent_check_pass_recorded
     assert not profile.independent_check_failure_recorded
+
+def test_request_bound_lean_success_generates_kernel_event(monkeypatch):
+    import hashlib
+    from mosaic.core.requests import MathRequest
+    from mosaic.core.types import Operation
+    from mosaic.verification import lean_transformations
+    from mosaic.verification.lean_linear import LeanLinearCheck
+    from mosaic.verification.lean_transformations import (
+        LeanTransformationObligation, LeanTransformationVerification,
+    )
+    from mosaic.verification.evidence_envelope import verify_transformation_with_evidence
+
+    request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
+    result = "1 + x"
+    candidate_hash = hashlib.sha256(result.encode()).hexdigest()
+    proof_hash = hashlib.sha256(b"generated Lean theorem").hexdigest()
+    check = LeanLinearCheck(
+        status="FORMALLY_VERIFIED",
+        lhs_sha256=hashlib.sha256(b"x + 1").hexdigest(),
+        rhs_sha256=hashlib.sha256(result.encode()).hexdigest(),
+        lean_version="Lean version 4.test",
+        proof_source_sha256=proof_hash,
+        variables=("x",),
+        explanation="kernel accepted",
+    )
+    obligation = LeanTransformationObligation(
+        obligation_id="obligation-1",
+        request_sha256="a" * 64,
+        candidate_sha256=candidate_hash,
+        operation="expand",
+        checker_id=check.checker_id,
+        proposition="x + 1 = 1 + x",
+        variables=("x",),
+    )
+    monkeypatch.setattr(
+        lean_transformations, "verify_request_transformation_with_lean",
+        lambda req, candidate: LeanTransformationVerification(
+            status="FORMALLY_VERIFIED", obligation=obligation, check=check,
+            explanation="Lean accepted",
+        ),
+    )
+    verification, envelope = verify_transformation_with_evidence(
+        request, result, envelope_id="lean-1", event_id="lean-event-1",
+        claim="The transformation was accepted by Lean.",
+    )
+    assert verification.status == "FORMALLY_VERIFIED"
+    assert envelope is not None and verify_evidence_envelope(envelope)
+    event = envelope.events[0]
+    assert event.kind == EvidenceEventKind.FORMAL_KERNEL_CHECK
+    assert event.outcome == EvidenceEventOutcome.PASSED
+    assert event.artifact_sha256 == candidate_hash
+    assert event.proof_artifact_sha256 == proof_hash
+    assert event.kernel_id == "Lean"
+
+
+def test_request_bound_lean_rejection_generates_failed_not_pass(monkeypatch):
+    import hashlib
+    from mosaic.core.requests import MathRequest
+    from mosaic.core.types import Operation
+    from mosaic.verification import lean_transformations
+    from mosaic.verification.lean_linear import LeanLinearCheck
+    from mosaic.verification.lean_transformations import (
+        LeanTransformationObligation, LeanTransformationVerification,
+    )
+    from mosaic.verification.evidence_envelope import verify_transformation_with_evidence
+
+    request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
+    result = "x + 2"
+    check = LeanLinearCheck(
+        status="REJECTED",
+        lhs_sha256=hashlib.sha256(b"x + 1").hexdigest(),
+        rhs_sha256=hashlib.sha256(result.encode()).hexdigest(),
+        lean_version="Lean version 4.test",
+        proof_source_sha256=hashlib.sha256(b"rejected proof source").hexdigest(),
+        variables=("x",),
+        explanation="rejected",
+    )
+    obligation = LeanTransformationObligation(
+        obligation_id="obligation-2", request_sha256="b" * 64,
+        candidate_sha256=hashlib.sha256(result.encode()).hexdigest(),
+        operation="expand", checker_id=check.checker_id,
+        proposition="x + 1 = x + 2", variables=("x",),
+    )
+    monkeypatch.setattr(
+        lean_transformations, "verify_request_transformation_with_lean",
+        lambda req, candidate: LeanTransformationVerification(
+            status="REJECTED", obligation=obligation, check=check,
+            explanation="Lean rejected",
+        ),
+    )
+    _, envelope = verify_transformation_with_evidence(
+        request, result, envelope_id="lean-2", event_id="lean-event-2",
+        claim="The transformation was rejected by Lean.",
+    )
+    assert envelope is not None
+    profile = profile_evidence_envelope(envelope)
+    assert profile.kernel_failure_recorded
+    assert not profile.kernel_pass_recorded
+
+
+@pytest.mark.parametrize("status", ["KERNEL_UNAVAILABLE", "KERNEL_ERROR", "UNSUPPORTED"])
+def test_nonterminal_lean_outcomes_never_create_kernel_events(monkeypatch, status):
+    from mosaic.core.requests import MathRequest
+    from mosaic.core.types import Operation
+    from mosaic.verification import lean_transformations
+    from mosaic.verification.lean_transformations import LeanTransformationVerification
+    from mosaic.verification.evidence_envelope import verify_transformation_with_evidence
+
+    request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
+    monkeypatch.setattr(
+        lean_transformations, "verify_request_transformation_with_lean",
+        lambda req, candidate: LeanTransformationVerification(
+            status=status, explanation="no completed kernel result",
+        ),
+    )
+    verification, envelope = verify_transformation_with_evidence(
+        request, "1 + x", envelope_id="lean-none", event_id="lean-none-event",
+        claim="No kernel outcome was established.",
+    )
+    assert verification.status == status
+    assert envelope is None
+
