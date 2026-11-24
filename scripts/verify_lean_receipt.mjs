@@ -86,7 +86,8 @@ function sha256(value) {
 export function verifyAttestation(attestation, trustedPublicKeyB64) {
   try {
     if (!attestation || typeof attestation !== "object" || Array.isArray(attestation)) return false;
-    if (Object.keys(attestation).sort().join("|") !== [...ATTESTATION_FIELDS].sort().join("|")) return false;\n    if (Object.values(attestation).some((value) => typeof value === "string" && !isWellFormedUnicode(value))) return false;
+    if (Object.keys(attestation).sort().join("|") !== [...ATTESTATION_FIELDS].sort().join("|")) return false;
+    if (Object.values(attestation).some((value) => typeof value === "string" && !isWellFormedUnicode(value))) return false;
     if (attestation.schema_version !== "1.0" || attestation.kernel_id !== "Lean") return false;
     if (!["PASSED", "FAILED"].includes(attestation.outcome)) return false;
     const limits = {
