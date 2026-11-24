@@ -8,6 +8,7 @@ responsibilities.
 import base64
 import hashlib
 import json
+import platform
 import re
 import subprocess
 import tempfile
@@ -486,7 +487,10 @@ def verify_local_lean_environment_manifest(
             "lake_version_output": ["lake", "--version"],
             "elan_version_output": ["elan", "--version"],
         }
-        observed = {}
+        observed = {
+            "python_version": platform.python_version(),
+            "platform": platform.platform(),
+        }
         for key, command in commands.items():
             observed[key] = subprocess.run(
                 command, cwd=project, check=True, capture_output=True,
@@ -521,7 +525,7 @@ def verify_local_lean_environment_manifest(
         }
         for key, file_path in files.items():
             observed[key] = hashlib.sha256(file_path.read_bytes()).hexdigest()
-        keys = tuple(commands) + tuple(
+        keys = ("python_version", "platform") + tuple(commands) + tuple(
             f"{name}_binary_sha256" for name in ("lean", "lake", "elan")
         ) + ("observed_mathlib_revision", "mathlib_revision") + tuple(files)
         return all(observed[key] == expected.get(key) for key in keys)
