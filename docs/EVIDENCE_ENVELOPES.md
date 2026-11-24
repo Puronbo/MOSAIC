@@ -166,11 +166,20 @@ artifact attestation). The attestation binds the manifest's digest to the
 repository, commit, and workflow identity; it is stronger than a self-asserted
 runner ID or a locally generated hash.
 
-For a downloaded manifest, verify its GitHub artifact attestation with:
+CI also writes `lean-proof-attestation.json`, containing the complete Ed25519
+proof receipt, its public key, the exact environment-manifest digest, and the
+successful exact-source replay result. GitHub attests both files and uploads
+them together as the `lean-proof-provenance` workflow artifact. Verify either
+downloaded subject with:
 
 ```sh
 gh attestation verify lean-provenance.json -R Puronbo/MOSAIC
+gh attestation verify lean-proof-attestation.json -R Puronbo/MOSAIC
 ```
+
+The proof receipt's Ed25519 key is ephemeral in CI. Its standalone signature
+is therefore not a persistent identity; the GitHub artifact attestation is
+the externally verifiable binding to the repository workflow and commit.
 
 The manifest and attestation establish the provenance of the declared and
 observed environment metadata. They do not by themselves attest every
