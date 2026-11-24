@@ -470,4 +470,21 @@ theorem exponent_partial_derivative (x t : ℝ) (hx : 0 < x) :
       (jointValue x t * Real.log x) t := by
   simpa [jointValue, value, add_comm] using derivative x t hx
 
+
+/-- Evaluate the joint exponent family along a differentiable base path. -/
+noncomputable def alongBasePath (u : ℝ → ℝ) (t : ℝ) : ℝ :=
+  u t ^ (u t + t)
+
+/-- Chain rule along a differentiable positive-base path. This combines
+the changing-base and changing-exponent contributions in one derivative. -/
+theorem along_base_path_derivative
+    (u : ℝ → ℝ) (u' t : ℝ)
+    (hu : HasDerivAt u u' t) (hx : 0 < u t) :
+    HasDerivAt (fun s : ℝ => alongBasePath u s)
+      (u' * (u t + t) * u t ^ (u t + t - 1) +
+        (u' + 1) * alongBasePath u t * Real.log (u t)) t := by
+  have hexponent : HasDerivAt (fun s : ℝ => u s + s) (u' + 1) t := by
+    simpa using hu.add (hasDerivAt_id t)
+  simpa [alongBasePath, mul_assoc] using hu.rpow hexponent hx
+
 end MosaicRealExponentShift
