@@ -128,3 +128,32 @@ test("Node independently verifies the complete signed proof bundle", () => {
   const tampered = { ...bundleVector.receipt, replay: { exact_signed_source_replayed: false } };
   assert.equal(verifyReceiptBundle(tampered, valid), false);
 });
+
+
+test("Node CLI verifies a complete receipt, manifest, request and candidate bundle", () => {
+  const directory = mkdtempSync(join(tmpdir(), "mosaic-full-bundle-"));
+  const paths = {
+    receipt: join(directory, "receipt.json"),
+    manifest: join(directory, "manifest.json"),
+    request: join(directory, "request.json"),
+    candidate: join(directory, "candidate.txt"),
+  };
+  try {
+    writeFileSync(paths.receipt, JSON.stringify(bundleVector.receipt), "utf8");
+    writeFileSync(paths.manifest, Buffer.from(bundleVector.manifest_b64, "base64"));
+    writeFileSync(paths.request, JSON.stringify(bundleVector.request), "utf8");
+    writeFileSync(paths.candidate, Buffer.from(bundleVector.candidate_b64, "base64"));
+    const result = spawnSync(process.execPath, [
+      fileURLToPath(new URL("../scripts/verify_lean_receipt.mjs", import.meta.url)),
+      paths.receipt,
+      bundleVector.public_key_b64,
+      paths.manifest,
+      paths.request,
+      paths.candidate,
+    ], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Complete Lean proof receipt bundle verified/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
