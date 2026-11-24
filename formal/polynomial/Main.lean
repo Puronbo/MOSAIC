@@ -445,4 +445,29 @@ theorem iterated_derivative_formula (x t : ℝ) (r : Nat) :
       rw [iteratedDerivative, ih]
       ring
 
+
+/-- The joint positive-base exponent family, with both base and exponent
+parameter visible. -/
+noncomputable def jointValue (x t : ℝ) : ℝ :=
+  x ^ (x + t)
+
+/-- Differentiating the joint family with respect to its base gives the
+power-rule contribution plus the logarithmic contribution from the
+base-dependent exponent. -/
+theorem base_derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt (fun s : ℝ => jointValue s t)
+      ((x + t) * x ^ (x + t - 1) +
+        jointValue x t * Real.log x) x := by
+  have hbase : HasDerivAt (fun s : ℝ => s) 1 x := hasDerivAt_id x
+  have hexponent : HasDerivAt (fun s : ℝ => s + t) 1 x := by
+    simpa using (hasDerivAt_id x).add_const t
+  simpa [jointValue, mul_comm, mul_left_comm, mul_assoc] using
+    hbase.rpow hexponent hx
+
+/-- The exponent-parameter partial derivative of the joint family. -/
+theorem exponent_partial_derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt (fun s : ℝ => jointValue x s)
+      (jointValue x t * Real.log x) t := by
+  simpa [jointValue, value, add_comm] using derivative x t hx
+
 end MosaicRealExponentShift
