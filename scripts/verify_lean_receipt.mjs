@@ -21,7 +21,7 @@ function canonical(value) {
 
 export function parseJsonNoDuplicateKeys(source) {
   let index = 0;
-  const whitespace = () => { while (/\s/.test(source[index] ?? "") && index < source.length) index += 1; };
+  const whitespace = () => { while (/[\u0009\u000a\u000d\u0020]/.test(source[index] ?? "") && index < source.length) index += 1; };
   const string = () => {
     const start = index;
     if (source[index++] !== '"') throw new Error("expected JSON string");
