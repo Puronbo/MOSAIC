@@ -110,3 +110,34 @@ def test_failed_check_is_not_reported_as_passed():
     profile = profile_evidence_envelope(envelope)
     assert profile.independent_check_failure_recorded
     assert not profile.independent_check_pass_recorded
+
+def test_existing_registered_checker_bundle_converts_to_envelope():
+    import json
+
+    from mosaic.core.requests import MathRequest
+    from mosaic.core.types import Operation
+    from mosaic.verification.evidence import evidence_from_check
+    from mosaic.verification.task_bound import verify_task_bound_candidate
+
+    request = MathRequest(
+        operation=Operation.SIMPLIFY,
+        expression="(x + 1)**2",
+        variable="x",
+    )
+    raw = json.dumps({
+        "operation": "simplify",
+        "expression": "(x + 1)**2",
+        "variable": "x",
+        "result": "x**2 + 2*x + 1",
+    })
+    checked = verify_task_bound_candidate(request, raw)
+    bundle = evidence_from_check(checked, request, raw)
+    envelope = evidence_bundle_to_envelope(
+        bundle,
+        envelope_id="task-bound-001",
+        claim="The proposed polynomial transformation passed registered checks.",
+    )
+    assert verify_evidence_envelope(envelope)
+    profile = profile_evidence_envelope(envelope)
+    assert profile.independent_check_pass_recorded
+    assert not profile.kernel_pass_recorded
