@@ -113,3 +113,56 @@ def test_lifecycle_checkpoint_advance_requires_contiguous_pinned_chain():
         first, second, authority_keyring=ring,
         expected_previous_sha256="0" * 64, expected_registry_id="operators",
         authorization_time_utc="2026-11-24T08:06:00.000000Z").accepted
+
+
+def test_durable_lifecycle_anchor_store_advances_atomically_and_rejects_replay(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from mosaic.verification.recovery_operator_lifecycle import RecoveryOperatorLifecycleTrustAnchorStore
+    authority_sk, authority = identity("durable-authority")
+    op_sk, operator = identity("durable-operator")
+    ring = {"durable-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="durable-operators", sequence=20, previous_checkpoint_sha256="c" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="durable-authority", operator_keys=[operator], private_key=authority_sk)
+    candidate_a = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="durable-operators", sequence=21, previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:05:00.000000Z",
+        authority_key_id="durable-authority", operator_keys=[operator], private_key=authority_sk)
+    candidate_b = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="durable-operators", sequence=21, previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:06:00.000000Z",
+        authority_key_id="durable-authority", operator_keys=[operator], private_key=authority_sk)
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "lifecycle-anchor.sqlite3"))
+    assert store.provision(registry_id=first.registry_id, sequence=first.sequence,
+                           checkpoint_sha256=first.digest(),
+                           updated_at_utc="2026-11-24T08:00:00.000000Z")
+    assert not store.provision(registry_id=first.registry_id, sequence=first.sequence,
+                               checkpoint_sha256=first.digest(),
+                               updated_at_utc="2026-11-24T08:00:00.000000Z")
+    assert not store.advance(first, candidate_a, authority_keyring=ring,
+                             expected_current_sha256="0" * 64,
+                             authorization_time_utc="2026-11-24T08:10:00.000000Z").accepted
+    assert store.read(first.registry_id)["checkpoint_sha256"] == first.digest()
+
+    barrier = Barrier(2)
+    def attempt(candidate):
+        local_store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "lifecycle-anchor.sqlite3"))
+        barrier.wait()
+        return local_store.advance(
+            first, candidate, authority_keyring=ring,
+            expected_current_sha256=first.digest(),
+            authorization_time_utc="2026-11-24T08:10:00.000000Z").accepted
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(attempt, [candidate_a, candidate_b]))
+    assert sum(outcomes) == 1
+    retained = store.read(first.registry_id)
+    assert retained["sequence"] == 21
+    assert retained["checkpoint_sha256"] in {candidate_a.digest(), candidate_b.digest()}
+    winner = candidate_a if retained["checkpoint_sha256"] == candidate_a.digest() else candidate_b
+    loser = candidate_b if winner is candidate_a else candidate_a
+    assert not store.advance(first, loser, authority_keyring=ring,
+                             expected_current_sha256=first.digest(),
+                             authorization_time_utc="2026-11-24T08:10:00.000000Z").accepted
+    assert store.read(first.registry_id)["checkpoint_sha256"] == winner.digest()
