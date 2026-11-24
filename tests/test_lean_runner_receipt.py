@@ -66,3 +66,54 @@ def test_signing_key_must_be_bytes_of_sufficient_length(key):
 def test_receipt_rejects_malformed_hashes():
     with pytest.raises(ValidationError):
         receipt(artifact_sha256="not-a-digest")
+
+def test_receipt_factory_binds_completed_request_bound_lean_result():
+    from mosaic.core.requests import MathRequest
+    from mosaic.core.types import Operation
+    from mosaic.verification.lean_linear import LeanLinearCheck
+    from mosaic.verification.lean_transformations import (
+        LeanTransformationObligation, LeanTransformationVerification,
+    )
+    from mosaic.verification.lean_runner_receipt import receipt_from_transformation_result
+    from mosaic.verification.obligations import request_fingerprint
+
+    request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
+    result = "1 + x"
+    artifact_hash = hashlib.sha256(result.encode()).hexdigest()
+    check = LeanLinearCheck(
+        status="FORMALLY_VERIFIED",
+        lhs_sha256=hashlib.sha256(request.expression.encode()).hexdigest(),
+        rhs_sha256=artifact_hash,
+        lean_version="Lean version 4.test",
+        proof_source_sha256=hashlib.sha256(b"generated proof source").hexdigest(),
+        variables=("x",),
+        explanation="accepted",
+    )
+    obligation = LeanTransformationObligation(
+        obligation_id="obligation-1",
+        request_sha256=request_fingerprint(request),
+        candidate_sha256=artifact_hash,
+        operation="expand",
+        checker_id=check.checker_id,
+        proposition="x + 1 = 1 + x",
+        variables=("x",),
+    )
+    verification = LeanTransformationVerification(
+        status="FORMALLY_VERIFIED", obligation=obligation, check=check,
+        explanation="accepted",
+    )
+    signed = receipt_from_transformation_result(
+        verification, request, result, receipt_id="receipt-factory",
+        runner_id="trusted-ci", signing_key=KEY,
+    )
+    assert signed.verify(KEY)
+    assert signed.artifact_sha256 == artifact_hash
+    assert signed.request_sha256 == request_fingerprint(request)
+    assert signed.outcome == EvidenceEventOutcome.PASSED
+
+    with pytest.raises(ValueError, match="candidate"):
+        receipt_from_transformation_result(
+            verification, request, "different result", receipt_id="receipt-bad",
+            runner_id="trusted-ci", signing_key=KEY,
+        )
+
