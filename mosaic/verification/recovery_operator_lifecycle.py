@@ -214,6 +214,13 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
                 "registry_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL, "
                 "checkpoint_sha256 TEXT NOT NULL, updated_at_utc TEXT NOT NULL)"
             )
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS lifecycle_chain_restore_receipt ("
+                "registry_id TEXT NOT NULL, receipt_sha256 TEXT NOT NULL, "
+                "ending_sequence INTEGER NOT NULL, ending_checkpoint_sha256 TEXT NOT NULL, "
+                "bundle_sha256 TEXT NOT NULL, issued_at_utc TEXT NOT NULL, receipt_json TEXT NOT NULL, "
+                "PRIMARY KEY (registry_id, receipt_sha256))"
+            )
 
     def _connect(self):
         connection = self._sqlite3.connect(self._database_path, timeout=30, isolation_level=None)
@@ -337,6 +344,40 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         except (ValueError, TypeError, self._sqlite3.Error):
             return False
 
+    def read_checkpoint_chain_restore_receipts(self, registry_id: str) -> tuple[dict, ...]:
+        """Return the append-only locally retained signed restore receipts for a registry."""
+        import json
+        try:
+            with self._connect() as connection:
+                rows = connection.execute(
+                    "SELECT receipt_json FROM lifecycle_chain_restore_receipt "
+                    "WHERE registry_id=? ORDER BY rowid", (registry_id,)
+                ).fetchall()
+            return tuple(json.loads(row[0]) for row in rows)
+        except (ValueError, TypeError, self._sqlite3.Error):
+            return ()
+
+    def _insert_checkpoint_chain_restore_receipt(self, connection, receipt) -> bool:
+        import json
+        if not isinstance(receipt, SignedOperatorLifecycleCheckpointChainRestoreReceipt):
+            return False
+        payload = receipt.model_dump(mode="json")
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        cursor = connection.execute(
+            "INSERT OR IGNORE INTO lifecycle_chain_restore_receipt "
+            "(registry_id, receipt_sha256, ending_sequence, ending_checkpoint_sha256, "
+            "bundle_sha256, issued_at_utc, receipt_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (receipt.registry_id, receipt.digest(), receipt.ending_sequence,
+             receipt.ending_checkpoint_sha256, receipt.bundle_sha256, receipt.issued_at_utc, encoded))
+        if cursor.rowcount == 1:
+            return True
+        row = connection.execute(
+            "SELECT receipt_json FROM lifecycle_chain_restore_receipt "
+            "WHERE registry_id=? AND receipt_sha256=?",
+            (receipt.registry_id, receipt.digest())
+        ).fetchone()
+        return row is not None and row[0] == encoded
+
     def restore_checkpoint_chain_bundle(
         self, bundle: "OperatorLifecycleCheckpointChainBundle",
         starting_checkpoint: SignedOperatorLifecycleCheckpoint, *,
@@ -347,6 +388,7 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         expected_ending_sequence: int,
         authorization_time_utc: str | None = None,
         allow_initial: bool = False,
+        _receipt_to_record: "SignedOperatorLifecycleCheckpointChainRestoreReceipt | None" = None,
     ) -> bool:
         """Atomically restore a fully verified chain, advancing only its exact local head.
 
@@ -370,6 +412,17 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
             authorization_time_utc=authorization_time_utc)
         if not report.accepted:
             return False
+        if _receipt_to_record is not None and (
+            not verify_operator_lifecycle_checkpoint_chain_restore_receipt(
+                _receipt_to_record, bundle, starting_checkpoint,
+                authority_keyring=authority_keyring,
+                expected_registry_id=expected_registry_id,
+                expected_starting_checkpoint_sha256=expected_starting_checkpoint_sha256,
+                expected_ending_checkpoint_sha256=expected_ending_checkpoint_sha256,
+                expected_ending_sequence=expected_ending_sequence,
+                authorization_time_utc=authorization_time_utc)
+        ):
+            return False
         ending = bundle.checkpoints[-1]
         try:
             timestamp = _canonical_timestamp(ending.issued_at_utc)
@@ -390,12 +443,20 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
                     if cursor.rowcount != 1:
                         connection.rollback()
                         return False
+                    if (_receipt_to_record is not None
+                            and not self._insert_checkpoint_chain_restore_receipt(connection, _receipt_to_record)):
+                        connection.rollback()
+                        return False
                     connection.commit()
                     return True
 
                 # An exact replay is safe and idempotent, even when its verified
                 # bundle starts earlier than the already-retained final head.
                 if row[0] == expected_ending_sequence and row[1] == expected_ending_checkpoint_sha256:
+                    if (_receipt_to_record is not None
+                            and not self._insert_checkpoint_chain_restore_receipt(connection, _receipt_to_record)):
+                        connection.rollback()
+                        return False
                     connection.commit()
                     return True
 
@@ -411,6 +472,10 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
                     (ending.sequence, ending.digest(), timestamp, expected_registry_id,
                      starting_checkpoint.sequence, expected_starting_checkpoint_sha256))
                 if cursor.rowcount != 1:
+                    connection.rollback()
+                    return False
+                if (_receipt_to_record is not None
+                        and not self._insert_checkpoint_chain_restore_receipt(connection, _receipt_to_record)):
                     connection.rollback()
                     return False
                 connection.commit()
@@ -465,7 +530,8 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
             expected_ending_checkpoint_sha256=expected_ending_checkpoint_sha256,
             expected_ending_sequence=expected_ending_sequence,
             authorization_time_utc=authorization_time_utc,
-            allow_initial=allow_initial):
+            allow_initial=allow_initial,
+            _receipt_to_record=receipt):
             return None
         return receipt
 
