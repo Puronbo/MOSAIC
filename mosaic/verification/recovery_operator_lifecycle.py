@@ -418,6 +418,48 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         except (ValueError, TypeError, self._sqlite3.Error):
             return False
 
+    def restore_checkpoint_chain_bundle_with_receipt(
+        self, bundle: "OperatorLifecycleCheckpointChainBundle",
+        starting_checkpoint: SignedOperatorLifecycleCheckpoint, *,
+        authority_keyring: dict[str, PolicyPublisherKey],
+        expected_registry_id: str,
+        expected_starting_checkpoint_sha256: str,
+        expected_ending_checkpoint_sha256: str,
+        expected_ending_sequence: int,
+        issued_at_utc: str,
+        receipt_private_key: bytes,
+        authorization_time_utc: str | None = None,
+        allow_initial: bool = False,
+    ) -> "SignedOperatorLifecycleCheckpointChainRestoreReceipt | None":
+        """Restore a verified bundle and return a signed receipt only on success."""
+        if not isinstance(bundle, OperatorLifecycleCheckpointChainBundle):
+            return None
+        report = verify_operator_lifecycle_checkpoint_chain_bundle(
+            bundle, starting_checkpoint, authority_keyring=authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_starting_checkpoint_sha256=expected_starting_checkpoint_sha256,
+            expected_ending_checkpoint_sha256=expected_ending_checkpoint_sha256,
+            expected_ending_sequence=expected_ending_sequence,
+            authorization_time_utc=authorization_time_utc)
+        if not report.accepted:
+            return None
+        try:
+            receipt = SignedOperatorLifecycleCheckpointChainRestoreReceipt.sign(
+                bundle=bundle, report=report, issued_at_utc=issued_at_utc,
+                private_key=receipt_private_key)
+        except (ValueError, TypeError):
+            return None
+        if not self.restore_checkpoint_chain_bundle(
+            bundle, starting_checkpoint, authority_keyring=authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_starting_checkpoint_sha256=expected_starting_checkpoint_sha256,
+            expected_ending_checkpoint_sha256=expected_ending_checkpoint_sha256,
+            expected_ending_sequence=expected_ending_sequence,
+            authorization_time_utc=authorization_time_utc,
+            allow_initial=allow_initial):
+            return None
+        return receipt
+
     def advance(self, previous: SignedOperatorLifecycleCheckpoint,
                 candidate: SignedOperatorLifecycleCheckpoint, *,
                 authority_keyring: dict[str, PolicyPublisherKey],
@@ -661,3 +703,102 @@ def verify_operator_lifecycle_checkpoint_chain_bundle(
         verified_transitions=verified,
         errors=tuple(dict.fromkeys(errors)),
     )
+
+
+
+class SignedOperatorLifecycleCheckpointChainRestoreReceipt(BaseModel):
+    """Authority-signed record of a successfully restored verified chain bundle."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    bundle_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    starting_sequence: int = Field(ge=0)
+    starting_checkpoint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    ending_sequence: int = Field(ge=0)
+    ending_checkpoint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    verified_transitions: int = Field(ge=1)
+    authority_key_id: str = Field(min_length=1, max_length=160)
+    issued_at_utc: str = Field(min_length=20, max_length=40)
+    signature_b64: str = Field(min_length=1, max_length=128)
+
+    @classmethod
+    def sign(cls, *, bundle: "OperatorLifecycleCheckpointChainBundle",
+             report: "OperatorLifecycleCheckpointChainReport",
+             issued_at_utc: str, private_key: bytes) -> "SignedOperatorLifecycleCheckpointChainRestoreReceipt":
+        if (not isinstance(bundle, OperatorLifecycleCheckpointChainBundle)
+                or not isinstance(report, OperatorLifecycleCheckpointChainReport)
+                or not report.accepted or not bundle.checkpoints):
+            raise ValueError("a fully verified checkpoint-chain bundle is required")
+        if not isinstance(private_key, bytes) or len(private_key) != 32:
+            raise ValueError("Ed25519 private key must be exactly 32 raw bytes")
+        payload = {
+            "schema_version": "1.0", "registry_id": report.registry_id,
+            "bundle_sha256": bundle.digest(),
+            "starting_sequence": report.starting_sequence,
+            "starting_checkpoint_sha256": report.starting_checkpoint_sha256,
+            "ending_sequence": report.ending_sequence,
+            "ending_checkpoint_sha256": report.ending_checkpoint_sha256,
+            "verified_transitions": report.verified_transitions,
+            "authority_key_id": bundle.checkpoints[-1].authority_key_id,
+            "issued_at_utc": _canonical_timestamp(issued_at_utc),
+        }
+        signature = Ed25519PrivateKey.from_private_bytes(private_key).sign(_canonical(payload))
+        return cls(**payload, signature_b64=base64.b64encode(signature).decode("ascii"))
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+def verify_operator_lifecycle_checkpoint_chain_restore_receipt(
+    receipt: SignedOperatorLifecycleCheckpointChainRestoreReceipt,
+    bundle: "OperatorLifecycleCheckpointChainBundle",
+    starting_checkpoint: SignedOperatorLifecycleCheckpoint, *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str,
+    expected_starting_checkpoint_sha256: str,
+    expected_ending_checkpoint_sha256: str,
+    expected_ending_sequence: int,
+    authorization_time_utc: str | None = None,
+) -> bool:
+    """Independently verify receipt signature, bundle binding, and every chain step."""
+    if (not isinstance(receipt, SignedOperatorLifecycleCheckpointChainRestoreReceipt)
+            or not isinstance(bundle, OperatorLifecycleCheckpointChainBundle)):
+        return False
+    report = verify_operator_lifecycle_checkpoint_chain_bundle(
+        bundle, starting_checkpoint, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_starting_checkpoint_sha256=expected_starting_checkpoint_sha256,
+        expected_ending_checkpoint_sha256=expected_ending_checkpoint_sha256,
+        expected_ending_sequence=expected_ending_sequence,
+        authorization_time_utc=authorization_time_utc)
+    authority = authority_keyring.get(receipt.authority_key_id) if isinstance(authority_keyring, dict) else None
+    if (not report.accepted or authority is None
+            or receipt.registry_id != report.registry_id
+            or receipt.bundle_sha256 != bundle.digest()
+            or receipt.starting_sequence != report.starting_sequence
+            or receipt.starting_checkpoint_sha256 != report.starting_checkpoint_sha256
+            or receipt.ending_sequence != report.ending_sequence
+            or receipt.ending_checkpoint_sha256 != report.ending_checkpoint_sha256
+            or receipt.verified_transitions != report.verified_transitions
+            or not bundle.checkpoints
+            or receipt.authority_key_id != bundle.checkpoints[-1].authority_key_id
+            or not authority.permits(receipt.authority_key_id, receipt.issued_at_utc)):
+        return False
+    try:
+        if _canonical_timestamp(receipt.issued_at_utc) != receipt.issued_at_utc:
+            return False
+        if authorization_time_utc is not None:
+            if _canonical_timestamp(authorization_time_utc) != authorization_time_utc:
+                return False
+            if authorization_time_utc < receipt.issued_at_utc:
+                return False
+        signature = base64.b64decode(receipt.signature_b64, validate=True)
+        if len(signature) != 64:
+            return False
+        payload = receipt.model_dump(mode="json", exclude={"signature_b64"})
+        Ed25519PublicKey.from_public_bytes(authority.public_key()).verify(signature, _canonical(payload))
+        return True
+    except (ValueError, TypeError, InvalidSignature):
+        return False
+
+
