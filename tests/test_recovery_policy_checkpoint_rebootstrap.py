@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import copy
 import sqlite3
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -17,6 +18,8 @@ from mosaic.verification.recovery_policy_checkpoint_recovery import (
     RecoveryPolicyCheckpointRebootstrapIntent,
     RecoveryPolicyCheckpointRebootstrapPolicy,
     rebootstrap_recovery_policy_checkpoint_store,
+    export_rebootstrap_audit,
+    verify_rebootstrap_audit_export,
 )
 
 
@@ -81,6 +84,24 @@ def test_threshold_rebootstrap_preserves_incidents_and_starts_new_epoch(tmp_path
     assert not store.is_quarantined("registry")
     assert store.matches_trusted_checkpoint(new_cp)
     assert store.incidents("registry") == incidents_before
+    audit_export = export_rebootstrap_audit(store, registry_id="registry")
+    audit_head = audit_export["head_sha256"]
+    audit_kwargs = {
+        "operator_keyring": {"operator-1": op1, "operator-2": op2},
+        "publisher_keyring": {"publisher": pub},
+        "checkpoint_keyring": {"checkpoint": cp_key},
+    }
+    assert verify_rebootstrap_audit_export(audit_export, **audit_kwargs,
+                                           expected_head_sha256=audit_head)
+    altered = copy.deepcopy(audit_export)
+    altered["records"][0]["audit"]["intent"]["reason"] = "forged reason"
+    assert not verify_rebootstrap_audit_export(altered, **audit_kwargs)
+    truncated = copy.deepcopy(audit_export)
+    truncated["records"] = []
+    truncated["record_count"] = 0
+    truncated["head_sha256"] = "0" * 64
+    assert not verify_rebootstrap_audit_export(truncated, **audit_kwargs,
+                                               expected_head_sha256=audit_head)
 
     extended = entry(pub_sk, 4, sequence=1, previous=fork.digest())
     extended_cp = checkpoint(extended, cp_sk)
