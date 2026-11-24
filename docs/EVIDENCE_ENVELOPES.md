@@ -848,3 +848,35 @@ independent humans or custodians. The policy and operator keyring must be
 provisioned independently. SQLite still cannot prevent a privileged attacker
 from replacing or rolling back the database and its backups; retain external
 freshness anchors and protected backups.
+
+
+
+### Independently verifiable recovery-policy rebootstrap audit (G-EP103)
+
+G-EP103 extends `mosaic.verification.recovery_policy_checkpoint_recovery`
+with `export_rebootstrap_audit(...)` and
+`verify_rebootstrap_audit_export(...)`. Each new rebootstrap audit record
+retains the signed intent, every co-approval, the governing threshold policy,
+the complete signed policy-registry entries, and the selected signed
+checkpoint. This permits a verifier to re-check operator key lifecycle and
+signatures, threshold and identity separation, the selected checkpoint
+digest, and the complete publisher-signed registry chain without trusting
+the SQLite database's current head.
+
+Audit records are hash-linked per registry and exports include record count
+and the computed head digest. The verifier rejects modified record contents,
+broken links, non-increasing epochs, malformed or incomplete exports,
+invalid signatures, invalid policy registry material, and a mismatched
+externally expected head digest. Retain the exported head digest in a
+separately controlled system and compare it during later audits: an
+unkeyed local hash chain detects edits and internal gaps but cannot detect
+truncation of the final records if an attacker can also rewrite the export's
+head. The verifier therefore accepts an independently retained
+`expected_head_sha256`.
+
+Exports from pre-G-EP103 audit rows may not contain the newly retained signed
+registry material and are not independently verifiable by this version;
+preserve those legacy rows and their original external evidence packages.
+The hash chain is an integrity structure, not a signature or external
+timestamp. Database rollback, audit-head custody, evidence retention, and
+operator-key governance remain deployment responsibilities.
