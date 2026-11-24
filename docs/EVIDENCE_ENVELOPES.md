@@ -1507,3 +1507,31 @@ verifier does not establish clock authenticity, timestamp authority, or
 consensus. Omitting the parameter preserves the prior behavior and performs
 signature, authority, sequence, hash-link, and external-head validation
 without imposing a wall-clock cutoff.
+
+### G-EP131: standalone portable recovery-envelope verifier
+
+The repository now provides `scripts/verify_operator_lifecycle_recovery_envelope.py`.
+It accepts an envelope JSON file and a separate trust-configuration JSON file,
+loads the authority keyring as validated `PolicyPublisherKey` records, and
+runs the deterministic G-EP129 report verifier. It prints a sorted,
+indented JSON report and exits 0 for accepted evidence, 1 for cryptographically
+or policy-rejected evidence, and 2 for malformed or incomplete inputs.
+
+Example:
+
+```sh
+python scripts/verify_operator_lifecycle_recovery_envelope.py \\
+  --envelope recovery-envelope.json \\
+  --trust independently-provisioned-trust.json \\
+  --authorization-time-utc 2026-11-24T08:03:00.000000Z
+```
+
+The trust configuration shape is specified in
+`schemas/operator-lifecycle-recovery-envelope-trust-v1.schema.json`.
+It contains the expected registry and initial key IDs, exact externally
+retained rotation and restore-head digests and terminal positions, plus the
+independently provisioned public-key records. Keep this file outside the
+artifact's storage and threat domain. The optional authorization time must
+also come from the caller's policy environment; it is not a trusted timestamp
+service. The CLI does not fetch keys, infer trust from the envelope, or claim
+the underlying restoration statements are substantively true.
