@@ -392,7 +392,8 @@ to `verify_historical_with_keyring(...)`. A Boolean assertion by an untrusted
 caller is not a substitute for this verification sequence.
 
 `HistoricalLeanTrustedKey` records activation, retirement, revocation, and
-compromise-effective UTC times. The verifier applies these rules:
+compromise-effective UTC times. Its portable registry entry is specified by
+`schemas/historical-lean-key-v1.schema.json`. The verifier applies these rules:
 
 - The signed issuance time cannot precede key activation.
 - The external verified timestamp cannot precede signed issuance.
