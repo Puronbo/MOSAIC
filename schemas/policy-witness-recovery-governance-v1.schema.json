@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/policy-witness-recovery-governance-v1.schema.json",
+  "title": "MOSAIC Policy Witness Recovery Governance v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "minimum_approvals", "required_operator_key_ids", "prohibited_operator_key_ids"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "minimum_approvals": { "type": "integer", "minimum": 1, "maximum": 20 },
+    "required_operator_key_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 160 }
+    },
+    "prohibited_operator_key_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 160 }
+    }
+  }
+}
