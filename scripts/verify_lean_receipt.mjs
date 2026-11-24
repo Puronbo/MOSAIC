@@ -109,7 +109,8 @@ export function verifyAttestation(attestation, trustedPublicKeyB64) {
     if (attestation.mathlib_revision !== null && (typeof attestation.mathlib_revision !== "string" || !HEX40.test(attestation.mathlib_revision))) return false;
     if (attestation.workflow_run_id !== null && (typeof attestation.workflow_run_id !== "string" || Array.from(attestation.workflow_run_id).length > 40)) return false;
     if (attestation.lean_toolchain !== null && (typeof attestation.lean_toolchain !== "string" || Array.from(attestation.lean_toolchain).length > 160)) return false;
-    if (typeof attestation.signature_b64 !== "string" || attestation.signature_b64.length !== 88) return false;\n    const publicKey = Buffer.from(trustedPublicKeyB64, "base64");
+    if (typeof attestation.signature_b64 !== "string" || attestation.signature_b64.length !== 88) return false;
+    const publicKey = Buffer.from(trustedPublicKeyB64, "base64");
     if (publicKey.length !== 32 || publicKey.toString("base64") !== trustedPublicKeyB64) return false;
     const signature = Buffer.from(attestation.signature_b64, "base64");
     if (signature.length !== 64 || signature.toString("base64") !== attestation.signature_b64) return false;
@@ -126,19 +127,21 @@ export function verifyAttestation(attestation, trustedPublicKeyB64) {
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
   const [, , receiptPath, trustedPublicKeyB64] = process.argv;
   if (!receiptPath || !trustedPublicKeyB64) {
-    process.stderr.write("Usage: node scripts/verify_lean_receipt.mjs <receipt-or-vector.json> <trusted-public-key-b64>\\n");
+    process.stderr.write("Usage: node scripts/verify_lean_receipt.mjs <receipt-or-vector.json> <trusted-public-key-b64>\n");
     process.exit(2);
   }
   try {
-    const receiptBytes = readFileSync(receiptPath);\n    const receiptText = new TextDecoder("utf-8", { fatal: true }).decode(receiptBytes);\n    const document = parseJsonNoDuplicateKeys(receiptText);
+    const receiptBytes = readFileSync(receiptPath);
+    const receiptText = new TextDecoder("utf-8", { fatal: true }).decode(receiptBytes);
+    const document = parseJsonNoDuplicateKeys(receiptText);
     const attestation = document.attestation ?? document;
     if (!verifyAttestation(attestation, trustedPublicKeyB64)) {
-      process.stderr.write("Invalid or untrusted Lean attestation\\n");
+      process.stderr.write("Invalid or untrusted Lean attestation\n");
       process.exit(1);
     }
-    process.stdout.write("Ed25519 Lean attestation verified\\n");
+    process.stdout.write("Ed25519 Lean attestation verified\n");
   } catch (error) {
-    process.stderr.write(`Unable to verify receipt: ${error.message}\\n`);
+    process.stderr.write(`Unable to verify receipt: ${error.message}\n`);
     process.exit(1);
   }
 }
