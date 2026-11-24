@@ -98,3 +98,26 @@ def test_root_derivative_rejects_unsupported_operation_and_variable():
         lean_derivation.verify_derivation_root_derivative_with_lean(
             y_request, build_derivation_tree(y_request), "6*y*(y**2+1)**2"
         )
+
+
+
+def test_receipt_validation_replays_checker_and_rejects_tampering(monkeypatch):
+    source = request()
+    tree = build_derivation_tree(source)
+    monkeypatch.setattr(
+        lean_derivation,
+        "verify_polynomial_real_derivative",
+        lambda *args, **kwargs: check(),
+    )
+    receipt = lean_derivation.verify_derivation_root_derivative_with_lean(
+        source, tree, "6*x*(x**2+1)**2"
+    )
+    assert lean_derivation.validate_lean_derivation_receipt(
+        source, tree, "6*x*(x**2+1)**2", receipt
+    ) == receipt
+
+    tampered = receipt.model_copy(update={"request_sha256": "0" * 64})
+    with pytest.raises(ValueError, match="independent replay"):
+        lean_derivation.validate_lean_derivation_receipt(
+            source, tree, "6*x*(x**2+1)**2", tampered
+        )
