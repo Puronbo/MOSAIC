@@ -22,7 +22,7 @@ def _load_policy(policy: dict[str, Any] | str | Path) -> dict[str, Any]:
     else:
         value = json.loads(Path(policy).read_text(encoding="utf-8"))
     required = {
-        "schema_version", "repository", "repository_id", "workflow_path",
+        "schema_version", "repository", "repository_id", "repository_owner_id", "workflow_path",
         "signer_workflow", "workflow_ref", "source_repository_uri",
         "oidc_issuer", "predicate_type", "require_github_hosted_runner",
         "require_verified_timestamp",
@@ -79,6 +79,7 @@ def verify_gh_attestation_result(
             raise AttestationPolicyError(f"attestation {index} has malformed verification data")
         expected_cert = {
             "issuer": rules["oidc_issuer"],
+            "sourceRepositoryOwnerIdentifier": str(rules["repository_owner_id"]),
             "sourceRepositoryURI": rules["source_repository_uri"],
             "sourceRepositoryIdentifier": str(rules["repository_id"]),
             "sourceRepositoryRef": rules["workflow_ref"],
