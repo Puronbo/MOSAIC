@@ -1,0 +1,13 @@
+{
+  "schema_version": "mosaic.github-attestation-policy.v1",
+  "repository": "Puronbo/MOSAIC",
+  "repository_id": "1468522236",
+  "workflow_path": ".github/workflows/lean-polynomial.yml",
+  "signer_workflow": "Puronbo/MOSAIC/.github/workflows/lean-polynomial.yml",
+  "workflow_ref": "refs/heads/main",
+  "source_repository_uri": "https://github.com/Puronbo/MOSAIC",
+  "oidc_issuer": "https://token.actions.githubusercontent.com",
+  "predicate_type": "https://slsa.dev/provenance/v1",
+  "require_github_hosted_runner": true,
+  "require_verified_timestamp": true
+}
