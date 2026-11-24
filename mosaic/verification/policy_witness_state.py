@@ -207,8 +207,12 @@ class PolicyWitnessStateStore:
                    WHERE log_id=? ORDER BY sequence""", (log_id,)
             ).fetchall()
         history = [self._decode(row["checkpoint_json"]) for row in rows]
-        if not history or history[-1].digest() != head.digest():
-            history = [head]
+        if (not history or history[-1].digest() != head.digest()
+                or history[0].sequence != 0
+                or any(item.sequence != index for index, item in enumerate(history))):
+            # Do not emit an unverifiable partial chain from a pre-snapshot
+            # database. Rebuild trust from an authenticated registry history.
+            return None
         return SignedPolicyWitnessSnapshot.sign(
             log_id=log_id, checkpoint=head, checkpoint_history=history,
             quarantined=self.is_quarantined(log_id),
