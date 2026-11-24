@@ -119,6 +119,11 @@ class RecoveryPolicyCheckpointStore:
                     "INSERT INTO recovery_policy_history VALUES (?, ?, ?, ?)",
                     (checkpoint.registry_id, checkpoint.sequence, checkpoint_hash, digest),
                 )
+                db.execute(
+                    "INSERT INTO recovery_policy_epoch_entries VALUES (?, 0, ?, ?, ?)",
+                    (checkpoint.registry_id, checkpoint.sequence, checkpoint.entry_sha256,
+                     entries[-1].model_dump_json()),
+                )
                 db.commit()
                 return True
             retained = SignedPolicyWitnessRecoveryPolicyCheckpoint.model_validate_json(row["checkpoint_json"])
