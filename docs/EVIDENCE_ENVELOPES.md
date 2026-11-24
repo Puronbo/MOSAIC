@@ -726,3 +726,35 @@ long-term audit of each co-approval should retain the supplied approval
 records alongside their evidence package. Revocation is evaluated against
 each approval's signed time, so key compromise discovered later requires an
 explicit deployment policy for retrospective invalidation.
+
+
+## Signed recovery-policy governance (G-EP99)
+
+Witness recovery thresholds can themselves be governed by an append-only
+signed policy registry. The
+`mosaic.verification.policy_witness_recovery_policy_registry` module defines
+`SignedPolicyWitnessRecoveryPolicyEntry`, which binds a registry identity,
+contiguous sequence, predecessor digest, exact
+`PolicyWitnessRecoveryPolicy`, publication time, and lifecycle-authorized
+publisher signature. The registry verifier rejects gaps, reordered entries,
+cross-registry links, invalid policy constraints, altered entries, and
+publishers outside their activation/revocation window.
+
+A separately signed
+`SignedPolicyWitnessRecoveryPolicyCheckpoint` binds the expected registry
+head sequence and entry digest. Consumers must retain or obtain this
+checkpoint through a trust channel independent of the registry being checked,
+then call `verify_policy_witness_recovery_policy_registry`. An otherwise
+valid older prefix is rejected when it does not match that trusted head.
+Entry and checkpoint schemas are published alongside the policy schema.
+
+This is a policy-governance primitive, not automatic policy distribution or
+an implicit replacement for the recovery API's explicitly supplied policy.
+A deployment must verify the signed registry and pass its selected policy to
+the recovery workflow, persist the newest checkpoint outside the registry,
+and protect publisher/checkpoint keys. If an attacker can replace both the
+registry and the supposedly trusted checkpoint, rollback remains possible.
+The signature authenticates a policy statement; it does not prove that its
+threshold or operator identities are wise, independently administered, or
+mathematically correct. Existing recovery calls that supply a policy directly
+remain supported for compatibility.
