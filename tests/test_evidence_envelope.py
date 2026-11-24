@@ -91,7 +91,7 @@ def test_all_events_must_bind_to_same_artifact():
         EvidenceEventKind.COMPUTATION,
         EvidenceEventOutcome.PRODUCED,
     ).model_copy(update={"artifact_sha256": other_artifact})
-    with pytest.raises(ValueError, match="same artifact"):
+    with pytest.raises(ValueError, match="envelope artifact"):
         create_evidence_envelope(
             envelope_id="env-mismatch",
             claim="Mismatched evidence.",
