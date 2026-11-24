@@ -101,7 +101,7 @@ def test_provenance_generator_requires_complete_github_actions_identity(monkeypa
     }
 
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "attempt-two")
-    with pytest.raises(SystemExit, match="GITHUB_RUN_ATTEMPT must be numeric"):
+    with pytest.raises(SystemExit, match="GITHUB_RUN_ATTEMPT must be a positive integer"):
         module.required_ci_metadata()
 
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "0")
