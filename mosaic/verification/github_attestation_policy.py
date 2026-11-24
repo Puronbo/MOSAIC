@@ -41,8 +41,9 @@ def _load_policy(policy: dict[str, Any] | str | Path) -> dict[str, Any]:
         raise AttestationPolicyError("source_repository_uri must match repository")
     if value["signer_workflow"] != value["repository"] + "/" + value["workflow_path"]:
         raise AttestationPolicyError("signer_workflow must match repository and workflow_path")
-    if not re.fullmatch(r"[0-9]+", str(value["repository_id"])):
-        raise AttestationPolicyError("repository_id must be a numeric immutable ID")
+    for field in ("repository_id", "repository_owner_id"):
+        if not isinstance(value[field], str) or not re.fullmatch(r"[0-9]+", value[field]):
+            raise AttestationPolicyError(f"{field} must be a numeric immutable ID")
     return value
 
 
