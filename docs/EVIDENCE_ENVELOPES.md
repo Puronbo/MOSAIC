@@ -118,10 +118,13 @@ verify it with `verify_evidence_event_signature`. The lower-level
 already holds a completed verification result.
 
 The signed payload includes the request fingerprint, exact candidate digest,
-proof-source digest, checker ID, Lean/Mathlib version, runner ID, receipt ID,
-and key ID. Signature metadata is retained in the event and therefore in the
-envelope's canonical integrity digest. A changed payload or unknown key ID
-fails verification.
+proof-source digest and source bytes, checker ID, Lean/Mathlib version, runner
+ID, receipt ID, and key ID. When environment provenance is supplied, it also
+binds the exact environment-manifest SHA-256, source commit, workflow run ID,
+pinned Lean toolchain, and Mathlib revision as one all-or-none field group.
+Those fields are retained in the evidence event and included in signature
+verification and the envelope's canonical integrity digest. A changed payload,
+partial environment binding, or unknown key ID fails verification.
 
 Ed25519 support uses the `cryptography` package. Private keys are raw
 32-byte values at the API boundary; use a secrets manager or hardware-backed
@@ -169,6 +172,6 @@ gh attestation verify lean-provenance.json -R Puronbo/MOSAIC
 The manifest and attestation establish the provenance of the declared and
 observed environment metadata. They do not by themselves attest every
 individual theorem invocation, preserve each generated temporary proof source,
-or prove that the runner host was uncompromised. The affine and polynomial transformation checkers now retain the exact generated Lean source alongside its SHA-256 digest. Ed25519 runner attestations include those exact source bytes in the signed payload, and signed evidence events preserve the source so a consumer can inspect it and verify its digest. `replay_attested_proof_source(...)` verifies the signature and re-runs the retained source through `lake env lean` in the pinned polynomial Lake project. It returns `None` when the replay environment is unavailable or times out; a replay is a fresh check in the current environment, not proof that the original runner host was uncompromised. CI exercises an actual request-bound proof, signs its source, and independently replays that exact source before creating the environment provenance manifest. The source is preserved in the signed attestation and event, while theorem invocation logs and complete machine-level execution traces remain future work. GitHub's hosted
+or prove that the runner host was uncompromised. The affine and polynomial transformation checkers now retain the exact generated Lean source alongside its SHA-256 digest. Ed25519 runner attestations include those exact source bytes in the signed payload, and signed evidence events preserve the source so a consumer can inspect it and verify its digest. `replay_attested_proof_source(...)` verifies the signature and re-runs the retained source through `lake env lean` in the pinned polynomial Lake project. It returns `None` when the replay environment is unavailable or times out; a replay is a fresh check in the current environment, not proof that the original runner host was uncompromised. CI creates the pinned environment manifest after dependency installation, binds its digest and identifying fields into the Ed25519 proof receipt, and independently replays the exact signed source. GitHub publishes the manifest attestation only after the proof and replay steps succeed. This makes each CI proof receipt point to the exact manifest artifact that the workflow later attests. The source is preserved in the signed attestation and event, while theorem invocation logs and complete machine-level execution traces remain future work. GitHub's hosted
 runner image is identified at a broad platform level, not pinned to an
 immutable machine image. Reproducibility is therefore improved, not absolute.
