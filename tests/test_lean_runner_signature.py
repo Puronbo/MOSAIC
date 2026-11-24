@@ -25,7 +25,7 @@ from mosaic.verification.obligations import request_fingerprint
 
 
 def make_verified_result():
-    proof_source = "import Lean\\ntheorem mosaic_certificate (x : Int) : x + 1 = 1 + x := by omega\\n"
+    proof_source = "import Lean\ntheorem mosaic_certificate (x : Int) : x + 1 = 1 + x := by omega\n"
     request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
     result = "1 + x"
     artifact_hash = hashlib.sha256(result.encode()).hexdigest()
@@ -496,8 +496,8 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
     project = root / "formal" / "polynomial"
     mathlib = project / ".lake" / "packages" / "mathlib"
     mathlib.mkdir(parents=True)
-    (root / "lean-toolchain").write_text("leanprover/lean4:v4.36.0\\n")
-    (project / "lean-toolchain").write_text("leanprover/lean4:v4.36.0\\n")
+    (root / "lean-toolchain").write_text("leanprover/lean4:v4.36.0\n")
+    (project / "lean-toolchain").write_text("leanprover/lean4:v4.36.0\n")
     for name, content in (
         ("lake-manifest.json", json.dumps({"packages": [{"name": "mathlib", "rev": "c" * 40}]})),
         ("lakefile.lean", "package mosaic"),
