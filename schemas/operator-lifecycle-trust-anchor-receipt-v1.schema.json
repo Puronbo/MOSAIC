@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-trust-anchor-receipt-v1.schema.json",
+  "title": "MOSAIC Signed Operator Lifecycle Trust Anchor Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry_id", "sequence", "checkpoint_sha256", "authority_key_id", "issued_at_utc", "signature_b64"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "registry_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "sequence": {"type": "integer", "minimum": 0},
+    "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authority_key_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "issued_at_utc": {"type": "string", "minLength": 20, "maxLength": 40},
+    "signature_b64": {"type": "string", "minLength": 1, "maxLength": 128}
+  }
+}
