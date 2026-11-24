@@ -429,7 +429,7 @@ def verify_local_lean_environment_manifest(
             not isinstance(source, dict)
             or set(source) != {"repository", "commit"}
             or not isinstance(source.get("repository"), str)
-            or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", source["repository"])
+            or not re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*", source["repository"])
             or not isinstance(source.get("commit"), str)
             or len(source["commit"]) != 40
             or any(ch not in "0123456789abcdef" for ch in source["commit"])
