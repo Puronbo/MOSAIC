@@ -608,3 +608,33 @@ checkpoint is truthful or fresh. There is no network service, gossip,
 automated witness discovery, remote monotonic counter, or distributed
 consensus implementation in this milestone. The incident export shape is
 specified by `schemas/policy-witness-state-incident-v1.schema.json`.
+
+
+## Portable signed witness-state snapshots
+
+G-EP95 adds `mosaic.verification.policy_witness_snapshot.SignedPolicyWitnessSnapshot`
+and snapshot export/import methods on `PolicyWitnessStateStore`. A snapshot
+binds the log ID, exact checkpoint, quarantine flag, retained incident history,
+witness key ID, and export timestamp in an Ed25519 signature. Its normative
+shape is `schemas/policy-witness-state-snapshot-v1.schema.json`.
+
+Import requires an independently provisioned witness keyring, a valid
+snapshot signature and lifecycle timestamp, and a separately verified
+publisher-signed registry prefix for the checkpoint. An empty store can be
+bootstrapped from a trusted snapshot. An existing store accepts only the same
+checkpoint with matching identity or a strict checkpoint extension of its
+retained head. Older snapshots are rejected. Incident records are merged
+without duplicating exact records, and imported quarantine is preserved.
+Import cannot clear an existing quarantine; conflicting same-sequence signed
+snapshot heads quarantine the receiving witness.
+
+A snapshot signature authenticates the snapshot's contents and signer, not
+the freshness of the snapshot. A first-time import into an empty database
+cannot detect that the snapshot itself is old unless the operator supplies
+an independently retained expected checkpoint or other external freshness
+anchor. Similarly, an attacker able to roll back both a witness database and
+all external snapshots can defeat local anti-rollback. Snapshot migration must
+therefore be accompanied by an independently communicated latest snapshot
+digest/checkpoint and protected key custody. This is a portable recovery
+format, not a remote backup service, hardware monotonic counter, or
+distributed consensus protocol.
