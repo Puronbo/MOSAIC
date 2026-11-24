@@ -1293,3 +1293,24 @@ signer performed a correct independent audit, provide trusted time, or
 prevent rollback unless the consumer compares against its latest independently
 retained head. The receipt-signing authority and ledger-head authority remain
 separate trust decisions.
+
+
+### G-EP122: fail-closed migration of legacy restoration receipt ledgers
+
+The SQLite trust-anchor store now upgrades legacy G-EP119 receipt tables that
+predate G-EP120's event-sequence and hash-link columns. Migration runs under
+`BEGIN IMMEDIATE` and processes each registry's rows in durable SQLite
+insertion order. It validates each stored receipt JSON against the signed
+receipt model and checks that the receipt digest and denormalized registry,
+ending checkpoint, bundle, sequence, and timestamp fields agree before
+rebuilding contiguous event sequences, predecessor links, and ledger-entry
+hashes. Signed receipt payloads are preserved byte-for-byte as stored JSON;
+only the new ledger metadata is populated.
+
+The migration is idempotent. A malformed receipt or disagreement between its
+signed payload and stored row metadata aborts the transaction and raises an
+error rather than fabricating a trustworthy history or silently dropping an
+event. The migration reconstructs internal continuity, but it cannot establish
+that the legacy database was never truncated or rolled back before migration.
+Only a previously retained external ledger-head checkpoint can provide that
+independent continuity anchor.
