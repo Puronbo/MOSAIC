@@ -230,6 +230,7 @@ def verify_transformation_with_evidence(
     from mosaic.verification.lean_transformations import (
         verify_request_transformation_with_lean,
     )
+    from mosaic.verification.obligations import request_fingerprint
 
     verification = verify_request_transformation_with_lean(request, result)
     check = verification.check
@@ -245,8 +246,13 @@ def verify_transformation_with_evidence(
         return verification, None
 
     artifact_hash = hashlib.sha256(result.encode("utf-8")).hexdigest()
+    request_hash = hashlib.sha256(request.expression.encode("utf-8")).hexdigest()
     if obligation.candidate_sha256 != artifact_hash:
         raise ValueError("Lean obligation is not bound to the supplied candidate artifact")
+    if obligation.request_sha256 != request_fingerprint(request):
+        raise ValueError("Lean obligation is not bound to the supplied mathematical request")
+    if check.lhs_sha256 != request_hash or check.rhs_sha256 != artifact_hash:
+        raise ValueError("Lean check hashes do not match the exact request and candidate")
     if check.checker_id != obligation.checker_id:
         raise ValueError("Lean checker identity does not match the verified obligation")
 
