@@ -1,4 +1,4 @@
-import Mathlib.Tactic.Ring
+import Mathlib
 
 /-!
 MOSAIC's real-kernel acceptance probes.
@@ -39,20 +39,17 @@ theorem rapid_series_power_comparison (n : Nat) (hn : 2 ≤ n) :
 
 /-- Powers of two are at least four from exponent two onward. -/
 theorem four_le_two_pow (k : Nat) (hk : 2 ≤ k) : 4 ≤ 2^k := by
-  have hbound : ∀ m : Nat, 2 ≤ m → 4 ≤ 2^m := by
-    intro m hm
-    induction m with
-    | zero =>
-        omega
-    | succ m ih =>
-        by_cases hm2 : 2 ≤ m
-        · have hprev := ih hm2
-          rw [Nat.pow_succ]
-          nlinarith
-        · have hm1 : m = 1 := by omega
-          subst m
+  induction k with
+  | zero =>
+      omega
+  | succ k ih =>
+      cases k with
+      | zero =>
           norm_num
-  exact hbound k hk
+      | succ k =>
+          have hprev : 4 ≤ 2^(k + 1) := ih (by omega)
+          rw [Nat.pow_succ]
+          nlinarith [Nat.zero_le (2^(k + 1))]
 
 /-- The natural-number equation n^n = 3 has no solution.
 This is the discrete counterpart of n^n - 1 = 2. -/
