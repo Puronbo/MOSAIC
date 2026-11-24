@@ -58,3 +58,13 @@ prevents replay. A matching fingerprint establishes environment equivalence
 for these recorded inputs only; it does not attest the local host's integrity
 or prove the theorem. Lean still has to accept the exact signed source during
 the subsequent replay.
+
+
+Before replay, the portable verifier also requires the manifest to conform to
+the pinned `mosaic.lean-build-provenance.v1` structure: exact top-level and
+environment fields, a repository and full source commit, a numeric CI run ID,
+nonempty version/runtime metadata, and correctly sized lowercase SHA-256
+fingerprints. Unknown schema versions, missing fields, extra fields, malformed
+identifiers, and incomplete execution metadata fail closed. The receipt
+signature and manifest digest still bind the manifest to its recorded source
+commit, workflow run, toolchain, and Mathlib revision.
