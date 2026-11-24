@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-recovery-evidence-verification-report-v1.schema.json",
+  "title": "MOSAIC Operator Lifecycle Recovery Evidence Verification Report v1",
+  "description": "Deterministic machine-readable verification result. The report is not itself a trust anchor; envelope digest and external pins must be independently retained.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "accepted",
+    "registry_id",
+    "envelope_sha256",
+    "rotation_count",
+    "restore_event_count",
+    "checks",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "accepted": {
+      "type": "boolean"
+    },
+    "registry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "envelope_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rotation_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "restore_event_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
