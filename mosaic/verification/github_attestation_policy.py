@@ -31,6 +31,8 @@ def _load_policy(policy: dict[str, Any] | str | Path) -> dict[str, Any]:
         raise AttestationPolicyError("policy has missing or unexpected fields")
     if value["schema_version"] != "mosaic.github-attestation-policy.v1":
         raise AttestationPolicyError("unsupported policy schema version")
+    if value["signer_workflow"] != value["repository"] + "/" + value["workflow_path"]:
+        raise AttestationPolicyError("signer_workflow must match repository and workflow_path")
     if not re.fullmatch(r"[0-9]+", str(value["repository_id"])):
         raise AttestationPolicyError("repository_id must be a numeric immutable ID")
     return value
@@ -86,16 +88,11 @@ def verify_gh_attestation_result(
             if certificate.get(field) != expected:
                 raise AttestationPolicyError(f"attestation {index} certificate field {field} does not match policy")
 
+        expected_workflow_uri = expected_signer_prefix + rules["workflow_ref"]
         signer = certificate.get("buildSignerURI")
         config = certificate.get("buildConfigURI")
-        if not isinstance(signer, str) or not signer.startswith(expected_signer_prefix):
-            raise AttestationPolicyError(f"attestation {index} has an unauthorized build signer URI")
-        if not isinstance(config, str) or not config.startswith(expected_signer_prefix):
-            raise AttestationPolicyError(f"attestation {index} has an unauthorized build config URI")
-        if not signer.endswith("@" + rules["workflow_ref"]) or not config.endswith("@" + rules["workflow_ref"]):
-            raise AttestationPolicyError(f"attestation {index} signer/config ref is not the protected branch")
-        if rules["require_github_hosted_runner"] and certificate.get("runnerEnvironment") != "github-hosted":
-            raise AttestationPolicyError(f"attestation {index} was not produced on a GitHub-hosted runner")
+        if signer != expected_workflow_uri or config != expected_workflow_uri:
+            raise AttestationPolicyError(f"attestation {index} signer/config URI does not exactly match policy")
 
         invocation = certificate.get("runInvocationURI")
         run_pattern = rf"^https://github\\.com/{re.escape(rules['repository'])}/actions/runs/{re.escape(str(expected_run_id))}/attempts/[1-9][0-9]*$"
