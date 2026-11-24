@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-restore-ledger-authority-rotation-v1.schema.json",
+  "title": "MOSAIC Dual-Signed Restore Ledger Authority Rotation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "registry_id", "rotation_sequence",
+    "previous_rotation_sha256", "previous_key_id", "new_key_id",
+    "previous_public_key_sha256", "new_public_key_sha256", "effective_at_utc",
+    "previous_authority_signature_b64", "new_authority_signature_b64"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "registry_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "rotation_sequence": {"type": "integer", "minimum": 1},
+    "previous_rotation_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "previous_key_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "new_key_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "previous_public_key_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "new_public_key_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "effective_at_utc": {"type": "string", "minLength": 20, "maxLength": 40},
+    "previous_authority_signature_b64": {"type": "string", "minLength": 1, "maxLength": 128},
+    "new_authority_signature_b64": {"type": "string", "minLength": 1, "maxLength": 128}
+  }
+}
