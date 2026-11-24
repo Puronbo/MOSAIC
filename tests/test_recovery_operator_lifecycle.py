@@ -667,3 +667,78 @@ def test_checkpoint_chain_restore_receipts_are_durably_logged_with_the_head(tmp_
         expected_event_sequence=2,
         expected_ledger_entry_sha256=ledger[-1]["ledger_entry_sha256"],
         authority_keyring=ring).accepted
+
+
+def test_portable_restore_ledger_head_is_signed_and_externally_pinned(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        RecoveryOperatorLifecycleTrustAnchorStore,
+        verify_operator_lifecycle_restore_ledger_head,
+    )
+    authority_sk, authority = identity("portable-ledger-receipt-authority")
+    ledger_sk, ledger_authority = identity("portable-ledger-head-authority")
+    _, operator = identity("portable-ledger-operator")
+    receipt_ring = {"portable-ledger-receipt-authority": authority}
+    ledger_ring = {"portable-ledger-head-authority": ledger_authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="portable-ledger-registry", sequence=100,
+        previous_checkpoint_sha256="a" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="portable-ledger-receipt-authority",
+        operator_keys=[operator], private_key=authority_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=101,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="portable-ledger-receipt-authority",
+        operator_keys=[operator], private_key=authority_sk)
+    bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second])
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "portable-head.sqlite3"))
+    assert store.export_restore_ledger_head(
+        registry_id=first.registry_id,
+        ledger_authority_key_id="portable-ledger-head-authority",
+        issued_at_utc="2026-11-24T08:02:00.000000Z",
+        private_key=ledger_sk, receipt_authority_keyring=receipt_ring) is None
+    assert store.provision(
+        registry_id=first.registry_id, sequence=first.sequence,
+        checkpoint_sha256=first.digest(), updated_at_utc=first.issued_at_utc)
+    receipt = store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, authority_keyring=receipt_ring,
+        expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256=second.digest(),
+        expected_ending_sequence=second.sequence,
+        issued_at_utc="2026-11-24T08:02:00.000000Z",
+        receipt_private_key=authority_sk,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert receipt is not None
+    head = store.export_restore_ledger_head(
+        registry_id=first.registry_id,
+        ledger_authority_key_id="portable-ledger-head-authority",
+        issued_at_utc="2026-11-24T08:04:00.000000Z",
+        private_key=ledger_sk, receipt_authority_keyring=receipt_ring)
+    assert head is not None
+    ledger = store.read_checkpoint_chain_restore_ledger(first.registry_id)
+    terminal = ledger[-1]
+    kwargs = dict(
+        authority_keyring=ledger_ring,
+        expected_registry_id=first.registry_id,
+        expected_event_sequence=terminal["event_sequence"],
+        expected_ledger_entry_sha256=terminal["ledger_entry_sha256"],
+        expected_receipt_sha256=terminal["receipt_sha256"],
+        authorization_time_utc="2026-11-24T08:05:00.000000Z")
+    assert verify_operator_lifecycle_restore_ledger_head(head, **kwargs)
+    assert not verify_operator_lifecycle_restore_ledger_head(
+        head, **{**kwargs, "expected_event_sequence": 2})
+    assert not verify_operator_lifecycle_restore_ledger_head(
+        head, **{**kwargs, "expected_ledger_entry_sha256": "0" * 64})
+    assert not verify_operator_lifecycle_restore_ledger_head(
+        head, **{**kwargs, "authority_keyring": receipt_ring})
+    altered = head.model_copy(update={"receipt_sha256": "0" * 64})
+    assert not verify_operator_lifecycle_restore_ledger_head(altered, **kwargs)
+    assert store.export_restore_ledger_head(
+        registry_id=first.registry_id,
+        ledger_authority_key_id="portable-ledger-head-authority",
+        issued_at_utc="2026-11-24T08:06:00.000000Z",
+        private_key=ledger_sk, receipt_authority_keyring={}) is None
