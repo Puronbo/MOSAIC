@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-restore-ledger-head-v1.schema.json",
+  "title": "MOSAIC Signed Operator Lifecycle Restore Ledger Head v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "registry_id",
+    "event_sequence",
+    "ledger_entry_sha256",
+    "receipt_sha256",
+    "ledger_authority_key_id",
+    "issued_at_utc",
+    "signature_b64"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "registry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "event_sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ledger_entry_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ledger_authority_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "issued_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 40
+    },
+    "signature_b64": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}
