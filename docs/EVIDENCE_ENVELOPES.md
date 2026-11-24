@@ -1314,3 +1314,21 @@ event. The migration reconstructs internal continuity, but it cannot establish
 that the legacy database was never truncated or rolled back before migration.
 Only a previously retained external ledger-head checkpoint can provide that
 independent continuity anchor.
+
+
+### G-EP123: monotonic advancement of externally pinned restore-ledger heads
+
+`verify_operator_lifecycle_restore_ledger_head_advance(...)` verifies that a
+new independently signed ledger-head checkpoint extends a previously retained
+external pin. It verifies both head signatures against the ledger-authority
+keyring, requires the candidate sequence and issuance time to be monotonic,
+checks that the prior head's exact sequence, ledger-entry digest, and receipt
+digest occur in the supplied history, and validates the complete history to
+the candidate head using the receipt-authority keyring.
+
+A candidate that is merely well-signed but represents a different history,
+repeats or regresses the previous sequence, omits the prior pin, or truncates
+the supplied history is rejected. Consumers should persist the accepted
+candidate head outside the SQLite store before treating it as the next
+rollback-detection anchor. This verifier does not provide a distributed
+consensus protocol or trusted timestamping; those remain deployment concerns.
