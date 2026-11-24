@@ -1523,3 +1523,61 @@ def verify_operator_lifecycle_restore_ledger(
         accepted=not errors, registry_id=expected_registry_id, event_count=sequence,
         ending_event_sequence=sequence, ending_ledger_entry_sha256=terminal,
         errors=tuple(dict.fromkeys(errors)))
+
+
+class OperatorLifecycleRecoveryEvidenceEnvelope(BaseModel):
+    """Portable composition of a pinned authority-rotation state and restore-ledger head."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    initial_authority_key_id: str = Field(min_length=1, max_length=160)
+    rotations: tuple[SignedOperatorLifecycleLedgerAuthorityRotation, ...] = ()
+    rotation_head: SignedOperatorLifecycleLedgerAuthorityRotationHead
+    restore_ledger_head: SignedOperatorLifecycleRestoreLedgerHead
+
+    def digest(self) -> str:
+        """Return the canonical SHA-256 digest of the complete portable envelope."""
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+def verify_operator_lifecycle_recovery_evidence_envelope(
+    envelope: OperatorLifecycleRecoveryEvidenceEnvelope, *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str,
+    expected_initial_key_id: str,
+    expected_rotation_head_sha256: str,
+    expected_rotation_sequence: int,
+    expected_rotation_sha256: str | None,
+    expected_restore_event_sequence: int,
+    expected_restore_ledger_entry_sha256: str,
+    expected_restore_receipt_sha256: str,
+    authorization_time_utc: str | None = None,
+) -> bool:
+    """Verify the envelope against independent pins for both authority and ledger state.
+
+    The envelope is a transport/container format, not its own trust anchor.
+    Callers must retain the expected head digest and terminal values outside
+    the envelope and supply them from an independently controlled channel.
+    """
+    if not isinstance(envelope, OperatorLifecycleRecoveryEvidenceEnvelope):
+        return False
+    if (envelope.registry_id != expected_registry_id
+            or envelope.initial_authority_key_id != expected_initial_key_id
+            or envelope.rotation_head.digest() != expected_rotation_head_sha256
+            or envelope.rotation_head.registry_id != expected_registry_id
+            or envelope.restore_ledger_head.registry_id != expected_registry_id):
+        return False
+    return verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
+        envelope.restore_ledger_head,
+        rotation_head=envelope.rotation_head,
+        rotations=envelope.rotations,
+        authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_event_sequence=expected_restore_event_sequence,
+        expected_ledger_entry_sha256=expected_restore_ledger_entry_sha256,
+        expected_initial_key_id=expected_initial_key_id,
+        expected_rotation_sequence=expected_rotation_sequence,
+        expected_rotation_sha256=expected_rotation_sha256,
+        expected_receipt_sha256=expected_restore_receipt_sha256,
+        authorization_time_utc=authorization_time_utc,
+    )
