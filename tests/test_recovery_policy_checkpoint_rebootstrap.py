@@ -20,6 +20,7 @@ from mosaic.verification.recovery_policy_checkpoint_recovery import (
     rebootstrap_recovery_policy_checkpoint_store,
     export_rebootstrap_audit,
     verify_rebootstrap_audit_export,
+    verify_rebootstrap_audit_export_report,
 )
 
 
@@ -93,6 +94,12 @@ def test_threshold_rebootstrap_preserves_incidents_and_starts_new_epoch(tmp_path
     }
     assert verify_rebootstrap_audit_export(audit_export, **audit_kwargs,
                                            expected_head_sha256=audit_head)
+    report = verify_rebootstrap_audit_export_report(
+        audit_export, **audit_kwargs, expected_head_sha256=audit_head)
+    assert report.status == "verified"
+    assert report.record_count == report.verified_record_count == 1
+    assert report.legacy_record_count == 0
+    assert report.is_verified
     altered = copy.deepcopy(audit_export)
     altered["records"][0]["audit"]["intent"]["reason"] = "forged reason"
     assert not verify_rebootstrap_audit_export(altered, **audit_kwargs)
@@ -155,3 +162,25 @@ def test_rebootstrap_rejects_insufficient_approvals_and_stale_incident_digest(tm
         policy=RecoveryPolicyCheckpointRebootstrapPolicy(minimum_approvals=2),
         operator_keyring={"operator-1": op1, "operator-2": op2})
     assert store.is_quarantined("registry")
+
+
+
+def test_legacy_audit_rows_are_explicitly_unverifiable_not_verified(tmp_path):
+    store = RecoveryPolicyCheckpointStore(tmp_path / "legacy.sqlite3")
+    with sqlite3.connect(store.database_path) as db:
+        db.execute(
+            "INSERT INTO recovery_policy_rebootstrap_audit "
+            "(intent_sha256, registry_id, epoch, audit_json) VALUES (?, ?, ?, ?)",
+            ("a" * 64, "registry", 1,
+             '{"schema_version":"1.0","intent":{},"approvals":[],"epoch":1,"checkpoint_sha256":"' + "b" * 64 + '"}'),
+        )
+    exported = export_rebootstrap_audit(store, registry_id="registry")
+    report = verify_rebootstrap_audit_export_report(
+        exported, operator_keyring={}, publisher_keyring={}, checkpoint_keyring=None)
+    assert report.status == "legacy_unverifiable"
+    assert report.record_count == 1
+    assert report.legacy_record_count == 1
+    assert report.verified_record_count == 0
+    assert not report.is_verified
+    assert not verify_rebootstrap_audit_export(
+        exported, operator_keyring={}, publisher_keyring={}, checkpoint_keyring=None)
