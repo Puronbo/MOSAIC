@@ -5,7 +5,7 @@ from mosaic.core.requests import MathRequest
 from mosaic.core.types import Operation
 from mosaic.verification.obligations import obligations_for_request, request_fingerprint
 from mosaic.verification.review_checkers import ReviewCheckerReceipt, check_review_obligation_with_lean
-from mosaic.verification.lean_obligations import LeanIdentityVerification
+from mosaic.verification.lean_obligations import LeanIdentityObligation, LeanIdentityVerification
 from mosaic.verification.receipts import (
     ReceiptStore, VerificationReceipt, load_receipt, serialize_receipt,
     validate_receipt_for_replay,
@@ -14,6 +14,21 @@ from mosaic.verification.receipts import (
 
 def _request():
     return MathRequest(operation=Operation.VERIFY_IDENTITY, expression="2 + 3", rhs="5")
+
+
+
+def _verified_result(request):
+    fingerprint = request_fingerprint(request)
+    return LeanIdentityVerification(
+        status="FORMALLY_VERIFIED",
+        obligation=LeanIdentityObligation(
+            obligation_id=f"request:{fingerprint[:16]}:lean-identity",
+            request_sha256=fingerprint,
+            checker_id="lean.kernel.closed_nat_equality.v1",
+            proposition=f"({request.expression}) = ({request.rhs})",
+        ),
+        explanation="Lean kernel accepted the exact request identity.",
+    )
 
 
 def _obligation(request):
@@ -40,10 +55,7 @@ def _issued():
         request_sha256=request_fingerprint(request),
         checker_id="mosaic.lean.request_identity.v1",
         status="FORMALLY_VERIFIED",
-        checker_result=LeanIdentityVerification(
-            status="FORMALLY_VERIFIED",
-            explanation="Lean kernel accepted the exact request identity.",
-        ),
+        checker_result=_verified_result(request),
         explanation="Exact request-bound checker succeeded.",
     )
     return request, obligation, VerificationReceipt.issue(obligation, checked)
@@ -58,10 +70,7 @@ def test_receipt_is_deterministic_and_replayable_without_checker_execution():
             request_sha256=receipt.request_sha256,
             checker_id=receipt.checker_id,
             status=receipt.status,
-            checker_result=LeanIdentityVerification(
-                status="FORMALLY_VERIFIED",
-                explanation="Lean kernel accepted the exact request identity.",
-            ),
+            checker_result=_verified_result(request),
             explanation=receipt.explanation,
         ),
     )
@@ -178,10 +187,7 @@ def test_end_to_end_request_checker_receipt_persist_and_replay(tmp_path, monkeyp
 
     def fake_lean(actual_request):
         assert actual_request == request
-        return LeanIdentityVerification(
-            status="FORMALLY_VERIFIED",
-            explanation="Test kernel accepted the request-bound identity.",
-        )
+        return _verified_result(actual_request)
 
     monkeypatch.setattr(
         "mosaic.verification.review_checkers.verify_request_identity_with_lean",
