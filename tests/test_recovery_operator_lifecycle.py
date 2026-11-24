@@ -1007,3 +1007,43 @@ def test_ledger_authority_rotation_chain_rejects_revocation_fork_and_early_use()
     assert not verify_operator_lifecycle_ledger_authority_rotation_chain(
         [fork], authority_keyring=ring, expected_registry_id="rotation-policy",
         expected_initial_key_id=old_key.key_id).accepted
+
+
+
+def test_rotation_head_external_pin_detects_truncation_and_fork():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        SignedOperatorLifecycleLedgerAuthorityRotation,
+        SignedOperatorLifecycleLedgerAuthorityRotationHead,
+        verify_operator_lifecycle_ledger_authority_rotation_head_advance,
+    )
+    old_sk, old_key = identity("rotation-pin-root")
+    new_sk, new_key = identity("rotation-pin-next")
+    ring = {old_key.key_id: old_key, new_key.key_id: new_key}
+    rotation = SignedOperatorLifecycleLedgerAuthorityRotation.sign(
+        registry_id="rotation-pin-registry", rotation_sequence=1,
+        previous_rotation_sha256=None, previous_key_id=old_key.key_id,
+        new_key_id=new_key.key_id, previous_private_key=old_sk,
+        new_private_key=new_sk, previous_public_key=old_key.public_key(),
+        new_public_key=new_key.public_key(),
+        effective_at_utc="2026-11-24T08:00:00.000000Z")
+    genesis = SignedOperatorLifecycleLedgerAuthorityRotationHead.sign(
+        registry_id="rotation-pin-registry", rotation_sequence=0,
+        rotation_sha256=None, active_key_id=old_key.key_id,
+        issued_at_utc="2026-11-24T07:59:00.000000Z", private_key=old_sk)
+    terminal = SignedOperatorLifecycleLedgerAuthorityRotationHead.sign(
+        registry_id="rotation-pin-registry", rotation_sequence=1,
+        rotation_sha256=rotation.digest(), active_key_id=new_key.key_id,
+        issued_at_utc="2026-11-24T08:01:00.000000Z", private_key=new_sk)
+    kwargs = dict(authority_keyring=ring, expected_registry_id="rotation-pin-registry",
+                  expected_initial_key_id=old_key.key_id,
+                  authorization_time_utc="2026-11-24T08:02:00.000000Z")
+    assert verify_operator_lifecycle_ledger_authority_rotation_head_advance(
+        [rotation], genesis, terminal, **kwargs)
+    assert not verify_operator_lifecycle_ledger_authority_rotation_head_advance(
+        [], genesis, terminal, **kwargs)
+    fork = terminal.model_copy(update={"rotation_sha256": "f" * 64})
+    assert not verify_operator_lifecycle_ledger_authority_rotation_head_advance(
+        [rotation], genesis, fork, **kwargs)
+    stale = terminal.model_copy(update={"rotation_sequence": 0})
+    assert not verify_operator_lifecycle_ledger_authority_rotation_head_advance(
+        [rotation], genesis, stale, **kwargs)
