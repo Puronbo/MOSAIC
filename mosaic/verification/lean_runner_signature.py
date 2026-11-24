@@ -285,6 +285,19 @@ def sign_transformation_result(
 
 
 
+def _strict_json_loads(raw: str | bytes):
+    """Parse JSON while rejecting duplicate object keys at every nesting level."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate JSON object key: {key}")
+            result[key] = value
+        return result
+
+    return json.loads(raw, object_pairs_hook=unique_object)
+
+
 def verify_attested_environment_manifest(
     attestation: SignedLeanAttestation,
     public_key: bytes,
@@ -299,7 +312,7 @@ def verify_attested_environment_manifest(
             return False
         if hashlib.sha256(raw).hexdigest() != attestation.environment_manifest_sha256:
             return False
-        payload = json.loads(raw)
+        payload = _strict_json_loads(raw)
         return (
             payload.get("source", {}).get("commit") == attestation.source_commit
             and payload.get("execution", {}).get("run_id") == attestation.workflow_run_id
@@ -327,6 +340,8 @@ def verify_lean_proof_receipt_bundle(
     request/candidate digests; it does not establish trust in an embedded key.
     """
     try:
+        if set(receipt) != {"schema_version", "attestation", "public_key_b64", "environment_manifest_sha256", "replay"}:
+            return False
         if receipt.get("schema_version") != "mosaic.signed-lean-proof-receipt.v1":
             return False
         attestation = SignedLeanAttestation.model_validate(receipt["attestation"])
@@ -350,9 +365,10 @@ def verify_lean_proof_receipt_bundle(
         replay = receipt.get("replay")
         return (
             isinstance(replay, dict)
+            and set(replay) == {"exact_signed_source_replayed"}
             and replay.get("exact_signed_source_replayed") is True
         )
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
         return False
 
 
