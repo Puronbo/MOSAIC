@@ -59,7 +59,7 @@ def test_candidate_derivative_is_bound_to_the_generated_polynomial():
     source, derivative = _source("x^3 + 2*x", "3*x^2 + 2")
     assert "HasDerivAt (fun t : ℝ" in source
     assert "(3 : ℝ)" in source
-    assert "convert h using 1 <;> ring" in source
+    assert "convert h using 1 <;> dsimp <;> ring" in source
     assert derivative == "(((3 : ℝ) * (x ^ 2)) + (2 : ℝ))"
 
 
