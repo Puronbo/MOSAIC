@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/github-lean-attestation-policy-v1.schema.json",
+  "title": "MOSAIC GitHub Lean Producer Attestation Policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "repository", "repository_id", "workflow_path",
+    "signer_workflow", "workflow_ref", "source_repository_uri",
+    "oidc_issuer", "predicate_type", "require_github_hosted_runner",
+    "require_verified_timestamp"
+  ],
+  "properties": {
+    "schema_version": { "const": "mosaic.github-attestation-policy.v1" },
+    "repository": { "const": "Puronbo/MOSAIC" },
+    "repository_id": { "const": "1468522236" },
+    "workflow_path": { "const": ".github/workflows/lean-polynomial.yml" },
+    "signer_workflow": { "const": "Puronbo/MOSAIC/.github/workflows/lean-polynomial.yml" },
+    "workflow_ref": { "const": "refs/heads/main" },
+    "source_repository_uri": { "const": "https://github.com/Puronbo/MOSAIC" },
+    "oidc_issuer": { "const": "https://token.actions.githubusercontent.com" },
+    "predicate_type": { "const": "https://slsa.dev/provenance/v1" },
+    "require_github_hosted_runner": { "const": true },
+    "require_verified_timestamp": { "const": true }
+  }
+}
