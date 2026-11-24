@@ -502,6 +502,20 @@ theorem exponent_third_derivative (x t : ℝ) (hx : 0 < x) :
   convert h using 1 <;> simp [pow_succ, mul_assoc]
 
 
+
+/-- Differentiate the exponent partial with respect to the base. This is
+the mixed coordinate derivative obtained by differentiating G(x,t) log x
+in x; the product rule separates the changing joint value and log factor. -/
+theorem exponent_partial_base_derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt (fun s : ℝ => jointValue s t * Real.log s)
+      (((x + t) * x ^ (x + t - 1) + jointValue x t * Real.log x) *
+        Real.log x + jointValue x t * x⁻¹) x := by
+  have hbase := base_derivative x t hx
+  have hlog : HasDerivAt Real.log x⁻¹ x := Real.hasDerivAt_log (ne_of_gt hx)
+  simpa using hbase.mul hlog
+
+
+
 /-- Evaluate the joint exponent family along a differentiable base path. -/
 noncomputable def alongBasePath (u : ℝ → ℝ) (t : ℝ) : ℝ :=
   u t ^ (u t + t)
