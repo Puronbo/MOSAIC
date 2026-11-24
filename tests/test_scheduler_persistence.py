@@ -123,3 +123,17 @@ def test_recovery_refuses_tampered_snapshot():
     from mosaic.core.scheduler_persistence import quarantine_interrupted_tasks
     with pytest.raises(ValueError, match="integrity"):
         quarantine_interrupted_tasks(tampered)
+
+
+def test_snapshot_rejects_noncompleted_proposal_in_completed_record():
+    tasks, records = _completed_state()
+    invalid_proposal = records[0].proposal.model_copy(
+        update={"status": TaskStatus.FAILED}
+    )
+    invalid_record = records[0].model_copy(update={"proposal": invalid_proposal})
+    with pytest.raises(ValueError, match="does not match its task"):
+        SchedulerSnapshot(
+            tasks=tuple(tasks),
+            records=(invalid_record,),
+            snapshot_sha256="0" * 64,
+        )
