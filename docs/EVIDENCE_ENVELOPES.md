@@ -86,8 +86,11 @@ and completed pass/rejection outcome.
 
 Receipts use HMAC-SHA256 with a shared secret of at least 32 bytes.
 `LeanRunnerReceipt.to_evidence_event` verifies the MAC before converting
-the receipt into a formal-kernel evidence event. Altered receipts and receipts
-presented with the wrong key are rejected.
+the receipt into a formal-kernel evidence event. The event retains the runner
+identity, receipt ID, request fingerprint, and MAC, so
+`verify_evidence_event_receipt` can authenticate the event again after it
+has been placed in an evidence envelope. Altered event fields, altered
+receipts, and receipts presented with the wrong key are rejected.
 
 **Key boundary:** HMAC is symmetric authentication, not a public-key
 signature. Every verifier holding the shared secret can also mint receipts.
