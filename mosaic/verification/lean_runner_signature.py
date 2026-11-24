@@ -227,9 +227,9 @@ def sign_transformation_result(
     if check.checker_id != obligation.checker_id:
         raise ValueError("Lean checker identity does not match the obligation")
     version = check.lean_version
-    mathlib_revision = getattr(check, "mathlib_revision", None)
-    if mathlib_revision:
-        version = f"{version}; Mathlib {mathlib_revision}"
+    reported_mathlib_revision = getattr(check, "mathlib_revision", None)
+    if reported_mathlib_revision:
+        version = f"{version}; Mathlib {reported_mathlib_revision}"
     return SignedLeanAttestation.sign(
         receipt_id=receipt_id,
         runner_id=runner_id,
