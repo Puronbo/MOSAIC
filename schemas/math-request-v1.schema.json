@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/math-request-v1.schema.json",
+  "title": "MOSAIC MathRequest v1",
+  "description": "Input model used to calculate request_sha256 in signed Lean attestations. Before fingerprinting, apply schema_version='1.0', variable='x', and rhs=null defaults, then serialize using the documented canonical JSON rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operation", "expression"],
+  "properties": {
+    "schema_version": { "type": "string", "default": "1.0" },
+    "operation": {
+      "enum": [
+        "simplify", "expand", "factor", "differentiate", "integrate",
+        "verify_identity", "solve", "verify_certificate", "search",
+        "counterexample", "analyze"
+      ]
+    },
+    "expression": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "variable": { "type": "string", "minLength": 1, "maxLength": 32, "default": "x" },
+    "rhs": { "anyOf": [{ "type": "string", "maxLength": 2000 }, { "type": "null" }], "default": null }
+  }
+}
