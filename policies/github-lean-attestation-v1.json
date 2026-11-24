@@ -9,5 +9,6 @@
   "oidc_issuer": "https://token.actions.githubusercontent.com",
   "predicate_type": "https://slsa.dev/provenance/v1",
   "require_github_hosted_runner": true,
-  "require_verified_timestamp": true
+  "require_verified_timestamp": true,
+  "repository_owner_id": "297216003"
 }
