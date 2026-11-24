@@ -142,3 +142,31 @@ def test_existing_registered_checker_bundle_converts_to_envelope():
     profile = profile_evidence_envelope(envelope)
     assert profile.independent_check_pass_recorded
     assert not profile.kernel_pass_recorded
+
+
+def test_duplicate_event_ids_are_rejected():
+    first = event(EvidenceEventKind.COMPUTATION, EvidenceEventOutcome.PRODUCED)
+    duplicate = first.model_copy(update={"kind": EvidenceEventKind.COMPUTATION})
+    with pytest.raises(ValueError, match="identifiers must be unique"):
+        create_evidence_envelope(
+            envelope_id="env-duplicate",
+            claim="Duplicate event ids.",
+            artifact_sha256=ARTIFACT,
+            events=(first, duplicate),
+        )
+
+
+def test_inconclusive_check_remains_inconclusive_in_profile():
+    envelope = create_evidence_envelope(
+        envelope_id="env-inconclusive",
+        claim="The checker could not decide.",
+        artifact_sha256=ARTIFACT,
+        events=(event(
+            EvidenceEventKind.INDEPENDENT_CHECK,
+            EvidenceEventOutcome.INCONCLUSIVE,
+        ),),
+    )
+    profile = profile_evidence_envelope(envelope)
+    assert profile.independent_check_inconclusive_recorded
+    assert not profile.independent_check_pass_recorded
+    assert not profile.independent_check_failure_recorded
