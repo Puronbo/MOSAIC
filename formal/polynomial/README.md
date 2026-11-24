@@ -68,3 +68,11 @@ fingerprints. Unknown schema versions, missing fields, extra fields, malformed
 identifiers, and incomplete execution metadata fail closed. The receipt
 signature and manifest digest still bind the manifest to its recorded source
 commit, workflow run, toolchain, and Mathlib revision.
+
+
+The replay manifest gate also validates the CI execution identity itself:
+workflow name, numeric run ID, numeric attempt, and runner OS must all be
+present. Both declared and observed Mathlib revisions must be full lowercase
+40-character Git object IDs, and the Lean toolchain identifier must match the
+project's pinned version. These checks prevent incomplete local or hand-edited
+metadata from being treated as a CI-produced replay environment.
