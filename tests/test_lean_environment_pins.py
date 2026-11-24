@@ -37,4 +37,8 @@ def test_lean_provenance_generator_checks_observed_mathlib_checkout():
     assert "observed_mathlib_revision != EXPECTED_MATHLIB_REVISION" in source
     assert '"observed_mathlib_revision": observed_mathlib_revision' in source
     assert '"lake_version_output": lake' in source
+    assert '"elan_version_output": elan' in source
+    assert 'executable_sha256("lean")' in source
+    assert 'executable_sha256("lake")' in source
+    assert 'executable_sha256("elan")' in source
     assert '"root_lean_toolchain_sha256": sha256(root_toolchain_path)' in source
