@@ -1194,6 +1194,35 @@ def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
     repeated_report = verify_operator_lifecycle_recovery_evidence_envelope_report(envelope, **kwargs)
     assert repeated_report.digest() == report.digest()
 
+    # A valid receipt signature is still rejected when it exceeds the caller's
+    # explicit authorization-time policy bound.
+    late_payload = receipt.model_dump(mode="json", exclude={"signature_b64"})
+    late_payload["issued_at_utc"] = "2026-11-24T08:03:30.000000Z"
+    late_signature = Ed25519PrivateKey.from_private_bytes(active_sk).sign(_canonical(late_payload))
+    late_receipt = SignedOperatorLifecycleCheckpointChainRestoreReceipt(
+        **late_payload, signature_b64=base64.b64encode(late_signature).decode("ascii"))
+    late_receipt_digest = late_receipt.digest()
+    late_entry_payload = {
+        "registry_id": "envelope-registry", "event_sequence": 1,
+        "previous_receipt_sha256": None, "receipt_sha256": late_receipt_digest,
+    }
+    late_entry_digest = hashlib.sha256(_canonical(late_entry_payload)).hexdigest()
+    late_ledger = ({
+        **late_entry_payload, "ledger_entry_sha256": late_entry_digest,
+        "receipt": late_receipt.model_dump(mode="json"),
+    },)
+    from mosaic.verification.recovery_operator_lifecycle import verify_operator_lifecycle_restore_ledger
+    late_report = verify_operator_lifecycle_restore_ledger(
+        late_ledger, expected_registry_id="envelope-registry",
+        expected_event_sequence=1, expected_ledger_entry_sha256=late_entry_digest,
+        authority_keyring=ring, authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not late_report.accepted
+    assert "event_0:receipt_after_authorization_time" in late_report.errors
+    assert verify_operator_lifecycle_restore_ledger(
+        late_ledger, expected_registry_id="envelope-registry",
+        expected_event_sequence=1, expected_ledger_entry_sha256=late_entry_digest,
+        authority_keyring=ring).accepted
+
     wrong_external_pin = dict(kwargs, expected_rotation_head_sha256="e" * 64)
     assert not verify_operator_lifecycle_recovery_evidence_envelope(
         envelope, **wrong_external_pin)
