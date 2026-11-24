@@ -572,3 +572,67 @@ def test_checkpoint_chain_restore_receipt_is_signed_and_independently_verifiable
         bundle, first, issued_at_utc="2026-11-24T08:03:00.000000Z",
         receipt_private_key=authority_sk, **kwargs) is None
     assert rejected_store.read(first.registry_id)["checkpoint_sha256"] == "c" * 64
+
+
+
+def test_checkpoint_chain_restore_receipts_are_durably_logged_with_the_head(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        RecoveryOperatorLifecycleTrustAnchorStore,
+        SignedOperatorLifecycleCheckpointChainRestoreReceipt,
+        verify_operator_lifecycle_checkpoint_chain_restore_receipt,
+    )
+    authority_sk, authority = identity("durable-chain-log-authority")
+    _, operator = identity("durable-chain-log-operator")
+    ring = {"durable-chain-log-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="durable-chain-log-registry", sequence=90,
+        previous_checkpoint_sha256="d" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="durable-chain-log-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=91,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="durable-chain-log-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second])
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "durable-log.sqlite3"))
+    assert store.provision(
+        registry_id=first.registry_id, sequence=first.sequence,
+        checkpoint_sha256=first.digest(), updated_at_utc=first.issued_at_utc)
+    kwargs = dict(
+        authority_keyring=ring, expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256=second.digest(),
+        expected_ending_sequence=second.sequence,
+        authorization_time_utc="2026-11-24T08:04:00.000000Z")
+    receipt = store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, issued_at_utc="2026-11-24T08:02:00.000000Z",
+        receipt_private_key=authority_sk, **kwargs)
+    assert isinstance(receipt, SignedOperatorLifecycleCheckpointChainRestoreReceipt)
+    records = store.read_checkpoint_chain_restore_receipts(first.registry_id)
+    assert len(records) == 1
+    assert records[0]["bundle_sha256"] == bundle.digest()
+    assert records[0]["ending_checkpoint_sha256"] == second.digest()
+    persisted = SignedOperatorLifecycleCheckpointChainRestoreReceipt.model_validate(records[0])
+    assert verify_operator_lifecycle_checkpoint_chain_restore_receipt(
+        persisted, bundle, first, **kwargs)
+
+    # An exact replay with a distinct signed receipt is retained as a second event.
+    replay = store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, issued_at_utc="2026-11-24T08:03:00.000000Z",
+        receipt_private_key=authority_sk, **kwargs)
+    assert replay is not None
+    assert len(store.read_checkpoint_chain_restore_receipts(first.registry_id)) == 2
+
+    # Rejected imports cannot append an event or alter the retained head.
+    rejected = store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, issued_at_utc="2026-11-24T08:03:30.000000Z",
+        receipt_private_key=authority_sk,
+        **{**kwargs, "expected_ending_checkpoint_sha256": "0" * 64})
+    assert rejected is None
+    assert len(store.read_checkpoint_chain_restore_receipts(first.registry_id)) == 2
+    assert store.read(first.registry_id)["checkpoint_sha256"] == second.digest()
