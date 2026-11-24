@@ -103,3 +103,17 @@ def test_provenance_generator_requires_complete_github_actions_identity(monkeypa
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "attempt-two")
     with pytest.raises(SystemExit, match="GITHUB_RUN_ATTEMPT must be numeric"):
         module.required_ci_metadata()
+
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "0")
+    with pytest.raises(SystemExit, match="GITHUB_RUN_ATTEMPT must be a positive integer"):
+        module.required_ci_metadata()
+
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
+    monkeypatch.setenv("RUNNER_OS", "Plan9")
+    with pytest.raises(SystemExit, match="RUNNER_OS must be Linux, Windows, or macOS"):
+        module.required_ci_metadata()
+
+    monkeypatch.setenv("RUNNER_OS", "Linux")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo/extra")
+    with pytest.raises(SystemExit, match="GITHUB_REPOSITORY must have owner/repository form"):
+        module.required_ci_metadata()
