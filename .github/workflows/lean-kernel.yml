@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "lean-toolchain"
+      - "tests/test_lean_environment_pins.py"
       - "mosaic/verification/lean_kernel.py"
       - "mosaic/verification/lean_linear.py"
       - "mosaic/verification/lean_obligations.py"
