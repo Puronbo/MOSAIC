@@ -64,7 +64,7 @@ def test_lean_provenance_schema_requires_nonempty_ci_execution_identity():
     source = schema["properties"]["source"]["properties"]
     assert source["repository"]["pattern"] == "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
     assert properties["run_id"]["type"] == "string"
-    assert properties["run_id"]["pattern"] == "^[0-9]+$"
+    assert properties["run_id"]["pattern"] == "^[1-9][0-9]*$"
     assert properties["run_attempt"]["type"] == "string"
     assert properties["run_attempt"]["pattern"] == "^[0-9]+$"
 
