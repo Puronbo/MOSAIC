@@ -62,6 +62,8 @@ class ReviewFinding(BaseModel):
     statement: str = Field(min_length=1, max_length=4000)
     requires_independent_check: bool = True
     evidence_refs: tuple[str, ...] = ()
+    request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    checker_id: str | None = Field(default=None, max_length=120)
 
 
 class AgentProposal(BaseModel):
