@@ -175,3 +175,34 @@ natural-index finite differences to this derivative, nor does it prove
 higher continuous derivatives or variable-base partial derivatives. Those
 remain separate formalization targets. The statements are kernel-checked
 only when the pinned polynomial-kernel workflow passes.
+
+### Secant-to-tangent limit
+
+The continuous exponent family now exposes
+`MosaicRealExponentShift.secantSlope x t h`, the normalized finite-step
+change
+
+\[
+S_x(t,h)=h^{-1}\big(F_x(t+h)-F_x(t)\big).
+\]
+
+The theorems `secant_slope_limit`,
+`secant_slope_limit_right`, and `secant_slope_limit_left` prove that
+this slope tends to
+
+\[
+F_x(t)\log x
+\]
+
+as the nonzero step tends to zero, through a punctured neighborhood and
+separately from the right and left. This is the precise geometric statement:
+the secant slopes converge to the tangent slope. It does **not** say that
+the finite difference itself has a nonzero limit. The step and the change
+both shrink; their ratio converges.
+
+These limit theorems are derived from the already kernel-checked
+`HasDerivAt` theorem through Mathlib's derivative-to-slope equivalence.
+They make the limit characterization explicit, rather than independently
+proving the exponential limit from first principles. The claims are
+kernel-checked only when the pinned polynomial-kernel workflow passes.
+
