@@ -367,6 +367,10 @@ class PolicyWitnessStateStore:
                 or snapshot.quarantined
                 or not snapshot.verify(witness_keyring)
                 or not authorization.verify(operator_keyring)
+                or authorization.operator_key_id in witness_keyring
+                or operator_keyring[authorization.operator_key_id].public_key() == witness_keyring[snapshot.witness_key_id].public_key()
+                or authorization.operator_key_id in signer_keyring
+                or operator_keyring[authorization.operator_key_id].public_key() in {item.public_key() for item in signer_keyring.values()}
                 or authorization.log_id != snapshot.log_id
                 or authorization.selected_snapshot_sha256 != hashlib.sha256(
                     _canonical(snapshot.model_dump(mode="json"))
