@@ -492,7 +492,8 @@ theorem exponent_third_derivative (x t : ℝ) (hx : 0 < x) :
         (fun s : ℝ => jointValue x s * (Real.log x) ^ 2) := by
     funext s
     rw [iterated_derivative_formula]
-    simp [jointValue, value, add_comm, pow_two, mul_assoc]
+    simp [jointValue, value, add_comm, pow_two]
+    ring
   rw [hfun] at h
   have hvalue :
       iteratedDerivative x 2 t = jointValue x t * (Real.log x) ^ 2 :=
