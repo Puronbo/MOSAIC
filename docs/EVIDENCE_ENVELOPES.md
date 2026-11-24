@@ -1490,3 +1490,20 @@ authority key, authority keyring, expected rotation and restore-head digests,
 terminal ledger values, and optional authorization time. A report digest
 establishes byte-level identity of that report, not truth of the claims it
 summarizes. Timestamps remain signed policy data, not trusted time.
+
+### G-EP130: explicit authorization-time bounds for portable receipt ledgers
+
+The complete restoration-ledger verifier now accepts an optional
+`authorization_time_utc` policy bound. When provided, it requires the bound
+and each receipt issuance timestamp to be canonical and rejects any signed
+receipt issued after that bound. The portable-envelope Boolean and diagnostic
+report APIs pass the same bound through to every ledger entry, so a caller does
+not accidentally apply the time policy only to the terminal heads while
+leaving earlier receipt statements unchecked.
+
+This is an explicit policy comparison, not trusted time. The caller must obtain
+the authorization-time value from an appropriate independent environment; the
+verifier does not establish clock authenticity, timestamp authority, or
+consensus. Omitting the parameter preserves the prior behavior and performs
+signature, authority, sequence, hash-link, and external-head validation
+without imposing a wall-clock cutoff.
