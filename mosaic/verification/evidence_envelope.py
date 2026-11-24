@@ -78,6 +78,7 @@ class EvidenceProfile(BaseModel):
     computation_recorded: bool
     independent_check_pass_recorded: bool
     independent_check_failure_recorded: bool
+    independent_check_inconclusive_recorded: bool
     kernel_pass_recorded: bool
     kernel_failure_recorded: bool
     integrity_digest_valid: bool
@@ -142,6 +143,11 @@ def profile_evidence_envelope(envelope: EvidenceEnvelope) -> EvidenceProfile:
             and event.outcome == EvidenceEventOutcome.FAILED
             for event in envelope.events
         ),
+        independent_check_inconclusive_recorded=any(
+            event.kind == EvidenceEventKind.INDEPENDENT_CHECK
+            and event.outcome == EvidenceEventOutcome.INCONCLUSIVE
+            for event in envelope.events
+        ),
         kernel_pass_recorded=any(
             event.kind == EvidenceEventKind.FORMAL_KERNEL_CHECK
             and event.outcome == EvidenceEventOutcome.PASSED
@@ -187,7 +193,7 @@ def evidence_bundle_to_envelope(
             kind=EvidenceEventKind.INDEPENDENT_CHECK,
             outcome=outcome,
             artifact_sha256=artifact_hash,
-            method=item.explanation,
+            method=f"Registered checker finding: {item.finding}",
             tool_id=item.checker_id,
             tool_version="registered-source",
         ))
