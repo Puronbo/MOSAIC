@@ -33,6 +33,11 @@ class SignedLeanAttestation(BaseModel):
     artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     proof_artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     proof_source: str = Field(min_length=1, max_length=10000)
+    environment_manifest_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    source_commit: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
+    workflow_run_id: str | None = Field(default=None, min_length=1, max_length=40)
+    lean_toolchain: str | None = Field(default=None, max_length=160)
+    mathlib_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
     checker_id: str = Field(min_length=1, max_length=160)
     kernel_id: str = "Lean"
     kernel_version: str = Field(min_length=1, max_length=160)
@@ -51,6 +56,11 @@ class SignedLeanAttestation(BaseModel):
         proof_artifact_sha256: str,
         proof_source: str,
         checker_id: str,
+        environment_manifest_sha256: str | None = None,
+        source_commit: str | None = None,
+        workflow_run_id: str | None = None,
+        lean_toolchain: str | None = None,
+        mathlib_revision: str | None = None,
         kernel_version: str,
         outcome: EvidenceEventOutcome,
         private_key: bytes,
@@ -63,6 +73,9 @@ class SignedLeanAttestation(BaseModel):
             raise ValueError("Ed25519 private key must be exactly 32 raw bytes")
         if hashlib.sha256(proof_source.encode("utf-8")).hexdigest() != proof_artifact_sha256:
             raise ValueError("proof source does not match its SHA-256 digest")
+        environment_fields = (environment_manifest_sha256, source_commit, workflow_run_id, lean_toolchain, mathlib_revision)
+        if any(value is not None for value in environment_fields) and not all(value is not None for value in environment_fields):
+            raise ValueError("environment provenance binding must be supplied as a complete set")
         payload = {
             "schema_version": "1.0",
             "receipt_id": receipt_id,
@@ -72,6 +85,11 @@ class SignedLeanAttestation(BaseModel):
             "artifact_sha256": artifact_sha256,
             "proof_artifact_sha256": proof_artifact_sha256,
             "proof_source": proof_source,
+            "environment_manifest_sha256": environment_manifest_sha256,
+            "source_commit": source_commit,
+            "workflow_run_id": workflow_run_id,
+            "lean_toolchain": lean_toolchain,
+            "mathlib_revision": mathlib_revision,
             "checker_id": checker_id,
             "kernel_id": "Lean",
             "kernel_version": kernel_version,
@@ -111,6 +129,11 @@ class SignedLeanAttestation(BaseModel):
             kernel_version=self.kernel_version,
             proof_artifact_sha256=self.proof_artifact_sha256,
             runner_proof_source=self.proof_source,
+            runner_environment_manifest_sha256=self.environment_manifest_sha256,
+            runner_source_commit=self.source_commit,
+            runner_workflow_run_id=self.workflow_run_id,
+            runner_lean_toolchain=self.lean_toolchain,
+            runner_mathlib_revision=self.mathlib_revision,
             runner_id=self.runner_id,
             runner_receipt_id=self.receipt_id,
             runner_request_sha256=self.request_sha256,
@@ -148,6 +171,11 @@ def verify_evidence_event_signature(event: EvidenceEvent, public_keys: dict[str,
             artifact_sha256=event.artifact_sha256,
             proof_artifact_sha256=event.proof_artifact_sha256,
             proof_source=event.runner_proof_source,
+            environment_manifest_sha256=event.runner_environment_manifest_sha256,
+            source_commit=event.runner_source_commit,
+            workflow_run_id=event.runner_workflow_run_id,
+            lean_toolchain=event.runner_lean_toolchain,
+            mathlib_revision=event.runner_mathlib_revision,
             checker_id=event.tool_id,
             kernel_version=event.kernel_version,
             outcome=event.outcome,
@@ -167,6 +195,11 @@ def sign_transformation_result(
     runner_id: str,
     key_id: str,
     private_key: bytes,
+    environment_manifest_sha256: str | None = None,
+    source_commit: str | None = None,
+    workflow_run_id: str | None = None,
+    lean_toolchain: str | None = None,
+    mathlib_revision: str | None = None,
 ) -> SignedLeanAttestation:
     """Sign only a completed request-bound result from the trusted Lean runner."""
     check = verification.check
@@ -206,6 +239,11 @@ def sign_transformation_result(
         proof_artifact_sha256=check.proof_source_sha256,
         proof_source=check.proof_source,
         checker_id=check.checker_id,
+        environment_manifest_sha256=environment_manifest_sha256,
+        source_commit=source_commit,
+        workflow_run_id=workflow_run_id,
+        lean_toolchain=lean_toolchain,
+        mathlib_revision=mathlib_revision,
         kernel_version=version,
         outcome=(
             EvidenceEventOutcome.PASSED
@@ -251,6 +289,11 @@ def run_and_sign_transformation(
     runner_id: str,
     key_id: str,
     private_key: bytes,
+    environment_manifest_sha256: str | None = None,
+    source_commit: str | None = None,
+    workflow_run_id: str | None = None,
+    lean_toolchain: str | None = None,
+    mathlib_revision: str | None = None,
 ) -> tuple[object, SignedLeanAttestation]:
     """Execute MOSAIC's request-bound Lean verifier and sign its completed result.
 
@@ -271,6 +314,11 @@ def run_and_sign_transformation(
         runner_id=runner_id,
         key_id=key_id,
         private_key=private_key,
+        environment_manifest_sha256=environment_manifest_sha256,
+        source_commit=source_commit,
+        workflow_run_id=workflow_run_id,
+        lean_toolchain=lean_toolchain,
+        mathlib_revision=mathlib_revision,
     )
     return verification, attestation
 
