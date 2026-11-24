@@ -25,7 +25,12 @@ def sha256(path: Path) -> str:
 
 
 def main() -> None:
-    toolchain = (PROJECT / "lean-toolchain").read_text(encoding="utf-8").strip()
+    toolchain_path = PROJECT / "lean-toolchain"
+    root_toolchain_path = ROOT / "lean-toolchain"
+    toolchain = toolchain_path.read_text(encoding="utf-8").strip()
+    root_toolchain = root_toolchain_path.read_text(encoding="utf-8").strip()
+    if root_toolchain != toolchain:
+        raise SystemExit("root and formal/polynomial Lean toolchain pins differ")
     if toolchain != EXPECTED_TOOLCHAIN:
         raise SystemExit(f"unexpected Lean toolchain: {toolchain!r}")
     manifest_path = PROJECT / "lake-manifest.json"
@@ -37,8 +42,22 @@ def main() -> None:
         ["lake", "env", "lean", "--version"],
         cwd=PROJECT, check=True, capture_output=True, text=True,
     ).stdout.strip()
+    lake = subprocess.run(
+        ["lake", "--version"], cwd=PROJECT, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
     if "4.36.0" not in lean:
         raise SystemExit(f"observed Lean version does not match pinned toolchain: {lean!r}")
+    mathlib_path = PROJECT / ".lake" / "packages" / "mathlib"
+    observed_mathlib_revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=mathlib_path, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    if observed_mathlib_revision != EXPECTED_MATHLIB_REVISION:
+        raise SystemExit(
+            "installed Mathlib checkout does not match lake-manifest.json: "
+            f"{observed_mathlib_revision!r}"
+        )
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
         capture_output=True, text=True,
@@ -52,7 +71,11 @@ def main() -> None:
         "environment": {
             "lean_toolchain": toolchain,
             "lean_version_output": lean,
+            "lake_version_output": lake,
+            "root_lean_toolchain_sha256": sha256(root_toolchain_path),
+            "formal_lean_toolchain_sha256": sha256(toolchain_path),
             "mathlib_revision": EXPECTED_MATHLIB_REVISION,
+            "observed_mathlib_revision": observed_mathlib_revision,
             "lake_manifest_sha256": sha256(manifest_path),
             "lakefile_sha256": sha256(PROJECT / "lakefile.lean"),
             "lean_entrypoint_sha256": sha256(PROJECT / "Main.lean"),
