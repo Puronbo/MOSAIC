@@ -197,8 +197,9 @@ the root and project Lean toolchain pins must agree. Its real-kernel CI
 workflow tests accepted identities, a rejected identity, unsupported syntax,
 and a request-bound proof. The provenance generator now checks the actual
 installed Mathlib checkout against the manifest (not just the declared pin),
-checks the observed Lean version, and records Lean/Lake version strings, both
-toolchain-file hashes, the observed Mathlib revision, Lake manifest digest,
+checks the observed Lean version, and records Lean/Lake/Elan version strings,
+hashes of the resolved Lean/Lake/Elan executables, both toolchain-file hashes,
+the observed Mathlib revision, Lake manifest digest,
 source digests, commit, and workflow identity in `lean-provenance.json`. The
 manifest follows `schemas/lean-build-provenance-v1.schema.json`. Lean
 integration CI also installs MOSAIC from the committed `uv.lock` with
