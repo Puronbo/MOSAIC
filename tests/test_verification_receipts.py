@@ -7,7 +7,7 @@ from mosaic.verification.obligations import obligations_for_request, request_fin
 from mosaic.verification.review_checkers import ReviewCheckerReceipt, check_review_obligation_with_lean
 from mosaic.verification.lean_obligations import LeanIdentityObligation, LeanIdentityVerification
 from mosaic.verification.receipts import (
-    ReceiptStore, VerificationReceipt, load_receipt, serialize_receipt,
+    AuthenticatedReceipt, ReceiptStore, VerificationReceipt, load_authenticated_receipt, load_receipt, serialize_authenticated_receipt, serialize_receipt,
     validate_receipt_for_replay,
 )
 
@@ -230,3 +230,28 @@ def test_receipt_rejects_formal_status_without_lean_obligation():
     )
     with pytest.raises(Exception, match="requires its request-bound"):
         VerificationReceipt(**values)
+
+
+def test_authenticated_receipt_round_trip_and_key_validation():
+    request, _, receipt = _issued()
+    key = b"k" * 32
+    sealed = AuthenticatedReceipt.seal(receipt, key)
+    restored = load_authenticated_receipt(serialize_authenticated_receipt(sealed))
+    assert restored.verify(key, request) == receipt
+    with pytest.raises(ValueError, match="authentication failed"):
+        restored.verify(b"z" * 32, request)
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        AuthenticatedReceipt.seal(receipt, b"short")
+
+
+def test_authenticated_receipt_rejects_modified_tag_and_receipt():
+    request, _, receipt = _issued()
+    key = b"s" * 32
+    sealed = AuthenticatedReceipt.seal(receipt, key)
+    altered_tag = sealed.model_copy(update={"hmac_sha256": "0" * 64})
+    with pytest.raises(ValueError, match="authentication failed"):
+        altered_tag.verify(key, request)
+    altered_receipt = receipt.model_copy(update={"explanation": "tampered"})
+    envelope = sealed.model_copy(update={"receipt": altered_receipt})
+    with pytest.raises(ValueError, match="authentication failed"):
+        envelope.verify(key, request)
