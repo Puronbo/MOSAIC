@@ -1027,6 +1027,84 @@ class SignedOperatorLifecycleRestoreLedgerHead(BaseModel):
         return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
 
 
+def verify_operator_lifecycle_restore_ledger_head_advance(
+    entries: tuple[dict, ...] | list[dict],
+    previous_head: SignedOperatorLifecycleRestoreLedgerHead,
+    candidate_head: SignedOperatorLifecycleRestoreLedgerHead, *,
+    ledger_authority_keyring: dict[str, PolicyPublisherKey],
+    receipt_authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str,
+    authorization_time_utc: str | None = None,
+) -> OperatorLifecycleRestoreLedgerReport:
+    """Verify a new signed ledger head extends, rather than replaces, an external pin.
+
+    The full supplied ledger must validate to the candidate head. The previous
+    independently retained head must occur at its exact sequence and digest in
+    that same verified ledger, proving the candidate is a descendant of the pin.
+    """
+    errors: list[str] = []
+    if not isinstance(previous_head, SignedOperatorLifecycleRestoreLedgerHead):
+        errors.append("previous_head_invalid")
+    if not isinstance(candidate_head, SignedOperatorLifecycleRestoreLedgerHead):
+        errors.append("candidate_head_invalid")
+    if not errors:
+        if previous_head.registry_id != expected_registry_id:
+            errors.append("previous_head_registry_mismatch")
+        if candidate_head.registry_id != expected_registry_id:
+            errors.append("candidate_head_registry_mismatch")
+        if candidate_head.event_sequence <= previous_head.event_sequence:
+            errors.append("candidate_head_not_newer")
+        if candidate_head.issued_at_utc < previous_head.issued_at_utc:
+            errors.append("candidate_head_timestamp_regressed")
+        if not verify_operator_lifecycle_restore_ledger_head(
+            previous_head, authority_keyring=ledger_authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_event_sequence=previous_head.event_sequence,
+            expected_ledger_entry_sha256=previous_head.ledger_entry_sha256,
+            expected_receipt_sha256=previous_head.receipt_sha256,
+            authorization_time_utc=authorization_time_utc):
+            errors.append("previous_head_signature_invalid")
+        if not verify_operator_lifecycle_restore_ledger_head(
+            candidate_head, authority_keyring=ledger_authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_event_sequence=candidate_head.event_sequence,
+            expected_ledger_entry_sha256=candidate_head.ledger_entry_sha256,
+            expected_receipt_sha256=candidate_head.receipt_sha256,
+            authorization_time_utc=authorization_time_utc):
+            errors.append("candidate_head_signature_invalid")
+    if errors:
+        return OperatorLifecycleRestoreLedgerReport(
+            accepted=False, registry_id=expected_registry_id, event_count=0,
+            ending_event_sequence=0, ending_ledger_entry_sha256="0" * 64,
+            errors=tuple(dict.fromkeys(errors)))
+    if previous_head.event_sequence > len(entries):
+        errors.append("previous_head_beyond_supplied_ledger")
+    else:
+        try:
+            pinned = entries[previous_head.event_sequence - 1]
+            if (pinned["event_sequence"] != previous_head.event_sequence
+                    or pinned["ledger_entry_sha256"] != previous_head.ledger_entry_sha256
+                    or pinned["receipt_sha256"] != previous_head.receipt_sha256):
+                errors.append("previous_head_not_in_candidate_ledger")
+        except (KeyError, IndexError, TypeError):
+            errors.append("previous_head_not_in_candidate_ledger")
+    report = verify_operator_lifecycle_restore_ledger(
+        entries, expected_registry_id=expected_registry_id,
+        expected_event_sequence=candidate_head.event_sequence,
+        expected_ledger_entry_sha256=candidate_head.ledger_entry_sha256,
+        authority_keyring=receipt_authority_keyring)
+    errors.extend(report.errors)
+    if (report.accepted and entries
+            and entries[-1].get("receipt_sha256") != candidate_head.receipt_sha256):
+        errors.append("candidate_head_receipt_mismatch")
+    return OperatorLifecycleRestoreLedgerReport(
+        accepted=not errors, registry_id=expected_registry_id,
+        event_count=report.event_count,
+        ending_event_sequence=report.ending_event_sequence,
+        ending_ledger_entry_sha256=report.ending_ledger_entry_sha256,
+        errors=tuple(dict.fromkeys(errors)))
+
+
 def verify_operator_lifecycle_restore_ledger_head(
     head: SignedOperatorLifecycleRestoreLedgerHead, *,
     authority_keyring: dict[str, PolicyPublisherKey],
