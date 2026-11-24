@@ -453,3 +453,32 @@ def test_unicode_v1_conformance_vector_matches_python_canonical_bytes():
     canonical = _canonical(attestation.model_dump(mode="json", exclude={"signature_b64"}))
     assert hashlib.sha256(canonical).hexdigest() == vector["canonical_sha256"]
     assert attestation.verify(base64.b64decode(vector["public_key_b64"], validate=True))
+
+
+def test_portable_bundle_conformance_vector_verifies_and_binds_all_inputs():
+    import base64
+    import json
+    from pathlib import Path
+    from mosaic.core.requests import MathRequest
+    from mosaic.verification.lean_runner_signature import verify_lean_proof_receipt_bundle
+    from mosaic.verification.obligations import request_fingerprint
+
+    vector = json.loads(
+        (Path(__file__).parent / "fixtures" / "lean_receipt_v1_bundle_vector.json").read_text()
+    )
+    manifest = base64.b64decode(vector["manifest_b64"], validate=True)
+    candidate = base64.b64decode(vector["candidate_b64"], validate=True)
+    public_key = base64.b64decode(vector["public_key_b64"], validate=True)
+    request = MathRequest.model_validate(vector["request"])
+    arguments = {
+        "manifest": manifest,
+        "trusted_public_key": public_key,
+        "request_sha256": request_fingerprint(request),
+        "candidate": candidate,
+    }
+    assert verify_lean_proof_receipt_bundle(vector["receipt"], **arguments)
+    assert not verify_lean_proof_receipt_bundle(vector["receipt"], **{**arguments, "candidate": candidate + b" "})
+    assert not verify_lean_proof_receipt_bundle(vector["receipt"], **{**arguments, "manifest": manifest + b" "})
+    assert not verify_lean_proof_receipt_bundle(vector["receipt"], **{**arguments, "request_sha256": "0" * 64})
+    changed = {**vector["receipt"], "replay": {"exact_signed_source_replayed": False}}
+    assert not verify_lean_proof_receipt_bundle(changed, **arguments)
