@@ -86,7 +86,7 @@ function sha256(value) {
 export function verifyAttestation(attestation, trustedPublicKeyB64) {
   try {
     if (!attestation || typeof attestation !== "object" || Array.isArray(attestation)) return false;
-    if (Object.keys(attestation).sort().join("|") !== [...ATTESTATION_FIELDS].sort().join("|")) return false;
+    if (Object.keys(attestation).sort().join("|") !== [...ATTESTATION_FIELDS].sort().join("|")) return false;\n    if (Object.values(attestation).some((value) => typeof value === "string" && !isWellFormedUnicode(value))) return false;
     if (attestation.schema_version !== "1.0" || attestation.kernel_id !== "Lean") return false;
     if (!["PASSED", "FAILED"].includes(attestation.outcome)) return false;
     const limits = {
@@ -136,11 +136,11 @@ function normalizeMathRequest(request) {
     variable: Object.hasOwn(request, "variable") ? request.variable : "x",
     rhs: Object.hasOwn(request, "rhs") ? request.rhs : null,
   };
-  if (typeof normalized.schema_version !== "string") return null;
+  if (typeof normalized.schema_version !== "string" || !isWellFormedUnicode(normalized.schema_version)) return null;
   if (!["simplify", "expand", "factor", "differentiate", "integrate", "verify_identity", "solve", "verify_certificate", "search", "counterexample", "analyze"].includes(normalized.operation)) return null;
-  if (typeof normalized.expression !== "string" || normalized.expression.length < 1 || Array.from(normalized.expression).length > 2000) return null;
-  if (typeof normalized.variable !== "string" || normalized.variable.length < 1 || Array.from(normalized.variable).length > 32) return null;
-  if (normalized.rhs !== null && (typeof normalized.rhs !== "string" || Array.from(normalized.rhs).length > 2000)) return null;
+  if (typeof normalized.expression !== "string" || !isWellFormedUnicode(normalized.expression) || normalized.expression.length < 1 || Array.from(normalized.expression).length > 2000) return null;
+  if (typeof normalized.variable !== "string" || !isWellFormedUnicode(normalized.variable) || normalized.variable.length < 1 || Array.from(normalized.variable).length > 32) return null;
+  if (normalized.rhs !== null && (typeof normalized.rhs !== "string" || !isWellFormedUnicode(normalized.rhs) || Array.from(normalized.rhs).length > 2000)) return null;
   return normalized;
 }
 
