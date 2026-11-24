@@ -252,3 +252,19 @@ The theorem `along_base_path_derivative` goes one step further: for any differen
 \\]
 
 This combines the changing-base and changing-exponent contributions via the real-power chain rule. The hypothesis is local at the point where the derivative is evaluated; it does not assert that the path stays positive globally.
+
+
+The generalized theorem `along_joint_path_derivative` accepts two independently
+differentiable coordinate paths `u(s)` and `v(s)`, and differentiates
+`u(s)^(u(s)+v(s))` at a point where the base is positive. If their
+derivatives are `u'` and `v'`, the result is
+
+\[
+u'(u+v)u^{u+v-1}+(u'+v')u^{u+v}\log u.
+\]
+
+This gives the derivative along every differentiable curve in the positive-base
+domain, including affine directional paths. It is stronger than the special
+path `u(s)^(u(s)+s)`, but it is still a pathwise chain-rule theorem rather
+than a bundled Fréchet derivative of the two-variable map. The pinned Lean
+integration workflow is the acceptance gate for the new theorem.
