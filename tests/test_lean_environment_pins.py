@@ -42,3 +42,23 @@ def test_lean_provenance_generator_checks_observed_mathlib_checkout():
     assert 'executable_sha256("lake")' in source
     assert 'executable_sha256("elan")' in source
     assert '"root_lean_toolchain_sha256": sha256(root_toolchain_path)' in source
+
+
+
+def test_lean_provenance_schema_requires_nonempty_ci_execution_identity():
+    schema = json.loads(
+        (ROOT / "schemas" / "lean-build-provenance-v1.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    execution = schema["properties"]["execution"]
+    assert set(execution["required"]) == {
+        "workflow", "run_id", "run_attempt", "runner_os"
+    }
+    properties = execution["properties"]
+    assert properties["workflow"] == {"type": "string", "minLength": 1}
+    assert properties["runner_os"] == {"type": "string", "minLength": 1}
+    assert properties["run_id"]["type"] == "string"
+    assert properties["run_id"]["pattern"] == "^[0-9]+$"
+    assert properties["run_attempt"]["type"] == "string"
+    assert properties["run_attempt"]["pattern"] == "^[0-9]+$"
