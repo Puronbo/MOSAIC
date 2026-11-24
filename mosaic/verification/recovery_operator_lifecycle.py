@@ -124,3 +124,74 @@ class RecoveryOperatorLifecycleTrustPolicy(BaseModel):
             and checkpoint.sequence >= self.minimum_sequence
             and checkpoint.digest() == self.expected_checkpoint_sha256
         )
+
+
+class OperatorLifecycleCheckpointAdvanceReport(BaseModel):
+    """Result of validating one checkpoint against an externally pinned predecessor."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    accepted: bool
+    previous_sequence: int = Field(ge=0)
+    candidate_sequence: int = Field(ge=0)
+    previous_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    errors: tuple[str, ...] = ()
+
+
+def verify_operator_lifecycle_checkpoint_advance(
+    previous: SignedOperatorLifecycleCheckpoint,
+    candidate: SignedOperatorLifecycleCheckpoint, *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_previous_sha256: str,
+    expected_registry_id: str,
+    authorization_time_utc: str | None = None,
+) -> OperatorLifecycleCheckpointAdvanceReport:
+    """Verify exactly one contiguous, signed advancement from a pinned checkpoint.
+
+    The caller must retain expected_previous_sha256 outside the mutable store.
+    This validates a single step, not a distributed consensus or an entire
+    unobserved history.
+    """
+    errors: list[str] = []
+    previous_digest = previous.digest() if isinstance(previous, SignedOperatorLifecycleCheckpoint) else "0" * 64
+    candidate_digest = candidate.digest() if isinstance(candidate, SignedOperatorLifecycleCheckpoint) else "0" * 64
+    if not isinstance(previous, SignedOperatorLifecycleCheckpoint):
+        errors.append("previous_checkpoint_invalid")
+    elif previous_digest != expected_previous_sha256:
+        errors.append("previous_checkpoint_anchor_mismatch")
+    elif not verify_operator_lifecycle_checkpoint(
+        previous, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_checkpoint_sha256=expected_previous_sha256,
+        authorization_time_utc=authorization_time_utc,
+    ):
+        errors.append("previous_checkpoint_signature_or_policy_invalid")
+    if not isinstance(candidate, SignedOperatorLifecycleCheckpoint):
+        errors.append("candidate_checkpoint_invalid")
+    elif isinstance(previous, SignedOperatorLifecycleCheckpoint):
+        if candidate.registry_id != previous.registry_id:
+            errors.append("registry_changed")
+        if candidate.authority_key_id != previous.authority_key_id:
+            errors.append("authority_changed")
+        if candidate.sequence != previous.sequence + 1:
+            errors.append("sequence_not_contiguous")
+        if candidate.previous_checkpoint_sha256 != previous_digest:
+            errors.append("predecessor_digest_mismatch")
+        if candidate.issued_at_utc <= previous.issued_at_utc:
+            errors.append("issuance_time_not_monotonic")
+        if not verify_operator_lifecycle_checkpoint(
+            candidate, authority_keyring=authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_sequence=previous.sequence + 1,
+            expected_previous_sha256=previous_digest,
+            authorization_time_utc=authorization_time_utc,
+        ):
+            errors.append("candidate_signature_or_policy_invalid")
+    else:
+        errors.append("predecessor_unavailable")
+    return OperatorLifecycleCheckpointAdvanceReport(
+        accepted=not errors,
+        previous_sequence=previous.sequence if isinstance(previous, SignedOperatorLifecycleCheckpoint) else 0,
+        candidate_sequence=candidate.sequence if isinstance(candidate, SignedOperatorLifecycleCheckpoint) else 0,
+        previous_sha256=previous_digest, candidate_sha256=candidate_digest,
+        errors=tuple(dict.fromkeys(errors)),
+    )
