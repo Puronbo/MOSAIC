@@ -21,6 +21,7 @@ from mosaic.verification.recovery_policy_checkpoint_recovery import (
     export_rebootstrap_audit,
     verify_rebootstrap_audit_export,
     verify_rebootstrap_audit_export_report,
+    report_rebootstrap_proposal_conflicts,
 )
 
 
@@ -389,6 +390,14 @@ def test_competing_valid_recovery_proposals_leave_only_winner_state(tmp_path):
         audit_export, operator_keyring=operator_ring,
         publisher_keyring=publisher_ring, checkpoint_keyring=checkpoint_ring,
         expected_head_sha256=audit_head)
+    conflict_report = report_rebootstrap_proposal_conflicts(
+        [intent_a, intent_b], audit_export)
+    assert conflict_report.conflicting
+    assert conflict_report.proposal_count == 2
+    assert conflict_report.distinct_proposal_count == 2
+    assert conflict_report.winning_intent_sha256 == winning_intent.digest()
+    assert conflict_report.losing_intent_sha256 == (losing_intent.digest(),)
+    assert conflict_report.unattributed_intent_sha256 == ()
 
     with sqlite3.connect(db_path) as db:
         assert db.execute(
