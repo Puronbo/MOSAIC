@@ -174,14 +174,6 @@ class PolicyWitnessStateStore:
                 db.rollback()
                 return None
             encoded = self._encode(checkpoint)
-            for historical in snapshot.checkpoint_history:
-                db.execute(
-                    """INSERT OR IGNORE INTO witness_checkpoint_history
-                    (log_id, checkpoint_sha256, sequence, checkpoint_json)
-                    VALUES (?, ?, ?, ?)""",
-                    (snapshot.log_id, historical.digest(), historical.sequence,
-                     self._encode(historical)),
-                )
             db.execute(
                 """INSERT INTO witness_heads
                 (log_id, checkpoint_json, checkpoint_sha256, quarantined)
@@ -288,6 +280,14 @@ class PolicyWitnessStateStore:
                     db.rollback()
                     return False
             encoded = self._encode(snapshot.checkpoint)
+            for historical in snapshot.checkpoint_history:
+                db.execute(
+                    """INSERT OR IGNORE INTO witness_checkpoint_history
+                    (log_id, checkpoint_sha256, sequence, checkpoint_json)
+                    VALUES (?, ?, ?, ?)""",
+                    (snapshot.log_id, historical.digest(), historical.sequence,
+                     self._encode(historical)),
+                )
             db.execute(
                 """INSERT INTO witness_heads
                 (log_id, checkpoint_json, checkpoint_sha256, quarantined)
