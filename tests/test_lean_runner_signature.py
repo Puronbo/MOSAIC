@@ -16,6 +16,7 @@ from mosaic.verification.lean_runner_signature import (
     sign_transformation_result,
     verify_evidence_event_signature,
     replay_attested_proof_source,
+    verify_attested_environment_manifest,
 )
 from mosaic.verification.obligations import request_fingerprint
 
@@ -244,3 +245,33 @@ def test_ed25519_environment_binding_must_be_complete():
             runner_id="runner", key_id="key", private_key=private,
             environment_manifest_sha256="a" * 64,
         )
+
+
+def test_environment_manifest_verification_requires_exact_signed_bytes():
+    import json
+
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    manifest = {
+        "source": {"commit": "b" * 40},
+        "execution": {"run_id": "12345"},
+        "environment": {
+            "lean_toolchain": "leanprover/lean4:v4.36.0",
+            "mathlib_revision": "c" * 40,
+        },
+    }
+    manifest_bytes = json.dumps(manifest, sort_keys=True).encode()
+    signed = sign_transformation_result(
+        verification, request, result, receipt_id="manifest-verification",
+        runner_id="runner", key_id="key", private_key=private,
+        environment_manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+        source_commit="b" * 40, workflow_run_id="12345",
+        lean_toolchain="leanprover/lean4:v4.36.0",
+        mathlib_revision="c" * 40,
+    )
+    assert verify_attested_environment_manifest(signed, public, manifest_bytes)
+    assert not verify_attested_environment_manifest(signed, public, manifest_bytes + b" ")
+    altered = {**manifest, "source": {"commit": "d" * 40}}
+    assert not verify_attested_environment_manifest(
+        signed, public, json.dumps(altered, sort_keys=True).encode()
+    )
