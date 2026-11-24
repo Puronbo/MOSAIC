@@ -305,3 +305,123 @@ def test_lifecycle_receipt_restore_rejects_same_sequence_equivocation(tmp_path):
         authorization_time_utc="2026-11-24T08:03:00.000000Z",
         allow_initial=True)
     assert store.read(first.registry_id)["checkpoint_sha256"] == first.digest()
+
+
+def test_portable_lifecycle_checkpoint_chain_bundle_verifies_full_contiguous_suffix():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        verify_operator_lifecycle_checkpoint_chain_bundle,
+    )
+    authority_sk, authority = identity("bundle-authority")
+    _, operator = identity("bundle-operator")
+    ring = {"bundle-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="bundle-registry", sequence=50,
+        previous_checkpoint_sha256="b" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="bundle-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="bundle-registry", sequence=51,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="bundle-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    third = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="bundle-registry", sequence=52,
+        previous_checkpoint_sha256=second.digest(),
+        issued_at_utc="2026-11-24T08:02:00.000000Z",
+        authority_key_id="bundle-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second, third])
+    report = verify_operator_lifecycle_checkpoint_chain_bundle(
+        bundle, first, authority_keyring=ring,
+        expected_registry_id="bundle-registry",
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256=third.digest(),
+        expected_ending_sequence=52,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert report.accepted
+    assert report.verified_transitions == 2
+    assert report.ending_sequence == 52
+
+    wrong_end = verify_operator_lifecycle_checkpoint_chain_bundle(
+        bundle, first, authority_keyring=ring,
+        expected_registry_id="bundle-registry",
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256="0" * 64,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not wrong_end.accepted
+    assert "external_end_anchor_mismatch" in wrong_end.errors
+
+    wrong_start = verify_operator_lifecycle_checkpoint_chain_bundle(
+        bundle, first, authority_keyring=ring,
+        expected_registry_id="bundle-registry",
+        expected_starting_checkpoint_sha256="0" * 64,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not wrong_start.accepted
+    assert "external_start_anchor_mismatch" in wrong_start.errors
+
+
+def test_portable_lifecycle_checkpoint_chain_bundle_rejects_gap_fork_and_tampering():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        verify_operator_lifecycle_checkpoint_chain_bundle,
+    )
+    authority_sk, authority = identity("bundle-negative-authority")
+    _, operator = identity("bundle-negative-operator")
+    ring = {"bundle-negative-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="bundle-negative-registry", sequence=10,
+        previous_checkpoint_sha256="c" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="bundle-negative-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    next_checkpoint = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=11,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="bundle-negative-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    skipped = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=12,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:02:00.000000Z",
+        authority_key_id="bundle-negative-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    gap_bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[skipped])
+    gap = verify_operator_lifecycle_checkpoint_chain_bundle(
+        gap_bundle, first, authority_keyring=ring,
+        expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not gap.accepted
+    assert any("sequence_not_contiguous" in item for item in gap.errors)
+
+    fork = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=11,
+        previous_checkpoint_sha256="d" * 64,
+        issued_at_utc="2026-11-24T08:02:30.000000Z",
+        authority_key_id="bundle-negative-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    fork_bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[fork])
+    fork_report = verify_operator_lifecycle_checkpoint_chain_bundle(
+        fork_bundle, first, authority_keyring=ring,
+        expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not fork_report.accepted
+    assert any("predecessor_digest_mismatch" in item for item in fork_report.errors)
+
+    altered = next_checkpoint.model_copy(update={"sequence": 12})
+    altered_bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[altered])
+    altered_report = verify_operator_lifecycle_checkpoint_chain_bundle(
+        altered_bundle, first, authority_keyring=ring,
+        expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not altered_report.accepted
