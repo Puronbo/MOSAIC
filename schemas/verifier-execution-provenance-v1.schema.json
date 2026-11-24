@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/verifier-execution-provenance-v1.schema.json",
+  "title": "MOSAIC Verifier Execution Provenance",
+  "description": "Descriptive verifier/runtime metadata. This manifest is not a signed attestation and does not establish correctness.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provenance_schema_version",
+    "verifier",
+    "verifier_sha256",
+    "mosaic_distribution_version",
+    "python_version",
+    "python_implementation",
+    "platform",
+    "dependency_versions",
+    "dependency_lock_file",
+    "dependency_lock_sha256",
+    "source_revision",
+    "workflow_run_id",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "provenance_schema_version": {
+      "const": "1.0"
+    },
+    "verifier": {
+      "const": "verify_operator_lifecycle_recovery_envelope"
+    },
+    "verifier_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "mosaic_distribution_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "python_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "python_implementation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dependency_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mosaic-math",
+        "pydantic",
+        "cryptography"
+      ],
+      "properties": {
+        "mosaic-math": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pydantic": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cryptography": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "dependency_lock_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dependency_lock_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_revision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workflow_run_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "dependency_lock_file": {
+            "type": "string"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "dependency_lock_sha256": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dependency_lock_file": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "dependency_lock_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}
