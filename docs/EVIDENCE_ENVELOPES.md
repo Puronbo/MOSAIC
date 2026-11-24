@@ -1471,3 +1471,22 @@ outside the envelope and its mutable storage domain. The ledger verifier
 checks signed receipt statements and hash-linked continuity; it does not
 establish trusted time, immutable storage, consensus, or the substantive truth
 of the underlying restoration claims.
+
+### G-EP129: deterministic portable-envelope verification reports
+
+G-EP128's Boolean verifier now has a companion
+`verify_operator_lifecycle_recovery_evidence_envelope_report(...)` API. It
+returns a frozen `OperatorLifecycleRecoveryEvidenceVerificationReport`
+containing the envelope digest, registry, rotation/event counts, stable check
+identifiers, and deduplicated error identifiers. Its canonical digest permits
+independent comparison of repeated report serialization. The existing Boolean
+verifier remains available for callers that need only acceptance.
+
+The report schema is
+`schemas/operator-lifecycle-recovery-evidence-verification-report-v1.schema.json`.
+The report is diagnostic output, not a trust anchor or proof artifact: its
+acceptance is meaningful only relative to the independently supplied initial
+authority key, authority keyring, expected rotation and restore-head digests,
+terminal ledger values, and optional authorization time. A report digest
+establishes byte-level identity of that report, not truth of the claims it
+summarizes. Timestamps remain signed policy data, not trusted time.
