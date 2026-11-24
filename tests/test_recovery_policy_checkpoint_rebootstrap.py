@@ -215,3 +215,71 @@ def test_legacy_audit_rows_are_explicitly_unverifiable_not_verified(tmp_path):
     assert not report.is_verified
     assert not verify_rebootstrap_audit_export(
         exported, operator_keyring={}, publisher_keyring={}, checkpoint_keyring=None)
+
+
+
+def test_concurrent_rebootstrap_from_independent_stores_commits_exactly_once(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    pub_sk, pub = identity("publisher")
+    cp_sk, cp_key = identity("checkpoint")
+    op1_sk, op1 = identity("operator-1")
+    op2_sk, op2 = identity("operator-2")
+    original, selected = entry(pub_sk, 1), entry(pub_sk, 5)
+    original_cp, selected_cp = checkpoint(original, cp_sk), checkpoint(selected, cp_sk)
+    db_path = tmp_path / "concurrent-rebootstrap.sqlite3"
+    initial = RecoveryPolicyCheckpointStore(db_path)
+    publisher_ring = {"publisher": pub}
+    checkpoint_ring = {"checkpoint": cp_key}
+    operator_ring = {"operator-1": op1, "operator-2": op2}
+    assert initial.pin_checkpoint([original], checkpoint=original_cp,
+                                  publisher_keyring=publisher_ring,
+                                  checkpoint_keyring=checkpoint_ring)
+    assert not initial.pin_checkpoint([selected], checkpoint=selected_cp,
+                                      publisher_keyring=publisher_ring,
+                                      checkpoint_keyring=checkpoint_ring)
+    incidents = initial.incidents("registry")
+    intent = RecoveryPolicyCheckpointRebootstrapIntent.sign(
+        registry_id="registry",
+        retained_checkpoint_sha256=hashlib.sha256(original_cp.model_dump_json().encode()).hexdigest(),
+        incident_history_sha256=hashlib.sha256(_canonical(incidents)).hexdigest(),
+        selected_checkpoint_sha256=hashlib.sha256(selected_cp.model_dump_json().encode()).hexdigest(),
+        evidence_sha256="c" * 64,
+        reason="Concurrent recovery test uses an independently reviewed alternate registry history.",
+        operator_key_id="operator-1", approved_at_utc="2026-11-24T07:00:00Z",
+        private_key=op1_sk)
+    approval = RecoveryPolicyCheckpointRebootstrapApproval.sign(
+        intent=intent, operator_key_id="operator-2",
+        approved_at_utc="2026-11-24T07:01:00Z", private_key=op2_sk)
+    policy = RecoveryPolicyCheckpointRebootstrapPolicy(minimum_approvals=2)
+    # Distinct store objects force independent SQLite connections to race.
+    stores = [RecoveryPolicyCheckpointStore(db_path), RecoveryPolicyCheckpointStore(db_path)]
+    barrier = Barrier(2)
+
+    def attempt(store):
+        barrier.wait(timeout=10)
+        return rebootstrap_recovery_policy_checkpoint_store(
+            store, [selected], checkpoint=selected_cp,
+            publisher_keyring=publisher_ring, checkpoint_keyring=checkpoint_ring,
+            intent=intent, approvals=[approval], policy=policy,
+            operator_keyring=operator_ring)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, stores))
+    assert sorted(results) == [False, True]
+    assert not initial.is_quarantined("registry")
+    assert initial.matches_trusted_checkpoint(selected_cp)
+    with sqlite3.connect(db_path) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM recovery_policy_rebootstrap_audit WHERE registry_id='registry'"
+        ).fetchone()[0] == 1
+        assert db.execute(
+            "SELECT COUNT(*) FROM recovery_policy_epoch_entries WHERE registry_id='registry' AND epoch=1"
+        ).fetchone()[0] == 1
+    # Replaying the exact same signed proposal after success is rejected.
+    assert not rebootstrap_recovery_policy_checkpoint_store(
+        RecoveryPolicyCheckpointStore(db_path), [selected], checkpoint=selected_cp,
+        publisher_keyring=publisher_ring, checkpoint_keyring=checkpoint_ring,
+        intent=intent, approvals=[approval], policy=policy,
+        operator_keyring=operator_ring)
