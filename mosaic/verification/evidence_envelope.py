@@ -22,6 +22,7 @@ class EvidenceEventOutcome(StrEnum):
     PRODUCED = "PRODUCED"
     PASSED = "PASSED"
     FAILED = "FAILED"
+    INCONCLUSIVE = "INCONCLUSIVE"
 
 
 class EvidenceEvent(BaseModel):
@@ -44,9 +45,10 @@ class EvidenceEvent(BaseModel):
         if self.kind == EvidenceEventKind.COMPUTATION and self.outcome != EvidenceEventOutcome.PRODUCED:
             raise ValueError("computation events must have outcome PRODUCED")
         if self.kind == EvidenceEventKind.INDEPENDENT_CHECK and self.outcome not in {
-            EvidenceEventOutcome.PASSED, EvidenceEventOutcome.FAILED
+            EvidenceEventOutcome.PASSED, EvidenceEventOutcome.FAILED,
+            EvidenceEventOutcome.INCONCLUSIVE,
         }:
-            raise ValueError("independent-check events must have outcome PASSED or FAILED")
+            raise ValueError("independent-check events must have a check outcome")
         if self.kind == EvidenceEventKind.FORMAL_KERNEL_CHECK:
             if self.outcome not in {EvidenceEventOutcome.PASSED, EvidenceEventOutcome.FAILED}:
                 raise ValueError("kernel-check events must have outcome PASSED or FAILED")
@@ -151,4 +153,47 @@ def profile_evidence_envelope(envelope: EvidenceEnvelope) -> EvidenceProfile:
             for event in envelope.events
         ),
         integrity_digest_valid=verify_evidence_envelope(envelope),
+    )
+
+
+
+def evidence_bundle_to_envelope(
+    bundle,
+    *,
+    envelope_id: str,
+    claim: str,
+):
+    """Wrap registered checker evidence in an integrity-bound envelope.
+
+    The bundle must contain evidence items tied to one exact candidate. This
+    adapter preserves support/refutation/unresolved findings as distinct
+    outcomes and does not treat model opinions as checker evidence.
+    """
+    if not bundle.items:
+        raise ValueError("evidence bundle contains no checker items")
+    candidate_hashes = {item.candidate_sha256 for item in bundle.items}
+    if len(candidate_hashes) != 1:
+        raise ValueError("evidence bundle must refer to one candidate artifact")
+    artifact_hash = next(iter(candidate_hashes))
+    events = []
+    for item in bundle.items:
+        outcome = {
+            "supports": EvidenceEventOutcome.PASSED,
+            "refutes": EvidenceEventOutcome.FAILED,
+            "unresolved": EvidenceEventOutcome.INCONCLUSIVE,
+        }[item.finding]
+        events.append(EvidenceEvent(
+            event_id=item.evidence_id,
+            kind=EvidenceEventKind.INDEPENDENT_CHECK,
+            outcome=outcome,
+            artifact_sha256=artifact_hash,
+            method=item.explanation,
+            tool_id=item.checker_id,
+            tool_version="registered-source",
+        ))
+    return create_evidence_envelope(
+        envelope_id=envelope_id,
+        claim=claim,
+        artifact_sha256=artifact_hash,
+        events=tuple(events),
     )
