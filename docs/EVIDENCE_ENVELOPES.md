@@ -425,9 +425,9 @@ predicate fields. See the
 Historical v2 receipts now carry `trust_policy_sha256` inside the Ed25519
 signature. The digest is SHA-256 over the exact canonical UTF-8 JSON bytes of
 an immutable `HistoricalTrustPolicy` document. The normative policy shape is
-`schemas/historical-trust-policy-v1.schema.json`; the registry record is
-content-addressed and includes policy activation and optional retirement
-times. A policy change creates a new digest and must not overwrite the old
+`schemas/historical-trust-policy-v1.schema.json`; registry records follow
+`schemas/historical-trust-policy-record-v1.schema.json` and include policy
+activation and optional retirement times. A policy change creates a new digest and must not overwrite the old
 policy document.
 
 The verifier receives an explicit map of trusted policy records. It rejects
