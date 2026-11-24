@@ -85,3 +85,34 @@ It also proves the denominator inequality \(2^{n-1}\le n^{n-1}\) for \(n\ge2\). 
 **The infinite-series formalization is not yet verified.** An attempted extension introduced real-valued terms, summability, a total-sum bound, and a shifted-tail bound, but the Lean CI run failed during theorem elaboration. The attempted source has been withdrawn rather than reported as a proof. In particular, the claims of summability, \(S\le2\), and the infinite tail estimate above currently rest on the written mathematical comparison argument, not on a Lean theorem in this repository.
 
 The quotient-law normalization, factorial comparison with \(e\), Taylor's theorem, and a certified decimal interval also remain separate formalization tasks. Numerical computation, an ordinary mathematical argument, and a kernel-checked proof are distinct evidence levels.
+
+## 7. A real-exponent equation and a constant substitution
+
+The nearby equation
+\[
+x^x-1=2
+\]
+is equivalent (for real \(x>0\)) to \(x^x=3\). It has no natural-number
+solution, as established by the Lean theorem in formal/polynomial/Main.lean.
+Over the positive reals it has exactly one solution. Indeed, \(x^x=3\)
+implies \(x>1\), and
+\[
+\frac{d}{dx}(x^x)=x^x(\ln x+1)>0
+\]
+for \(x>1\), so the function is strictly increasing there. Solving
+\(x\ln x=\ln 3\) with the Lambert \(W\) function gives
+\[
+x=\exp(W(\ln 3))=\frac{\ln 3}{W(\ln 3)}
+\approx1.82545502292483004.
+\]
+The Lambert \(W\) expression is an analytic characterization; the decimal
+is a numerical approximation.
+
+For the constant substitution \(x=\pi\), the two different expressions are
+\[
+\pi^{\pi-1}\approx11.60626587458556,
+\qquad
+\pi^\pi-1\approx35.46215960720791.
+\]
+The parentheses are mathematically significant: \(\pi^{\pi-1}\) is not
+\(\pi^\pi-1\).
