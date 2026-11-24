@@ -1058,3 +1058,61 @@ def test_rotation_head_external_pin_detects_truncation_and_fork():
     stale = terminal.model_copy(update={"rotation_sequence": 0})
     assert not verify_operator_lifecycle_ledger_authority_rotation_head_advance(
         [rotation], genesis, stale, **kwargs)
+
+
+def test_restore_ledger_head_requires_exact_external_rotation_pin_and_effective_key_time():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        SignedOperatorLifecycleLedgerAuthorityRotation,
+        SignedOperatorLifecycleLedgerAuthorityRotationHead,
+        SignedOperatorLifecycleRestoreLedgerHead,
+        verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head,
+    )
+    old_sk, old_key = identity("external-rotation-root")
+    new_sk, new_key = identity("external-rotation-next")
+    ring = {old_key.key_id: old_key, new_key.key_id: new_key}
+    rotation = SignedOperatorLifecycleLedgerAuthorityRotation.sign(
+        registry_id="composed-evidence", rotation_sequence=1,
+        previous_rotation_sha256=None, previous_key_id=old_key.key_id,
+        new_key_id=new_key.key_id, previous_private_key=old_sk,
+        new_private_key=new_sk, previous_public_key=old_key.public_key(),
+        new_public_key=new_key.public_key(),
+        effective_at_utc="2026-11-24T08:00:00.000000Z")
+    rotation_head = SignedOperatorLifecycleLedgerAuthorityRotationHead.sign(
+        registry_id="composed-evidence", rotation_sequence=1,
+        rotation_sha256=rotation.digest(), active_key_id=new_key.key_id,
+        issued_at_utc="2026-11-24T08:01:00.000000Z", private_key=new_sk)
+    ledger_head = SignedOperatorLifecycleRestoreLedgerHead.sign(
+        registry_id="composed-evidence", event_sequence=7,
+        ledger_entry_sha256="a" * 64, receipt_sha256="b" * 64,
+        ledger_authority_key_id=new_key.key_id,
+        issued_at_utc="2026-11-24T08:00:30.000000Z", private_key=new_sk)
+    kwargs = dict(
+        rotations=[rotation], authority_keyring=ring,
+        expected_registry_id="composed-evidence",
+        expected_event_sequence=7, expected_ledger_entry_sha256="a" * 64,
+        expected_initial_key_id=old_key.key_id,
+        expected_rotation_sequence=1, expected_rotation_sha256=rotation.digest(),
+        expected_receipt_sha256="b" * 64,
+        authorization_time_utc="2026-11-24T08:02:00.000000Z")
+    assert verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
+        ledger_head, rotation_head=rotation_head, **kwargs)
+
+    wrong_pin = rotation_head.model_copy(update={"rotation_sha256": "f" * 64})
+    assert not verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
+        ledger_head, rotation_head=wrong_pin, **kwargs)
+
+    early_head = SignedOperatorLifecycleRestoreLedgerHead.sign(
+        registry_id="composed-evidence", event_sequence=7,
+        ledger_entry_sha256="a" * 64, receipt_sha256="b" * 64,
+        ledger_authority_key_id=new_key.key_id,
+        issued_at_utc="2026-11-24T07:59:30.000000Z", private_key=new_sk)
+    assert not verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
+        early_head, rotation_head=rotation_head, **kwargs)
+
+    wrong_signer = SignedOperatorLifecycleRestoreLedgerHead.sign(
+        registry_id="composed-evidence", event_sequence=7,
+        ledger_entry_sha256="a" * 64, receipt_sha256="b" * 64,
+        ledger_authority_key_id=old_key.key_id,
+        issued_at_utc="2026-11-24T08:00:30.000000Z", private_key=old_sk)
+    assert not verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
+        wrong_signer, rotation_head=rotation_head, **kwargs)
