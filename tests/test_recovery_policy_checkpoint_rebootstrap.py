@@ -125,6 +125,9 @@ def test_rebootstrap_rejects_insufficient_approvals_and_stale_incident_digest(tm
     approval = RecoveryPolicyCheckpointRebootstrapApproval.sign(
         intent=intent, operator_key_id="operator-2",
         approved_at_utc="2026-11-24T07:01:00Z", private_key=op2_sk)
+    # Simulate a newly recorded incident after the operators reviewed the intent.
+    with sqlite3.connect(store.database_path) as db:
+        db.execute("UPDATE recovery_policy_incidents SET reason='changed_after_approval' WHERE registry_id='registry'")
     assert not rebootstrap_recovery_policy_checkpoint_store(
         store, [fork], checkpoint=new_cp, publisher_keyring={"publisher": pub},
         checkpoint_keyring={"checkpoint": cp_key}, intent=intent, approvals=[approval],
