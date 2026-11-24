@@ -1352,6 +1352,8 @@ def verify_operator_lifecycle_ledger_authority_rotation_head(
     authority = authority_keyring.get(head.active_key_id)
     if authority is None or not authority.permits(head.active_key_id, head.issued_at_utc):
         return False
+    if rotations and head.issued_at_utc < rotations[-1].effective_at_utc:
+        return False
     try:
         if _canonical_timestamp(head.issued_at_utc) != head.issued_at_utc:
             return False
