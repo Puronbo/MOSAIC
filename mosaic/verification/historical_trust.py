@@ -8,8 +8,6 @@ existed no later than the key's retirement/revocation boundary.
 from __future__ import annotations
 
 import base64
-import hashlib
-import re
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -70,10 +68,6 @@ class HistoricalSignedLeanAttestation(SignedLeanAttestation):
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-        if not super(SignedLeanAttestation, self).verify(public_key):
-            # Do not use the v1 verifier: its canonical payload excludes the
-            # issuance timestamp and forces the v1 schema.
-            pass
         try:
             issued = _format_utc(self.issued_at_utc, field="issued_at_utc")
             if issued != self.issued_at_utc:
