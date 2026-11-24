@@ -465,3 +465,118 @@ def verify_operator_lifecycle_trust_anchor_receipt(
         return True
     except (ValueError, TypeError, InvalidSignature):
         return False
+
+
+class OperatorLifecycleCheckpointChainBundle(BaseModel):
+    """Portable contiguous checkpoint suffix anchored to a separately held predecessor."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    starting_sequence: int = Field(ge=0)
+    starting_checkpoint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    checkpoints: tuple[SignedOperatorLifecycleCheckpoint, ...] = Field(min_length=1)
+
+    @classmethod
+    def from_checkpoints(
+        cls, *, starting_checkpoint: SignedOperatorLifecycleCheckpoint,
+        checkpoints: list[SignedOperatorLifecycleCheckpoint],
+    ) -> "OperatorLifecycleCheckpointChainBundle":
+        if not isinstance(starting_checkpoint, SignedOperatorLifecycleCheckpoint):
+            raise ValueError("a signed starting checkpoint is required")
+        return cls(
+            registry_id=starting_checkpoint.registry_id,
+            starting_sequence=starting_checkpoint.sequence,
+            starting_checkpoint_sha256=starting_checkpoint.digest(),
+            checkpoints=tuple(checkpoints),
+        )
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+class OperatorLifecycleCheckpointChainReport(BaseModel):
+    """Deterministic verification result for a portable checkpoint-chain bundle."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    accepted: bool
+    registry_id: str
+    starting_sequence: int = Field(ge=0)
+    ending_sequence: int = Field(ge=0)
+    starting_checkpoint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    ending_checkpoint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    verified_transitions: int = Field(ge=0)
+    errors: tuple[str, ...] = ()
+
+
+def verify_operator_lifecycle_checkpoint_chain_bundle(
+    bundle: OperatorLifecycleCheckpointChainBundle,
+    starting_checkpoint: SignedOperatorLifecycleCheckpoint, *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str,
+    expected_starting_checkpoint_sha256: str,
+    expected_ending_checkpoint_sha256: str | None = None,
+    expected_ending_sequence: int | None = None,
+    authorization_time_utc: str | None = None,
+) -> OperatorLifecycleCheckpointChainReport:
+    """Verify every contiguous signed transition from an external pinned checkpoint."""
+    errors: list[str] = []
+    valid_start = isinstance(starting_checkpoint, SignedOperatorLifecycleCheckpoint)
+    start_digest = starting_checkpoint.digest() if valid_start else "0" * 64
+    start_sequence = starting_checkpoint.sequence if valid_start else 0
+    if not isinstance(bundle, OperatorLifecycleCheckpointChainBundle):
+        errors.append("bundle_invalid")
+    else:
+        if bundle.registry_id != expected_registry_id:
+            errors.append("bundle_registry_mismatch")
+        if bundle.registry_id != (starting_checkpoint.registry_id if valid_start else None):
+            errors.append("starting_registry_mismatch")
+        if bundle.starting_sequence != start_sequence:
+            errors.append("starting_sequence_mismatch")
+        if bundle.starting_checkpoint_sha256 != expected_starting_checkpoint_sha256:
+            errors.append("external_start_anchor_mismatch")
+        if bundle.starting_checkpoint_sha256 != start_digest:
+            errors.append("starting_checkpoint_digest_mismatch")
+    if not valid_start:
+        errors.append("starting_checkpoint_invalid")
+    elif start_digest != expected_starting_checkpoint_sha256:
+        errors.append("starting_checkpoint_anchor_mismatch")
+    elif not verify_operator_lifecycle_checkpoint(
+        starting_checkpoint, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_checkpoint_sha256=expected_starting_checkpoint_sha256,
+        authorization_time_utc=authorization_time_utc,
+    ):
+        errors.append("starting_checkpoint_signature_or_policy_invalid")
+
+    current = starting_checkpoint if valid_start else None
+    verified = 0
+    if isinstance(bundle, OperatorLifecycleCheckpointChainBundle) and valid_start:
+        for index, candidate in enumerate(bundle.checkpoints):
+            if errors:
+                break
+            step = verify_operator_lifecycle_checkpoint_advance(
+                current, candidate, authority_keyring=authority_keyring,
+                expected_previous_sha256=current.digest(),
+                expected_registry_id=expected_registry_id,
+                authorization_time_utc=authorization_time_utc,
+            )
+            if not step.accepted:
+                errors.extend(f"transition_{index}:{item}" for item in step.errors)
+                break
+            current = candidate
+            verified += 1
+    end_digest = current.digest() if isinstance(current, SignedOperatorLifecycleCheckpoint) else "0" * 64
+    end_sequence = current.sequence if isinstance(current, SignedOperatorLifecycleCheckpoint) else start_sequence
+    if expected_ending_checkpoint_sha256 is not None and end_digest != expected_ending_checkpoint_sha256:
+        errors.append("external_end_anchor_mismatch")
+    if expected_ending_sequence is not None and end_sequence != expected_ending_sequence:
+        errors.append("ending_sequence_mismatch")
+    return OperatorLifecycleCheckpointChainReport(
+        accepted=not errors and verified == (len(bundle.checkpoints) if isinstance(bundle, OperatorLifecycleCheckpointChainBundle) else 0),
+        registry_id=expected_registry_id,
+        starting_sequence=start_sequence,
+        ending_sequence=end_sequence,
+        starting_checkpoint_sha256=start_digest,
+        ending_checkpoint_sha256=end_digest,
+        verified_transitions=verified,
+        errors=tuple(dict.fromkeys(errors)),
+    )
