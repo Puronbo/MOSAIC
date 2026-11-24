@@ -238,6 +238,13 @@ The complete cross-language bundle vector is
 tests independently validate its external bindings and reject altered
 candidate, request, manifest, or replay data.
 
+The wrapper itself is specified by
+`schemas/lean-proof-receipt-bundle-v1.schema.json`, which references the
+signed-attestation schema and requires the manifest digest and successful
+exact-source replay record. The replay field is a CI-recorded statement; it
+does not replace optional fresh replay by the verifier.
+
+
 The same verifier is exercised against the fixed Python-generated vector by
 `node --test tests/test_verify_lean_receipt.mjs`. It checks the exact
 canonical UTF-8 JSON payload, Ed25519 signature, proof-source digest, schema
