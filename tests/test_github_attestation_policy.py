@@ -127,3 +127,18 @@ def test_rejects_unexpected_policy_fields_and_noncanonical_expected_digests():
             verified_result(), policy=POLICY, expected_commit=COMMIT.upper(),
             expected_run_id=RUN_ID, expected_subject_sha256=SUBJECT,
         )
+
+
+def test_published_policy_schema_matches_committed_policy():
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).parents[1]
+    policy = json.loads((root / "policies/github-lean-attestation-v1.json").read_text())
+    schema = json.loads((root / "schemas/github-lean-attestation-policy-v1.schema.json").read_text())
+    assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == set(policy)
+    assert set(schema["properties"]) == set(policy)
+    for field, value in policy.items():
+        constraints = schema["properties"][field]
+        assert constraints.get("const") == value
