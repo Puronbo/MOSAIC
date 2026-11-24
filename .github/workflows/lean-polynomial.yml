@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "formal/polynomial/**"
+      - "scripts/create_lean_provenance.py"
+      - "scripts/create_lean_provenance.py"
       - "mosaic/verification/lean_polynomial.py"
       - "mosaic/verification/lean_calculus.py"
       - "mosaic/verification/lean_obligations.py"
@@ -39,6 +41,10 @@ on:
 jobs:
   polynomial-kernel:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - name: Install Elan
@@ -178,3 +184,9 @@ jobs:
           assert gateway_derivative.status == "FORMALLY_VERIFIED", gateway_derivative.model_dump()
           print("Polynomial identities, real polynomial derivatives, request-bound proofs, and model gateway checks passed.")
           PY
+      - name: Record observed pinned Lean and Mathlib environment
+        run: python scripts/create_lean_provenance.py lean-provenance.json
+      - name: Attest Lean environment provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: lean-provenance.json
