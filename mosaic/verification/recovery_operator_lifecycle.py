@@ -320,3 +320,81 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
                 previous_sha256=previous.digest() if isinstance(previous, SignedOperatorLifecycleCheckpoint) else fallback,
                 candidate_sha256=candidate.digest() if isinstance(candidate, SignedOperatorLifecycleCheckpoint) else fallback,
                 errors=("anchor_store_error",))
+
+
+class SignedOperatorLifecycleTrustAnchorReceipt(BaseModel):
+    """Portable authority-signed attestation of one lifecycle checkpoint head."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    sequence: int = Field(ge=0)
+    checkpoint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    authority_key_id: str = Field(min_length=1, max_length=160)
+    issued_at_utc: str = Field(min_length=20, max_length=40)
+    signature_b64: str = Field(min_length=1, max_length=128)
+
+    @classmethod
+    def sign(cls, *, checkpoint: SignedOperatorLifecycleCheckpoint,
+             issued_at_utc: str, private_key: bytes) -> "SignedOperatorLifecycleTrustAnchorReceipt":
+        if not isinstance(checkpoint, SignedOperatorLifecycleCheckpoint):
+            raise ValueError("a lifecycle checkpoint is required")
+        if not isinstance(private_key, bytes) or len(private_key) != 32:
+            raise ValueError("Ed25519 private key must be exactly 32 raw bytes")
+        payload = {
+            "schema_version": "1.0", "registry_id": checkpoint.registry_id,
+            "sequence": checkpoint.sequence, "checkpoint_sha256": checkpoint.digest(),
+            "authority_key_id": checkpoint.authority_key_id,
+            "issued_at_utc": _canonical_timestamp(issued_at_utc),
+        }
+        signature = Ed25519PrivateKey.from_private_bytes(private_key).sign(_canonical(payload))
+        return cls(**payload, signature_b64=base64.b64encode(signature).decode("ascii"))
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+def verify_operator_lifecycle_trust_anchor_receipt(
+    receipt: SignedOperatorLifecycleTrustAnchorReceipt,
+    checkpoint: SignedOperatorLifecycleCheckpoint, *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str,
+    expected_checkpoint_sha256: str,
+    expected_sequence: int | None = None,
+    authorization_time_utc: str | None = None,
+) -> bool:
+    """Verify portable receipt signature and its binding to the signed checkpoint."""
+    if (not isinstance(receipt, SignedOperatorLifecycleTrustAnchorReceipt)
+            or not isinstance(checkpoint, SignedOperatorLifecycleCheckpoint)):
+        return False
+    authority = authority_keyring.get(receipt.authority_key_id) if isinstance(authority_keyring, dict) else None
+    if (authority is None or receipt.registry_id != expected_registry_id
+            or receipt.authority_key_id != checkpoint.authority_key_id
+            or receipt.registry_id != checkpoint.registry_id
+            or receipt.sequence != checkpoint.sequence
+            or (expected_sequence is not None and receipt.sequence != expected_sequence)
+            or receipt.checkpoint_sha256 != checkpoint.digest()
+            or receipt.checkpoint_sha256 != expected_checkpoint_sha256
+            or not authority.permits(receipt.authority_key_id, receipt.issued_at_utc)
+            or not verify_operator_lifecycle_checkpoint(
+                checkpoint, authority_keyring=authority_keyring,
+                expected_registry_id=expected_registry_id,
+                expected_sequence=expected_sequence,
+                expected_checkpoint_sha256=expected_checkpoint_sha256,
+                authorization_time_utc=authorization_time_utc)):
+        return False
+    try:
+        if _canonical_timestamp(receipt.issued_at_utc) != receipt.issued_at_utc:
+            return False
+        if authorization_time_utc is not None:
+            if _canonical_timestamp(authorization_time_utc) != authorization_time_utc:
+                return False
+            if authorization_time_utc < receipt.issued_at_utc:
+                return False
+        signature = base64.b64decode(receipt.signature_b64, validate=True)
+        if len(signature) != 64:
+            return False
+        payload = receipt.model_dump(mode="json", exclude={"signature_b64"})
+        Ed25519PublicKey.from_public_bytes(authority.public_key()).verify(signature, _canonical(payload))
+        return True
+    except (ValueError, TypeError, InvalidSignature):
+        return False
