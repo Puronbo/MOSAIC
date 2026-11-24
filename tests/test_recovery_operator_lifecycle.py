@@ -1035,6 +1035,16 @@ def test_rotation_head_external_pin_detects_truncation_and_fork():
         registry_id="rotation-pin-registry", rotation_sequence=1,
         rotation_sha256=rotation.digest(), active_key_id=new_key.key_id,
         issued_at_utc="2026-11-24T08:01:00.000000Z", private_key=new_sk)
+    pre_effective = SignedOperatorLifecycleLedgerAuthorityRotationHead.sign(
+        registry_id="rotation-pin-registry", rotation_sequence=1,
+        rotation_sha256=rotation.digest(), active_key_id=new_key.key_id,
+        issued_at_utc="2026-11-24T07:59:30.000000Z", private_key=new_sk)
+    assert not verify_operator_lifecycle_ledger_authority_rotation_head(
+        pre_effective, rotations=[rotation], authority_keyring=ring,
+        expected_registry_id="rotation-pin-registry",
+        expected_initial_key_id=old_key.key_id,
+        expected_rotation_sequence=1, expected_rotation_sha256=rotation.digest(),
+        authorization_time_utc="2026-11-24T08:02:00.000000Z")
     kwargs = dict(authority_keyring=ring, expected_registry_id="rotation-pin-registry",
                   expected_initial_key_id=old_key.key_id,
                   authorization_time_utc="2026-11-24T08:02:00.000000Z")
