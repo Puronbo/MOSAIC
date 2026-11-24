@@ -184,6 +184,31 @@ jobs:
           assert gateway_derivative.status == "FORMALLY_VERIFIED", gateway_derivative.model_dump()
           print("Polynomial identities, real polynomial derivatives, request-bound proofs, and model gateway checks passed.")
           PY
+      - name: Replay exact signed Lean proof source with pinned toolchain
+        run: |
+          python - <<'PY'
+          from mosaic.core.requests import MathRequest
+          from mosaic.core.types import Operation
+          from mosaic.verification.lean_runner_signature import (
+              generate_ed25519_keypair,
+              replay_attested_proof_source,
+              run_and_sign_transformation,
+          )
+
+          private_key, public_key = generate_ed25519_keypair()
+          request = MathRequest(operation=Operation.SIMPLIFY, expression="x + 1")
+          verification, attestation = run_and_sign_transformation(
+              request, "1 + x",
+              receipt_id="ci-proof-replay",
+              runner_id="github-hosted-lean-runner",
+              key_id="ephemeral-ci-key",
+              private_key=private_key,
+          )
+          assert verification.status == "FORMALLY_VERIFIED", verification.model_dump()
+          assert attestation.proof_source
+          assert replay_attested_proof_source(attestation, public_key) is True
+          print("Exact signed proof source replayed successfully under pinned Lean/Mathlib.")
+          PY
       - name: Record observed pinned Lean and Mathlib environment
         run: python scripts/create_lean_provenance.py lean-provenance.json
       - name: Attest Lean environment provenance
