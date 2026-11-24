@@ -1031,3 +1031,24 @@ authorization timestamp must likewise come from a trusted clock. A
 subsequent revocation does not retroactively invalidate an approval that
 was authorized at execution; later compromise handling requires its own
 incident and recovery policy.
+
+
+## Signed operator lifecycle checkpoints
+
+`mosaic.verification.recovery_operator_lifecycle` defines
+`SignedOperatorLifecycleCheckpoint`, an authority-signed snapshot of the
+operator key records used by administrative recovery. Each checkpoint binds a
+registry identifier, monotonically assigned sequence, predecessor digest,
+canonical issuance time, authority key ID, and a sorted complete key snapshot.
+`verify_operator_lifecycle_checkpoint(...)` checks the Ed25519 authority
+signature, key-record structure, chain position, optional externally retained
+checkpoint digest, and optional authorization time.
+
+The authority public key must be provisioned independently. Consumers should
+retain the latest accepted sequence and digest outside the recovery database;
+a valid signature alone cannot detect replay of an older valid checkpoint.
+The checkpoint is a signed snapshot, not a distributed consensus protocol or
+a trusted timestamp. A compromised lifecycle authority can sign misleading
+snapshots. This helper is a separately verifiable trust primitive; callers
+must explicitly integrate its result into recovery authorization policy.
+The normative shape is `schemas/operator-lifecycle-checkpoint-v1.schema.json`.
