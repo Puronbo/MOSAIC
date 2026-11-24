@@ -241,7 +241,12 @@ candidate, request, manifest, or replay data.
 The wrapper itself is specified by
 `schemas/lean-proof-receipt-bundle-v1.schema.json`, which references the
 signed-attestation schema and requires the manifest digest and successful
-exact-source replay record. The replay field is a CI-recorded statement; it
+exact-source replay record. The original request is specified by
+`schemas/math-request-v1.schema.json`; request fingerprinting applies the
+model defaults (`schema_version="1.0"`, `variable="x"`, `rhs=null`) before
+canonical serialization. Missing fields and explicitly supplied defaults
+therefore produce the same normalized request fingerprint, while explicit
+nulls for non-nullable fields are rejected. The replay field is a CI-recorded statement; it
 does not replace optional fresh replay by the verifier.
 
 
