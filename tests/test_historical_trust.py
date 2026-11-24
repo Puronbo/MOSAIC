@@ -202,3 +202,24 @@ def test_policy_restricts_checker_kernel_and_timestamp_lag():
         timestamp_evidence_verified=True,
         trusted_policies={restrictive.digest(): record},
     )
+
+
+def test_published_policy_schema_matches_canonical_policy_document():
+    import json
+    from pathlib import Path
+    from mosaic.verification.trust_policy import HistoricalTrustPolicy
+
+    root = Path(__file__).parents[1]
+    schema = json.loads((root / "schemas/historical-trust-policy-v1.schema.json").read_text())
+    policy = POLICY.model_dump(mode="json")
+    assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == set(policy)
+    assert set(schema["properties"]) == set(policy)
+    assert schema["properties"]["schema_version"]["const"] == policy["schema_version"]
+    assert schema["properties"]["require_external_timestamp"]["const"] is True
+
+
+def test_policy_canonical_digest_is_stable_and_sensitive_to_every_policy_field():
+    assert HistoricalTrustPolicy.model_validate_json(POLICY.model_dump_json()).digest() == POLICY.digest()
+    altered = POLICY.model_copy(update={"max_timestamp_lag_seconds": 3600})
+    assert altered.digest() != POLICY.digest()
