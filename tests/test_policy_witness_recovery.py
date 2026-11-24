@@ -162,3 +162,85 @@ def test_recovery_cannot_be_replayed_or_run_without_quarantine(tmp_path):
     assert not target.recover_from_signed_snapshot(source_snapshot, **kwargs)
     assert endorse(target, cp, item) is not None
     assert not target.recover_from_signed_snapshot(source_snapshot, **kwargs)
+
+
+from mosaic.verification.policy_witness_recovery_governance import (
+    PolicyWitnessRecoveryPolicy, SignedPolicyWitnessRecoveryApproval,
+    verify_policy_witness_recovery_approvals,
+)
+
+
+def test_recovery_governance_requires_distinct_operator_quorum():
+    _, second_public = generate_ed25519_keypair()
+    second_private, second_public = generate_ed25519_keypair()
+    _, third_public = generate_ed25519_keypair()
+    third_private, third_public = generate_ed25519_keypair()
+    operators = {
+        "operator-1": OPERATOR_KEY,
+        "operator-2": key("operator-2", second_public),
+        "operator-3": key("operator-3", third_public),
+    }
+    item = entry(1)
+    snapshot = snapshot_for("unused-source.sqlite3", item)
+    authorization = make_authorization(snapshot, [])
+    policy = PolicyWitnessRecoveryPolicy(
+        minimum_approvals=3, required_operator_key_ids=("operator-3",),
+    )
+    approval2 = SignedPolicyWitnessRecoveryApproval.sign(
+        authorization=authorization, operator_key_id="operator-2",
+        approved_at_utc="2026-11-24T05:10:00Z", private_key=second_private,
+    )
+    approval3 = SignedPolicyWitnessRecoveryApproval.sign(
+        authorization=authorization, operator_key_id="operator-3",
+        approved_at_utc="2026-11-24T05:11:00Z", private_key=third_private,
+    )
+    common = {
+        "authorization": authorization, "policy": policy,
+        "operator_keyring": operators,
+        "witness_keyring": {"witness-1": WITNESS_KEY},
+        "signer_keyring": SIGNERS,
+    }
+    assert not verify_policy_witness_recovery_approvals(
+        approvals=[approval2], **common
+    )
+    assert verify_policy_witness_recovery_approvals(
+        approvals=[approval2, approval3], **common
+    )
+    duplicate = SignedPolicyWitnessRecoveryApproval.sign(
+        authorization=authorization, operator_key_id="operator-1",
+        approved_at_utc="2026-11-24T05:12:00Z", private_key=OPERATOR_PRIVATE,
+    )
+    assert not verify_policy_witness_recovery_approvals(
+        approvals=[approval2, duplicate], **common
+    )
+
+
+def test_recovery_governance_rejects_revoked_and_reused_keys():
+    second_private, second_public = generate_ed25519_keypair()
+    item = entry(1)
+    snapshot = snapshot_for("unused-source-2.sqlite3", item)
+    authorization = make_authorization(snapshot, [])
+    approval = SignedPolicyWitnessRecoveryApproval.sign(
+        authorization=authorization, operator_key_id="operator-2",
+        approved_at_utc="2026-11-24T05:10:00Z", private_key=second_private,
+    )
+    policy = PolicyWitnessRecoveryPolicy(minimum_approvals=2)
+    assert not verify_policy_witness_recovery_approvals(
+        authorization, policy=policy, approvals=[approval],
+        operator_keyring={
+            "operator-1": OPERATOR_KEY,
+            "operator-2": key("operator-2", OPERATOR_PUBLIC),
+        },
+        witness_keyring={"witness-1": WITNESS_KEY}, signer_keyring=SIGNERS,
+    )
+    revoked = PolicyPublisherKey(
+        key_id="operator-2",
+        public_key_b64=base64.b64encode(second_public).decode("ascii"),
+        activated_at_utc="2026-11-01T00:00:00.000000Z",
+        revoked_at_utc="2026-11-24T05:00:00.000000Z",
+    )
+    assert not verify_policy_witness_recovery_approvals(
+        authorization, policy=policy, approvals=[approval],
+        operator_keyring={"operator-1": OPERATOR_KEY, "operator-2": revoked},
+        witness_keyring={"witness-1": WITNESS_KEY}, signer_keyring=SIGNERS,
+    )
