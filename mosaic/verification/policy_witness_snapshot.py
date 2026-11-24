@@ -31,6 +31,7 @@ class SignedPolicyWitnessSnapshot(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     log_id: str = Field(min_length=1, max_length=200)
     checkpoint: PolicyRegistryCheckpoint
+    checkpoint_history: tuple[PolicyRegistryCheckpoint, ...]
     quarantined: bool
     incidents: tuple[PolicyWitnessSnapshotIncident, ...] = ()
     witness_key_id: str = Field(min_length=1, max_length=160)
@@ -40,7 +41,8 @@ class SignedPolicyWitnessSnapshot(BaseModel):
     @classmethod
     def sign(
         cls, *, log_id: str, checkpoint: PolicyRegistryCheckpoint,
-        quarantined: bool, incidents: list[dict], witness_key_id: str,
+        quarantined: bool, checkpoint_history: list[PolicyRegistryCheckpoint],
+        incidents: list[dict], witness_key_id: str,
         exported_at_utc: str, private_key: bytes,
     ) -> "SignedPolicyWitnessSnapshot":
         if not isinstance(private_key, bytes) or len(private_key) != 32:
@@ -51,6 +53,7 @@ class SignedPolicyWitnessSnapshot(BaseModel):
         payload = {
             "schema_version": "1.0", "log_id": log_id,
             "checkpoint": checkpoint.model_dump(mode="json"),
+            "checkpoint_history": [item.model_dump(mode="json") for item in checkpoint_history],
             "quarantined": bool(quarantined),
             "incidents": [item.model_dump(mode="json") for item in normalized],
             "witness_key_id": witness_key_id, "exported_at_utc": canonical_time,
