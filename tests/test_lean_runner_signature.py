@@ -17,6 +17,7 @@ from mosaic.verification.lean_runner_signature import (
     verify_evidence_event_signature,
     replay_attested_proof_source,
     verify_attested_environment_manifest,
+    verify_lean_proof_receipt_bundle,
 )
 from mosaic.verification.obligations import request_fingerprint
 
@@ -274,4 +275,58 @@ def test_environment_manifest_verification_requires_exact_signed_bytes():
     altered = {**manifest, "source": {"commit": "d" * 40}}
     assert not verify_attested_environment_manifest(
         signed, public, json.dumps(altered, sort_keys=True).encode()
+    )
+
+
+def test_portable_receipt_bundle_verifies_all_external_bindings():
+    import base64
+    import json
+
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    manifest = {
+        "source": {"commit": "b" * 40},
+        "execution": {"run_id": "12345"},
+        "environment": {
+            "lean_toolchain": "leanprover/lean4:v4.36.0",
+            "mathlib_revision": "c" * 40,
+        },
+    }
+    manifest_bytes = json.dumps(manifest, sort_keys=True).encode()
+    manifest_digest = hashlib.sha256(manifest_bytes).hexdigest()
+    signed = sign_transformation_result(
+        verification, request, result, receipt_id="portable-receipt",
+        runner_id="runner", key_id="key", private_key=private,
+        environment_manifest_sha256=manifest_digest,
+        source_commit="b" * 40, workflow_run_id="12345",
+        lean_toolchain="leanprover/lean4:v4.36.0",
+        mathlib_revision="c" * 40,
+    )
+    bundle = {
+        "schema_version": "mosaic.signed-lean-proof-receipt.v1",
+        "attestation": signed.model_dump(mode="json"),
+        "public_key_b64": base64.b64encode(public).decode("ascii"),
+        "environment_manifest_sha256": manifest_digest,
+        "replay": {"exact_signed_source_replayed": True},
+    }
+    assert verify_lean_proof_receipt_bundle(
+        bundle, manifest=manifest_bytes, trusted_public_key=public,
+        request_sha256=request_fingerprint(request), candidate=result.encode(),
+    )
+    assert not verify_lean_proof_receipt_bundle(
+        bundle, manifest=manifest_bytes, trusted_public_key=public,
+        request_sha256=request_fingerprint(request), candidate=b"altered",
+    )
+    assert not verify_lean_proof_receipt_bundle(
+        bundle, manifest=manifest_bytes, trusted_public_key=public,
+        request_sha256="0" * 64, candidate=result.encode(),
+    )
+    assert not verify_lean_proof_receipt_bundle(
+        bundle, manifest=manifest_bytes + b" ", trusted_public_key=public,
+        request_sha256=request_fingerprint(request), candidate=result.encode(),
+    )
+    other_public = generate_ed25519_keypair()[1]
+    assert not verify_lean_proof_receipt_bundle(
+        bundle, manifest=manifest_bytes, trusted_public_key=other_public,
+        request_sha256=request_fingerprint(request), candidate=result.encode(),
     )
