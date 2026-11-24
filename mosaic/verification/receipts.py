@@ -53,6 +53,13 @@ class VerificationReceipt(BaseModel):
         if self.checker_result is not None:
             if self.checker_result.status != self.status:
                 raise ValueError("receipt status does not match nested checker result")
+            if (
+                self.checker_result.obligation is not None
+                and self.checker_result.obligation.request_sha256 != self.request_sha256
+            ):
+                raise ValueError("nested checker obligation belongs to a different request")
+            if self.status == "FORMALLY_VERIFIED" and self.checker_result.obligation is None:
+                raise ValueError("formal result requires its request-bound Lean obligation")
         elif self.status in {"FORMALLY_VERIFIED", "REJECTED", "KERNEL_UNAVAILABLE", "KERNEL_ERROR"}:
             raise ValueError("checker outcome requires its structured result")
         return self
