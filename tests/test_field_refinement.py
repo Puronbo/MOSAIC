@@ -80,6 +80,11 @@ def test_invalid_refinement_ratio_and_level_count_rejected():
         run(levels=1)
 
 
+def test_refinement_rejects_rounded_horizon_mismatch():
+    with pytest.raises(ValueError, match="horizon exactly"):
+        run(levels=2, ratio=3)
+
+
 def test_refinement_budget_is_bounded():
     with pytest.raises(ValueError, match="10000-step"):
         run(levels=6, ratio=4)
