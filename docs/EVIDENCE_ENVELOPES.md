@@ -124,7 +124,10 @@ binds the exact environment-manifest SHA-256, source commit, workflow run ID,
 pinned Lean toolchain, and Mathlib revision as one all-or-none field group.
 Those fields are retained in the evidence event and included in signature
 verification and the envelope's canonical integrity digest. A changed payload,
-partial environment binding, or unknown key ID fails verification.
+partial environment binding, or unknown key ID fails verification. The
+`verify_attested_environment_manifest(...)` helper additionally checks the
+exact manifest bytes against the signed digest and compares the embedded
+commit, workflow run, Lean toolchain, and Mathlib revision with the receipt.
 
 Ed25519 support uses the `cryptography` package. Private keys are raw
 32-byte values at the API boundary; use a secrets manager or hardware-backed
