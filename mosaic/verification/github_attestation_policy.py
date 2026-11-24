@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from datetime import datetime
 from typing import Any
 
 
@@ -126,10 +127,17 @@ def verify_gh_attestation_result(
         if len(matching) != 1:
             raise AttestationPolicyError(f"attestation {index} must contain exactly one matching SHA-256 subject")
 
-        if rules["require_verified_timestamp"] and (
-            not isinstance(timestamps, list) or not timestamps
-            or any(not isinstance(item, dict) or not item.get("timestamp") for item in timestamps)
-        ):
-            raise AttestationPolicyError(f"attestation {index} has no verified transparency/timestamp evidence")
+        if rules["require_verified_timestamp"]:
+            if not isinstance(timestamps, list) or not timestamps:
+                raise AttestationPolicyError(f"attestation {index} has no verified transparency/timestamp evidence")
+            for item in timestamps:
+                if not isinstance(item, dict) or not isinstance(item.get("timestamp"), str):
+                    raise AttestationPolicyError(f"attestation {index} has malformed verified timestamp evidence")
+                try:
+                    timestamp = datetime.fromisoformat(item["timestamp"].replace("Z", "+00:00"))
+                except ValueError as exc:
+                    raise AttestationPolicyError(f"attestation {index} has an invalid verified timestamp") from exc
+                if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+                    raise AttestationPolicyError(f"attestation {index} timestamp lacks an explicit timezone")
         accepted += 1
     return accepted
