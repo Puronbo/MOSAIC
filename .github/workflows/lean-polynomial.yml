@@ -6,6 +6,7 @@ on:
     paths:
       - "formal/polynomial/**"
       - "scripts/create_lean_provenance.py"
+      - "scripts/verify_lean_proof_receipt.py"
       - "mosaic/verification/lean_polynomial.py"
       - "mosaic/verification/lean_calculus.py"
       - "mosaic/verification/lean_obligations.py"
@@ -32,6 +33,10 @@ on:
       - "mosaic/verification/lean_calculus.py"
       - "mosaic/verification/lean_obligations.py"
       - "mosaic/verification/lean_transformations.py"
+      - "mosaic/verification/lean_runner_signature.py"
+      - "mosaic/verification/evidence_envelope.py"
+      - "tests/test_lean_runner_signature.py"
+      - "scripts/verify_lean_proof_receipt.py"
       - "mosaic/api.py"
       - "tests/test_lean_calculus.py"
       - "tests/test_lean_polynomial.py"
