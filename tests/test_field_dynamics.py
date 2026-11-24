@@ -51,8 +51,8 @@ def run_step(boundary=LatticeBoundary.OPEN, velocities=None):
 
 def test_open_inertial_step_uses_explicit_initial_conditions():
     output, velocities, result = run_step()
-    assert velocities == (Decimal("-0.05"), Decimal("-0.1"), Decimal("-0.05"))
-    assert output.field_values == (Decimal("0.995"), Decimal("0.99"), Decimal("0.995"))
+    assert velocities == (Decimal("-0.1"),) * 3
+    assert output.field_values == (Decimal("0.99"),) * 3
     assert result.elapsed_time == Decimal("0.1")
     assert result.scheme == "SEMI_IMPLICIT_EULER"
     assert result.total_energy_before == result.field_energy_before
