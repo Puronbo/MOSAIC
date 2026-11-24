@@ -1473,8 +1473,14 @@ def verify_operator_lifecycle_restore_ledger(
     expected_event_sequence: int, expected_ledger_entry_sha256: str,
     authority_keyring: dict[str, PolicyPublisherKey],
     expected_checkpoint_sha256: str | None = None,
+    authorization_time_utc: str | None = None,
 ) -> OperatorLifecycleRestoreLedgerReport:
-    """Verify event order, hash links and receipt signatures against an external ledger head."""
+    """Verify event order, hash links and receipt signatures against an external ledger head.
+
+    When supplied, authorization_time_utc is an explicit caller policy bound:
+    receipts issued after it are rejected. It is not an independently trusted
+    clock and must be provisioned by the caller's trust environment.
+    """
     errors: list[str] = []
     previous = None
     sequence = 0
@@ -1488,6 +1494,11 @@ def verify_operator_lifecycle_restore_ledger(
                 errors.append(f"event_{index}:sequence_mismatch")
             if entry["previous_receipt_sha256"] != previous:
                 errors.append(f"event_{index}:predecessor_mismatch")
+            if authorization_time_utc is not None:
+                if (_canonical_timestamp(authorization_time_utc) != authorization_time_utc
+                        or _canonical_timestamp(receipt.issued_at_utc) != receipt.issued_at_utc
+                        or receipt.issued_at_utc > authorization_time_utc):
+                    errors.append(f"event_{index}:receipt_after_authorization_time")
             receipt_digest = receipt.digest()
             if entry["receipt_sha256"] != receipt_digest:
                 errors.append(f"event_{index}:receipt_digest_mismatch")
@@ -1613,7 +1624,8 @@ def verify_operator_lifecycle_recovery_evidence_envelope_report(
         envelope.restore_ledger, expected_registry_id=expected_registry_id,
         expected_event_sequence=expected_restore_event_sequence,
         expected_ledger_entry_sha256=expected_restore_ledger_entry_sha256,
-        authority_keyring=authority_keyring)
+        authority_keyring=authority_keyring,
+        authorization_time_utc=authorization_time_utc)
     if not ledger_report.accepted:
         errors.extend(ledger_report.errors)
     else:
@@ -1693,6 +1705,7 @@ def verify_operator_lifecycle_recovery_evidence_envelope(
         expected_event_sequence=expected_restore_event_sequence,
         expected_ledger_entry_sha256=expected_restore_ledger_entry_sha256,
         authority_keyring=authority_keyring,
+        authorization_time_utc=authorization_time_utc,
     )
     if not ledger_report.accepted:
         return False
