@@ -556,3 +556,55 @@ def test_rebootstrap_requires_and_audits_signed_operator_lifecycle_checkpoint(tm
     assert not verify_rebootstrap_audit_export(
         exported, operator_keyring=operator_ring, publisher_keyring=publisher_ring,
         checkpoint_keyring=checkpoint_ring)
+
+
+def test_strict_lifecycle_trust_policy_fails_closed_on_missing_or_stale_anchor(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        RecoveryOperatorLifecycleTrustPolicy, SignedOperatorLifecycleCheckpoint,
+    )
+    authority_sk, authority = identity("lifecycle-authority")
+    pub_sk, pub = identity("publisher")
+    cp_sk, cp_key = identity("checkpoint")
+    op1_sk, op1 = identity("operator-1")
+    op2_sk, op2 = identity("operator-2")
+    old, fork = entry(pub_sk, 1), entry(pub_sk, 6)
+    old_cp, fork_cp = checkpoint(old, cp_sk), checkpoint(fork, cp_sk)
+    store = RecoveryPolicyCheckpointStore(tmp_path / "strict-lifecycle.sqlite3")
+    pubring, cpring = {"publisher": pub}, {"checkpoint": cp_key}
+    op_ring = {"operator-1": op1, "operator-2": op2}
+    assert store.pin_checkpoint([old], checkpoint=old_cp, publisher_keyring=pubring, checkpoint_keyring=cpring)
+    assert not store.pin_checkpoint([fork], checkpoint=fork_cp, publisher_keyring=pubring, checkpoint_keyring=cpring)
+    incidents = store.incidents("registry")
+    intent = RecoveryPolicyCheckpointRebootstrapIntent.sign(
+        registry_id="registry",
+        retained_checkpoint_sha256=hashlib.sha256(old_cp.model_dump_json().encode()).hexdigest(),
+        incident_history_sha256=hashlib.sha256(_canonical(incidents)).hexdigest(),
+        selected_checkpoint_sha256=hashlib.sha256(fork_cp.model_dump_json().encode()).hexdigest(),
+        evidence_sha256="8" * 64, reason="Strict lifecycle policy requires pinned external trust anchors.",
+        operator_key_id="operator-1", approved_at_utc="2026-11-24T07:00:00Z", private_key=op1_sk)
+    approval = RecoveryPolicyCheckpointRebootstrapApproval.sign(
+        intent=intent, operator_key_id="operator-2",
+        approved_at_utc="2026-11-24T07:01:00Z", private_key=op2_sk)
+    lifecycle = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="operators", sequence=8, previous_checkpoint_sha256="b" * 64,
+        issued_at_utc="2026-11-24T07:30:00Z", authority_key_id="lifecycle-authority",
+        operator_keys=[op1, op2], private_key=authority_sk)
+    policy = RecoveryOperatorLifecycleTrustPolicy(
+        registry_id="operators", authority_key_id="lifecycle-authority",
+        minimum_sequence=8, expected_checkpoint_sha256=lifecycle.digest())
+    common = dict(
+        publisher_keyring=pubring, checkpoint_keyring=cpring, intent=intent,
+        approvals=[approval], policy=RecoveryPolicyCheckpointRebootstrapPolicy(minimum_approvals=2),
+        operator_keyring=op_ring, authorization_time_utc="2026-11-24T08:00:00.000000Z",
+        lifecycle_authority_keyring={"lifecycle-authority": authority},
+        lifecycle_trust_policy=policy)
+    assert not rebootstrap_recovery_policy_checkpoint_store(
+        store, [fork], checkpoint=fork_cp, **common)
+    assert store.is_quarantined("registry")
+    assert not rebootstrap_recovery_policy_checkpoint_store(
+        store, [fork], checkpoint=fork_cp, operator_lifecycle_checkpoint=lifecycle,
+        expected_lifecycle_checkpoint_sha256="0" * 64, **common)
+    assert store.is_quarantined("registry")
+    assert rebootstrap_recovery_policy_checkpoint_store(
+        store, [fork], checkpoint=fork_cp, operator_lifecycle_checkpoint=lifecycle,
+        expected_lifecycle_checkpoint_sha256=lifecycle.digest(), **common)
