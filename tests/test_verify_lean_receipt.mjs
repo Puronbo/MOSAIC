@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath } from "node:url";\nimport { tmpdir } from "node:os";\nimport { join } from "node:path";
 import { verifyAttestation, parseJsonNoDuplicateKeys } from "../scripts/verify_lean_receipt.mjs";
 
 const vector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_vector.json", import.meta.url), "utf8"));
@@ -88,4 +88,22 @@ test("Node CLI verifies a receipt file using an explicit trusted key", () => {
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Ed25519 Lean attestation verified/);
+});
+
+
+test("Node CLI rejects duplicate-key receipt JSON before verification", () => {
+  const directory = mkdtempSync(join(tmpdir(), "mosaic-receipt-"));
+  const receiptPath = join(directory, "duplicate.json");
+  try {
+    writeFileSync(receiptPath, '{"attestation":{},"attestation":{}}', "utf8");
+    const result = spawnSync(process.execPath, [
+      fileURLToPath(new URL("../scripts/verify_lean_receipt.mjs", import.meta.url)),
+      receiptPath,
+      vector.public_key_b64,
+    ], { encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /duplicate JSON key/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
