@@ -204,3 +204,25 @@ test("published MathRequest schema documents all request fingerprint fields and 
     "counterexample", "analyze",
   ]);
 });
+
+
+test("Node bundle fingerprinting applies MathRequest defaults before hashing", () => {
+  const manifestBytes = Buffer.from(bundleVector.manifest_b64, "base64");
+  const candidateBytes = Buffer.from(bundleVector.candidate_b64, "base64");
+  const valid = {
+    manifestBytes,
+    trustedPublicKeyB64: bundleVector.public_key_b64,
+    candidateBytes,
+  };
+  const requestWithDefaults = { ...bundleVector.request };
+  delete requestWithDefaults.schema_version;
+  delete requestWithDefaults.variable;
+  assert.equal(verifyReceiptBundle(bundleVector.receipt, {
+    ...valid,
+    request: requestWithDefaults,
+  }), true);
+  assert.equal(verifyReceiptBundle(bundleVector.receipt, {
+    ...valid,
+    request: { ...requestWithDefaults, variable: null },
+  }), false);
+});
