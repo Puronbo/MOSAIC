@@ -581,6 +581,7 @@ def test_checkpoint_chain_restore_receipts_are_durably_logged_with_the_head(tmp_
         RecoveryOperatorLifecycleTrustAnchorStore,
         SignedOperatorLifecycleCheckpointChainRestoreReceipt,
         verify_operator_lifecycle_checkpoint_chain_restore_receipt,
+        verify_operator_lifecycle_restore_ledger,
     )
     authority_sk, authority = identity("durable-chain-log-authority")
     _, operator = identity("durable-chain-log-operator")
@@ -636,3 +637,33 @@ def test_checkpoint_chain_restore_receipts_are_durably_logged_with_the_head(tmp_
     assert rejected is None
     assert len(store.read_checkpoint_chain_restore_receipts(first.registry_id)) == 2
     assert store.read(first.registry_id)["checkpoint_sha256"] == second.digest()
+
+    ledger = store.read_checkpoint_chain_restore_ledger(first.registry_id)
+    assert [item["event_sequence"] for item in ledger] == [1, 2]
+    assert ledger[0]["previous_receipt_sha256"] is None
+    assert ledger[1]["previous_receipt_sha256"] == ledger[0]["ledger_entry_sha256"]
+    verified = verify_operator_lifecycle_restore_ledger(
+        ledger, expected_registry_id=first.registry_id,
+        expected_event_sequence=2,
+        expected_ledger_entry_sha256=ledger[-1]["ledger_entry_sha256"],
+        expected_checkpoint_sha256=second.digest(), authority_keyring=ring)
+    assert verified.accepted
+
+    # A caller-held head detects truncation; internal hashes detect edits and reorder.
+    assert not verify_operator_lifecycle_restore_ledger(
+        ledger[:1], expected_registry_id=first.registry_id,
+        expected_event_sequence=2,
+        expected_ledger_entry_sha256=ledger[-1]["ledger_entry_sha256"],
+        expected_checkpoint_sha256=second.digest(), authority_keyring=ring).accepted
+    tampered = [dict(item) for item in ledger]
+    tampered[0]["receipt_sha256"] = "0" * 64
+    assert not verify_operator_lifecycle_restore_ledger(
+        tampered, expected_registry_id=first.registry_id,
+        expected_event_sequence=2,
+        expected_ledger_entry_sha256=ledger[-1]["ledger_entry_sha256"],
+        authority_keyring=ring).accepted
+    assert not verify_operator_lifecycle_restore_ledger(
+        list(reversed(ledger)), expected_registry_id=first.registry_id,
+        expected_event_sequence=2,
+        expected_ledger_entry_sha256=ledger[-1]["ledger_entry_sha256"],
+        authority_keyring=ring).accepted
