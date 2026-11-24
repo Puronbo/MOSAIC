@@ -506,4 +506,27 @@ theorem along_joint_path_derivative
     convert hu.add hv using 1 <;> funext s <;> simp
   simpa [alongJointPath, mul_assoc] using hu.rpow hexponent hx
 
+
+/-- Joint exponentiation of two differentiable real-valued coordinate maps
+on an arbitrary real normed space. -/
+noncomputable def jointMap {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
+    (f g : E → ℝ) (z : E) : ℝ :=
+  f z ^ (f z + g z)
+
+/-- Full Fréchet chain rule for the joint exponent map. This is stronger than
+a one-dimensional path theorem: the domain may be any real normed space, and
+the derivative is a continuous linear map on that domain. -/
+theorem joint_map_fderiv
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
+    (f g : E → ℝ) (f' g' : E →L[ℝ] ℝ) (z : E)
+    (hf : HasFDerivAt f f' z) (hg : HasFDerivAt g g' z)
+    (hx : 0 < f z) :
+    HasFDerivAt (fun w : E => jointMap f g w)
+      ((f z + g z) * f z ^ (f z + g z - 1) • f' +
+        (f z ^ (f z + g z) * Real.log (f z)) • (f' + g')) z := by
+  have hexponent : HasFDerivAt (fun w : E => f w + g w) (f' + g') z := by
+    simpa using hf.add hg
+  simpa [jointMap, add_smul, mul_add, add_assoc, add_left_comm, add_comm] using
+    hf.rpow hexponent hx
+
 end MosaicRealExponentShift
