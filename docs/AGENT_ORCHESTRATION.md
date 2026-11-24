@@ -65,3 +65,8 @@ Receipt replay does not invoke a provider or checker and does not elevate an out
 
 
 For deployments that need writer authentication, `AuthenticatedReceipt` wraps a receipt with an HMAC-SHA256 tag using a caller-managed key of at least 32 bytes. Verification checks the tag and then the receipt digest/request binding. The key must be stored outside the receipt store and rotated/controlled by the deployment; HMAC is shared-secret authentication, not a public signature or proof of checker correctness.
+
+
+## Scheduler crash-recovery snapshots
+
+The mosaic.core.scheduler_persistence module captures the full task graph and an exact scheduler record for every task. It validates unique IDs, graph acyclicity/dependencies, completed-task proposal presence, and proposal-to-task role/ID binding. Snapshots are canonicalized, size-bounded, SHA-256 checked, and can be persisted locally through an atomic append-only store. Loading restores recorded proposals and task statuses; it does not call providers or automatically dispatch pending/running work. Deployments must define how to reconcile tasks that were RUNNING at process death, because a persisted RUNNING state is not proof that a remote provider stopped or completed. The digest is tamper-evident, not authenticated; protect the store and use a separately authenticated storage layer where required.
