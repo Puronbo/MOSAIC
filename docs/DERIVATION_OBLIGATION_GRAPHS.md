@@ -72,3 +72,10 @@ This is intentionally conservative: it supports only the restricted rational
 expression grammar and polynomial exclusion factors. A `PRESERVED` result
 means the extracted exclusion signatures match; it is not a proof of the
 transformation's algebraic correctness or a formal proof of domain equality.
+
+
+## Integrity-bound derivation bundles
+
+The `mosaic.verification.derivation_bundle` module can package a validated recursive derivation tree, its compiled obligation graph, bounded candidate payloads, and the deterministic graph result into one request-bound bundle. The canonical SHA-256 digest detects content changes. Validation rebuilds the graph from registered decomposition rules and re-evaluates the exact stored candidates; a stored result is not accepted merely because it was serialized.
+
+Bundles are bounded by candidate count, candidate payload size, and total serialized size. Unknown obligation IDs are rejected. A bundle tied to a different request is stale. The bundle is a replayable computation record, **not** a formal proof of the root claim: current graph outcomes remain `EXPERIMENTAL`, and unresolved rule side conditions continue to cap the result.
