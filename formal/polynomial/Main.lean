@@ -135,7 +135,10 @@ def value (n k : Nat) : ℝ := (n : ℝ) ^ (n + k)
 /-- One unit of exponent increment multiplies the value by the base. -/
 theorem successor (n k : Nat) :
     value n (k + 1) = (n : ℝ) * value n k := by
-  simp [value, Nat.add_assoc, pow_succ, mul_comm]
+  simp only [value]
+  rw [show n + (k + 1) = (n + k) + 1 by omega]
+  rw [pow_succ]
+  ring
 
 /-- The first forward difference is (n - 1) times the current value. -/
 theorem first_difference (n k : Nat) :
@@ -163,7 +166,7 @@ a blanket real-valued recurrence theorem. -/
 theorem zero_base_after_first_step (k : Nat) (hk : 1 ≤ k) :
     value 0 k = 0 := by
   unfold value
-  have hexp : 0 < 0 + k := by omega
-  simp [hexp]
+  have hne : 0 + k ≠ 0 := by omega
+  simp [hne]
 
 end MosaicExponentShift
