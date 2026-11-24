@@ -742,3 +742,100 @@ def test_portable_restore_ledger_head_is_signed_and_externally_pinned(tmp_path):
         ledger_authority_key_id="portable-ledger-head-authority",
         issued_at_utc="2026-11-24T08:06:00.000000Z",
         private_key=ledger_sk, receipt_authority_keyring={}) is None
+
+
+def test_legacy_restore_receipts_are_migrated_into_contiguous_hash_linked_ledger(tmp_path):
+    import json
+    import sqlite3
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        SignedOperatorLifecycleCheckpointChainRestoreReceipt,
+        RecoveryOperatorLifecycleTrustAnchorStore,
+        verify_operator_lifecycle_checkpoint_chain_bundle,
+        verify_operator_lifecycle_restore_ledger,
+    )
+    authority_sk, authority = identity("legacy-ledger-migration-authority")
+    _, operator = identity("legacy-ledger-migration-operator")
+    ring = {"legacy-ledger-migration-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="legacy-ledger-migration-registry", sequence=120,
+        previous_checkpoint_sha256="a" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="legacy-ledger-migration-authority",
+        operator_keys=[operator], private_key=authority_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=121,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="legacy-ledger-migration-authority",
+        operator_keys=[operator], private_key=authority_sk)
+    bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second])
+    report = verify_operator_lifecycle_checkpoint_chain_bundle(
+        bundle, first, authority_keyring=ring,
+        expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256=second.digest(),
+        expected_ending_sequence=second.sequence,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert report.accepted
+    receipts = [
+        SignedOperatorLifecycleCheckpointChainRestoreReceipt.sign(
+            bundle=bundle, report=report,
+            issued_at_utc=issued, private_key=authority_sk)
+        for issued in ("2026-11-24T08:02:00.000000Z", "2026-11-24T08:02:30.000000Z")
+    ]
+    db_path = tmp_path / "legacy-g119.sqlite3"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "CREATE TABLE lifecycle_chain_restore_receipt ("
+            "registry_id TEXT NOT NULL, receipt_sha256 TEXT NOT NULL, "
+            "ending_sequence INTEGER NOT NULL, ending_checkpoint_sha256 TEXT NOT NULL, "
+            "bundle_sha256 TEXT NOT NULL, issued_at_utc TEXT NOT NULL, receipt_json TEXT NOT NULL, "
+            "PRIMARY KEY (registry_id, receipt_sha256))")
+        for receipt in receipts:
+            connection.execute(
+                "INSERT INTO lifecycle_chain_restore_receipt "
+                "(registry_id, receipt_sha256, ending_sequence, ending_checkpoint_sha256, "
+                "bundle_sha256, issued_at_utc, receipt_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (receipt.registry_id, receipt.digest(), receipt.ending_sequence,
+                 receipt.ending_checkpoint_sha256, receipt.bundle_sha256,
+                 receipt.issued_at_utc,
+                 json.dumps(receipt.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))))
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(db_path))
+    ledger = store.read_checkpoint_chain_restore_ledger(first.registry_id)
+    assert [entry["event_sequence"] for entry in ledger] == [1, 2]
+    assert ledger[0]["previous_receipt_sha256"] is None
+    assert ledger[1]["previous_receipt_sha256"] == ledger[0]["ledger_entry_sha256"]
+    migrated = verify_operator_lifecycle_restore_ledger(
+        ledger, expected_registry_id=first.registry_id,
+        expected_event_sequence=2,
+        expected_ledger_entry_sha256=ledger[-1]["ledger_entry_sha256"],
+        authority_keyring=ring, expected_checkpoint_sha256=second.digest())
+    assert migrated.accepted
+    # Reopening is idempotent: the same migration does not rewrite or reorder rows.
+    reopened = RecoveryOperatorLifecycleTrustAnchorStore(str(db_path))
+    assert reopened.read_checkpoint_chain_restore_ledger(first.registry_id) == ledger
+
+
+def test_legacy_restore_receipt_migration_fails_closed_on_corrupt_signed_payload(tmp_path):
+    import sqlite3
+    from mosaic.verification.recovery_operator_lifecycle import RecoveryOperatorLifecycleTrustAnchorStore
+    db_path = tmp_path / "legacy-corrupt.sqlite3"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "CREATE TABLE lifecycle_chain_restore_receipt ("
+            "registry_id TEXT NOT NULL, receipt_sha256 TEXT NOT NULL, "
+            "ending_sequence INTEGER NOT NULL, ending_checkpoint_sha256 TEXT NOT NULL, "
+            "bundle_sha256 TEXT NOT NULL, issued_at_utc TEXT NOT NULL, receipt_json TEXT NOT NULL, "
+            "PRIMARY KEY (registry_id, receipt_sha256))")
+        connection.execute(
+            "INSERT INTO lifecycle_chain_restore_receipt VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("corrupt-registry", "0" * 64, 1, "1" * 64, "2" * 64,
+             "2026-11-24T08:00:00.000000Z", "{not-json"))
+    with pytest.raises(ValueError, match="cannot migrate malformed restore receipt"):
+        RecoveryOperatorLifecycleTrustAnchorStore(str(db_path))
+    with sqlite3.connect(db_path) as connection:
+        row = connection.execute(
+            "SELECT receipt_json FROM lifecycle_chain_restore_receipt").fetchone()
+        assert row[0] == "{not-json"
