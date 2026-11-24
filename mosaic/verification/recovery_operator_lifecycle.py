@@ -227,6 +227,62 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
                 if name not in columns:
                     connection.execute(f"ALTER TABLE lifecycle_chain_restore_receipt ADD COLUMN {name} {declaration}")
 
+            # G-EP120 databases may contain G-EP119 rows with default sequence
+            # values and no hash-link metadata. Rebuild each affected registry
+            # in durable insertion order, preserving the original signed receipts.
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                registries = connection.execute(
+                    "SELECT DISTINCT registry_id FROM lifecycle_chain_restore_receipt"
+                ).fetchall()
+                for (registry_id,) in registries:
+                    rows = connection.execute(
+                        "SELECT rowid, receipt_sha256, ending_sequence, ending_checkpoint_sha256, "
+                        "bundle_sha256, issued_at_utc, receipt_json, event_sequence, ledger_entry_sha256 "
+                        "FROM lifecycle_chain_restore_receipt WHERE registry_id=? ORDER BY rowid",
+                        (registry_id,)).fetchall()
+                    needs_rebuild = any(
+                        row[7] != index or row[8] is None
+                        for index, row in enumerate(rows, start=1))
+                    if not needs_rebuild:
+                        continue
+                    previous_digest = None
+                    for event_sequence, row in enumerate(rows, start=1):
+                        (rowid, receipt_sha256, ending_sequence, ending_checkpoint_sha256,
+                         bundle_sha256, issued_at_utc, receipt_json, _, _) = row
+                        try:
+                            receipt_data = json.loads(receipt_json)
+                            receipt = SignedOperatorLifecycleCheckpointChainRestoreReceipt.model_validate(receipt_data)
+                        except (ValueError, TypeError, KeyError) as exc:
+                            raise ValueError(
+                                f"cannot migrate malformed restore receipt for registry {registry_id!r}"
+                            ) from exc
+                        if (receipt.registry_id != registry_id
+                                or receipt.digest() != receipt_sha256
+                                or receipt.ending_sequence != ending_sequence
+                                or receipt.ending_checkpoint_sha256 != ending_checkpoint_sha256
+                                or receipt.bundle_sha256 != bundle_sha256
+                                or receipt.issued_at_utc != issued_at_utc):
+                            raise ValueError(
+                                f"restore receipt metadata mismatch during migration for registry {registry_id!r}"
+                            )
+                        entry_payload = {
+                            "registry_id": registry_id,
+                            "event_sequence": event_sequence,
+                            "previous_receipt_sha256": previous_digest,
+                            "receipt_sha256": receipt_sha256,
+                        }
+                        entry_digest = hashlib.sha256(_canonical(entry_payload)).hexdigest()
+                        connection.execute(
+                            "UPDATE lifecycle_chain_restore_receipt SET event_sequence=?, "
+                            "previous_receipt_sha256=?, ledger_entry_sha256=? WHERE rowid=?",
+                            (event_sequence, previous_digest, entry_digest, rowid))
+                        previous_digest = entry_digest
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
     def _connect(self):
         connection = self._sqlite3.connect(self._database_path, timeout=30, isolation_level=None)
         connection.execute("PRAGMA journal_mode=WAL")
