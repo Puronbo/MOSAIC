@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: "22"
       - name: Run Python tests
-        run: uv run --locked python -m pytest -q
+        run: uv run --locked python -m pytest -q --ignore=tests/test_lean_derivation_integration.py
       - name: Run independent Node receipt tests
         run: node --test tests/test_verify_lean_receipt.mjs
       - name: Set up pinned Lean and Mathlib
