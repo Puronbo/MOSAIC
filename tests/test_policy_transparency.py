@@ -25,7 +25,7 @@ def key(key_id, public, activated="2026-11-01T00:00:00.000000Z", revoked=None):
 
 def make_entry(sequence, previous=None, marker="a"):
     policy = HistoricalTrustPolicy(
-        policy_id="transparency-test", policy_version=f"1.0.{sequence}{marker}",
+        policy_id="transparency-test", policy_version=f"1.0.{sequence * 10 + (0 if marker == 'a' else 1)}",
         allowed_kernel_ids=("Lean",), allowed_checker_ids=("lean",),
     )
     record = HistoricalTrustPolicyRecord(
