@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/historical-lean-key-v1.schema.json",
+  "title": "MOSAIC Historical Lean Trusted Key v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["key_id", "public_key_b64", "status", "activated_at_utc", "retired_at_utc", "revoked_at_utc", "compromise_effective_at_utc"],
+  "properties": {
+    "key_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "public_key_b64": { "type": "string", "pattern": "^[A-Za-z0-9+/]{43}=$" },
+    "status": { "enum": ["active", "retired", "revoked"] },
+    "activated_at_utc": { "type": "string", "format": "date-time" },
+    "retired_at_utc": { "type": ["string", "null"], "format": "date-time" },
+    "revoked_at_utc": { "type": ["string", "null"], "format": "date-time" },
+    "compromise_effective_at_utc": { "type": ["string", "null"], "format": "date-time" }
+  }
+}
