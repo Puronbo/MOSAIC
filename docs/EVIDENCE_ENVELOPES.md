@@ -542,3 +542,39 @@ gossip, or guarantee freshness. Witness quorum independence depends on
 separate key custody, and a signed checkpoint timestamp is still a signer
 claim rather than trusted timestamp evidence. Consumers must persist trusted
 checkpoints outside the registry and compare independently obtained views.
+
+
+## Durable policy trust-state and recovery
+
+G-EP93 adds `mosaic.verification.policy_trust_state.PolicyCheckpointStore`,
+a local SQLite-backed store for trusted policy-registry heads. It uses
+transactional compare-and-advance operations, SQLite WAL journaling, and
+`synchronous=FULL` commits. Accepted checkpoint history and trust incidents
+are retained alongside the current head. Reopening the store recovers the
+persisted checkpoint rather than reconstructing trust from an untrusted
+registry export.
+
+An older or replayed checkpoint cannot replace a newer head. A valid signed
+checkpoint presenting a different head at the same log ID and sequence causes
+a durable equivocation incident and quarantines that log. Once quarantined,
+normal advancement is blocked. A conflicting claim is only recorded when its
+entry chain, checkpoint signature, and configured witness quorum verify; an
+arbitrary malformed packet cannot quarantine the store.
+
+Recovery is an explicit operator action. The operator must supply a non-empty
+reason and explicit confirmation, and the selected checkpoint must verify
+from a complete genesis-rooted registry history. Recovery clears quarantine
+and appends a separate audit incident; it does not erase the original
+conflict. The software cannot determine which of two cryptographically valid
+forks is truthful. The operator must investigate independent registry exports,
+witness statements, and publisher custody before selecting a view.
+
+The SQLite file is a local persistence boundary, not a hardware-backed
+monotonic counter. A privileged attacker who can replace or roll back the
+database and its backups may roll back local trust state. Production
+deployments should protect the database and backups with OS permissions,
+independent backups, host integrity controls, and preferably an external
+monotonic or remote witness checkpoint. SQLite's transaction durability does
+not itself make the machine or storage trustworthy. Do not copy only the main
+database file while WAL activity is in progress; use SQLite's backup API or
+a coordinated shutdown/backup procedure to preserve a consistent state.
