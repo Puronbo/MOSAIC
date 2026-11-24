@@ -1,6 +1,9 @@
 """Regression tests for the repository's pinned Lean build inputs."""
+import importlib.util
 import json
 import re
+
+import pytest
 from pathlib import Path
 
 
@@ -62,3 +65,41 @@ def test_lean_provenance_schema_requires_nonempty_ci_execution_identity():
     assert properties["run_id"]["pattern"] == "^[0-9]+$"
     assert properties["run_attempt"]["type"] == "string"
     assert properties["run_attempt"]["pattern"] == "^[0-9]+$"
+
+
+
+def test_provenance_generator_requires_complete_github_actions_identity(monkeypatch):
+    generator_path = ROOT / "scripts" / "create_lean_provenance.py"
+    spec = importlib.util.spec_from_file_location("create_lean_provenance", generator_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    for variable in (
+        "GITHUB_REPOSITORY", "GITHUB_WORKFLOW", "GITHUB_RUN_ID",
+        "GITHUB_RUN_ATTEMPT", "RUNNER_OS",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    with pytest.raises(SystemExit, match="missing required GitHub Actions"):
+        module.required_ci_metadata()
+
+    values = {
+        "GITHUB_REPOSITORY": "Puronbo/MOSAIC",
+        "GITHUB_WORKFLOW": "Lean polynomial integration",
+        "GITHUB_RUN_ID": "123456",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "RUNNER_OS": "Linux",
+    }
+    for key, value in values.items():
+        monkeypatch.setenv(key, value)
+    assert module.required_ci_metadata() == {
+        "repository": "Puronbo/MOSAIC",
+        "workflow": "Lean polynomial integration",
+        "run_id": "123456",
+        "run_attempt": "2",
+        "runner_os": "Linux",
+    }
+
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "attempt-two")
+    with pytest.raises(SystemExit, match="GITHUB_RUN_ATTEMPT must be numeric"):
+        module.required_ci_metadata()
