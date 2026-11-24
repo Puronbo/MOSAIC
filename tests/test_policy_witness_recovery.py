@@ -325,16 +325,14 @@ def test_recovery_can_require_registry_policy_and_trusted_checkpoint(tmp_path):
         snapshot, recovery_policy_checkpoint=None, **common
     )
     wrong_private, wrong_public = generate_ed25519_keypair()
-    wrong_key = key("log-signer", wrong_public)
+    _wrong_key = key("log-signer", wrong_public)
     wrong_checkpoint = SignedPolicyWitnessRecoveryPolicyCheckpoint.sign(
         entry=policy_entry, issued_at_utc="2026-11-24T05:31:00Z",
         signer_key_id="log-signer", private_key=wrong_private,
     )
+    # Verify against the independently trusted key, not the attacker's key.
     assert not target.recover_from_signed_snapshot(
-        snapshot, recovery_policy_checkpoint=wrong_checkpoint,
-        recovery_policy_checkpoint_keyring={"log-signer": wrong_key}, **{
-            k: v for k, v in common.items() if k != "recovery_policy_checkpoint_keyring"
-        }
+        snapshot, recovery_policy_checkpoint=wrong_checkpoint, **common
     )
     assert target.is_quarantined(selected_cp.log_id)
     assert target.recover_from_signed_snapshot(
