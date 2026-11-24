@@ -1129,3 +1129,22 @@ old anchor; after commit, the new anchor is durable. This store is not itself
 an external root of trust: privileged replacement or rollback of the database
 file remains possible. Deployments needing that threat model must replicate or
 seal the head in an independently protected control plane.
+
+
+### G-EP114: signed portable lifecycle trust-anchor receipts
+
+`SignedOperatorLifecycleTrustAnchorReceipt` packages a registry ID, sequence,
+checkpoint digest, authority key ID, and issuance time into a separately
+authority-signed receipt. Its verifier checks the receipt signature, the
+authority-signed lifecycle checkpoint, their exact field/digest binding, and
+caller-supplied expected registry, sequence, and checkpoint digest. A receipt
+cannot make an arbitrary checkpoint trusted: verification requires both
+signatures and an independently supplied expected digest.
+
+The receipt is portable JSON and has a versioned schema at
+`schemas/operator-lifecycle-trust-anchor-receipt-v1.schema.json`. A deployment
+can retain or transfer the receipt alongside the checkpoint and verify it
+without opening the originating SQLite database. Receipt issuance does not
+replace independent distribution of the authority key or external retention
+of the expected checkpoint digest. A signed stale receipt remains stale unless
+the verifier's current expected digest accepts it.
