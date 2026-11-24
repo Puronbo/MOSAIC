@@ -73,3 +73,6 @@ The mosaic.core.scheduler_persistence module captures the full task graph and an
 
 
 `quarantine_interrupted_tasks` applies the conservative restart rule: every persisted RUNNING task becomes FAILED with an explicit unknown-provider-outcome message. It does not retry or mark such work successful. Operators must reconcile the provider outcome before creating a new attempt, avoiding duplicate remote side effects after an ambiguous crash.
+
+
+Crash recovery quarantines both RUNNING and TIMED_OUT tasks. A timeout does not prove a remote worker stopped, so it is not automatically retried after a restart; downstream tasks remain blocked until the ambiguous outcome is reconciled.
