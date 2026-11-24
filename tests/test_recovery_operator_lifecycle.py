@@ -915,3 +915,95 @@ def test_restore_ledger_head_advance_requires_exact_prior_external_pin(tmp_path)
     forked_prior = previous.model_copy(update={"ledger_entry_sha256": "0" * 64})
     assert not verify_operator_lifecycle_restore_ledger_head_advance(
         ledger, forked_prior, candidate, **advance_kwargs).accepted
+
+
+
+def test_ledger_authority_rotation_requires_dual_signatures_and_continuity():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        SignedOperatorLifecycleLedgerAuthorityRotation,
+        SignedOperatorLifecycleRestoreLedgerHead,
+        verify_operator_lifecycle_ledger_authority_rotation_chain,
+        verify_operator_lifecycle_restore_ledger_head_with_rotation_chain,
+    )
+    old_sk, old_key = identity("ledger-root")
+    new_sk, new_key = identity("ledger-next")
+    next_sk, next_key = identity("ledger-final")
+    ring = {key.key_id: key for key in (old_key, new_key, next_key)}
+    old_public = old_key.public_key()
+    new_public = new_key.public_key()
+    rotation = SignedOperatorLifecycleLedgerAuthorityRotation.sign(
+        registry_id="rotation-registry", rotation_sequence=1,
+        previous_rotation_sha256=None, previous_key_id=old_key.key_id,
+        new_key_id=new_key.key_id, previous_private_key=old_sk,
+        new_private_key=new_sk, previous_public_key=old_public,
+        new_public_key=new_public, effective_at_utc="2026-11-24T08:00:00.000000Z")
+    report = verify_operator_lifecycle_ledger_authority_rotation_chain(
+        [rotation], authority_keyring=ring, expected_registry_id="rotation-registry",
+        expected_initial_key_id=old_key.key_id,
+        authorization_time_utc="2026-11-24T08:01:00.000000Z")
+    assert report.accepted
+    assert report.active_key_id == new_key.key_id
+
+    head_sk = new_sk
+    head = SignedOperatorLifecycleRestoreLedgerHead.sign(
+        registry_id="rotation-registry", event_sequence=4,
+        ledger_entry_sha256="a" * 64, receipt_sha256="b" * 64,
+        ledger_authority_key_id=new_key.key_id,
+        issued_at_utc="2026-11-24T08:00:30.000000Z", private_key=head_sk)
+    assert verify_operator_lifecycle_restore_ledger_head_with_rotation_chain(
+        head, rotations=[rotation], authority_keyring=ring,
+        expected_registry_id="rotation-registry", expected_event_sequence=4,
+        expected_ledger_entry_sha256="a" * 64,
+        expected_initial_key_id=old_key.key_id,
+        expected_receipt_sha256="b" * 64,
+        authorization_time_utc="2026-11-24T08:01:00.000000Z")
+
+    # Either signature is independently required; changing a signed field fails.
+    changed = rotation.model_copy(update={"new_key_id": next_key.key_id})
+    assert not verify_operator_lifecycle_ledger_authority_rotation_chain(
+        [changed], authority_keyring=ring, expected_registry_id="rotation-registry",
+        expected_initial_key_id=old_key.key_id).accepted
+    bad_old_signature = rotation.model_copy(update={
+        "previous_authority_signature_b64": rotation.new_authority_signature_b64})
+    assert not verify_operator_lifecycle_ledger_authority_rotation_chain(
+        [bad_old_signature], authority_keyring=ring,
+        expected_registry_id="rotation-registry",
+        expected_initial_key_id=old_key.key_id).accepted
+    assert not verify_operator_lifecycle_restore_ledger_head_with_rotation_chain(
+        head, rotations=[rotation], authority_keyring=ring,
+        expected_registry_id="rotation-registry", expected_event_sequence=4,
+        expected_ledger_entry_sha256="a" * 64,
+        expected_initial_key_id=new_key.key_id,
+        expected_receipt_sha256="b" * 64)
+
+
+def test_ledger_authority_rotation_chain_rejects_revocation_fork_and_early_use():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        SignedOperatorLifecycleLedgerAuthorityRotation,
+        verify_operator_lifecycle_ledger_authority_rotation_chain,
+    )
+    old_sk, old_key = identity("ledger-rotation-old")
+    new_sk, new_key = identity("ledger-rotation-new")
+    ring = {old_key.key_id: old_key, new_key.key_id: new_key}
+    rotation = SignedOperatorLifecycleLedgerAuthorityRotation.sign(
+        registry_id="rotation-policy", rotation_sequence=1,
+        previous_rotation_sha256=None, previous_key_id=old_key.key_id,
+        new_key_id=new_key.key_id, previous_private_key=old_sk,
+        new_private_key=new_sk, previous_public_key=old_key.public_key(),
+        new_public_key=new_key.public_key(),
+        effective_at_utc="2026-11-24T09:00:00.000000Z")
+    assert not verify_operator_lifecycle_ledger_authority_rotation_chain(
+        [rotation], authority_keyring=ring, expected_registry_id="rotation-policy",
+        expected_initial_key_id=old_key.key_id,
+        authorization_time_utc="2026-11-24T08:59:59.000000Z").accepted
+    revoked_old = old_key.model_copy(update={
+        "revoked_at_utc": "2026-11-24T08:30:00.000000Z"})
+    revoked_ring = {old_key.key_id: revoked_old, new_key.key_id: new_key}
+    assert not verify_operator_lifecycle_ledger_authority_rotation_chain(
+        [rotation], authority_keyring=revoked_ring,
+        expected_registry_id="rotation-policy",
+        expected_initial_key_id=old_key.key_id).accepted
+    fork = rotation.model_copy(update={"previous_rotation_sha256": "f" * 64})
+    assert not verify_operator_lifecycle_ledger_authority_rotation_chain(
+        [fork], authority_keyring=ring, expected_registry_id="rotation-policy",
+        expected_initial_key_id=old_key.key_id).accepted
