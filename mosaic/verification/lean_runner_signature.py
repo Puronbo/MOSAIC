@@ -319,7 +319,7 @@ def verify_attested_environment_manifest(
             and payload.get("environment", {}).get("lean_toolchain") == attestation.lean_toolchain
             and payload.get("environment", {}).get("mathlib_revision") == attestation.mathlib_revision
         )
-    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError):
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError, ValueError):
         return False
 
 
