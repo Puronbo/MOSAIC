@@ -239,6 +239,20 @@ def rebootstrap_recovery_policy_checkpoint_store(
                 return False
     except (ValueError, TypeError):
         return False
+    lifecycle_evidence = []
+    for key_id, signed_at_utc in signed_operators:
+        record = operator_keyring[key_id]
+        record_data = record.model_dump(mode="json")
+        lifecycle_evidence.append({
+            "operator_key_id": key_id,
+            "signed_at_utc": signed_at_utc,
+            "authorization_time_utc": authorization_time_utc,
+            "key_record": record_data,
+            "key_record_sha256": hashlib.sha256(_canonical(record_data)).hexdigest(),
+            "authorized_at_signature": record.permits(key_id, signed_at_utc),
+            "authorized_at_execution": record.permits(key_id, authorization_time_utc),
+        })
+    lifecycle_evidence.sort(key=lambda item: item["operator_key_id"])
     checkpoint_json = checkpoint.model_dump_json()
     checkpoint_hash = hashlib.sha256(checkpoint_json.encode()).hexdigest()
     if intent.selected_checkpoint_sha256 != checkpoint_hash:
@@ -279,6 +293,8 @@ def rebootstrap_recovery_policy_checkpoint_store(
             "entries": [entry.model_dump(mode="json") for entry in entries],
             "epoch": new_epoch,
             "checkpoint_sha256": checkpoint_hash,
+            "authorization_time_utc": authorization_time_utc,
+            "operator_lifecycle_evidence": lifecycle_evidence,
         }
         audit = _canonical(audit_data).decode()
         previous = db.execute(
@@ -404,10 +420,16 @@ def _verify_rebootstrap_audit_export_v1(
         if item["record_version"] != "v1":
             return False
         audit = item["audit"]
-        if not isinstance(audit, dict) or set(audit) != {
+        if not isinstance(audit, dict):
+            return False
+        legacy_audit_fields = {
             "schema_version", "intent", "approvals", "policy", "checkpoint",
             "entries", "epoch", "checkpoint_sha256"
-        }:
+        }
+        current_audit_fields = legacy_audit_fields | {
+            "authorization_time_utc", "operator_lifecycle_evidence"
+        }
+        if set(audit) not in (legacy_audit_fields, current_audit_fields):
             return False
         if (item["previous_audit_sha256"] != previous
                 or item["epoch"] != audit["epoch"]
@@ -440,6 +462,38 @@ def _verify_rebootstrap_audit_export_v1(
                     checkpoint_keyring=checkpoint_keyring,
                 )):
             return False
+        if "operator_lifecycle_evidence" in audit:
+            try:
+                authorization_time = audit["authorization_time_utc"]
+                if _canonical_timestamp(authorization_time) != authorization_time:
+                    return False
+                signed_records = [(intent.operator_key_id, intent.approved_at_utc)] + [
+                    (approval.operator_key_id, approval.approved_at_utc) for approval in approvals
+                ]
+                expected_evidence = []
+                for key_id, signed_at in signed_records:
+                    key_record = operator_keyring.get(key_id)
+                    if key_record is None:
+                        return False
+                    key_data = key_record.model_dump(mode="json")
+                    expected_evidence.append({
+                        "operator_key_id": key_id,
+                        "signed_at_utc": signed_at,
+                        "authorization_time_utc": authorization_time,
+                        "key_record": key_data,
+                        "key_record_sha256": hashlib.sha256(_canonical(key_data)).hexdigest(),
+                        "authorized_at_signature": key_record.permits(key_id, signed_at),
+                        "authorized_at_execution": key_record.permits(key_id, authorization_time),
+                    })
+                expected_evidence.sort(key=lambda item: item["operator_key_id"])
+                if (audit["operator_lifecycle_evidence"] != expected_evidence
+                        or not all(item["authorized_at_signature"] and item["authorized_at_execution"]
+                                   for item in expected_evidence)
+                        or any(item["signed_at_utc"] > authorization_time
+                               for item in expected_evidence)):
+                    return False
+            except (ValueError, TypeError, KeyError):
+                return False
         computed = hashlib.sha256(_canonical({
             "previous_audit_sha256": previous, "audit": audit
         })).hexdigest()
