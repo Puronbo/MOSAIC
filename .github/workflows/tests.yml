@@ -17,5 +17,10 @@ jobs:
           cache: pip
       - name: Install package
         run: python -m pip install -e ".[dev]"
-      - name: Run tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run Python tests
         run: python -m pytest -q
+      - name: Run independent Node receipt tests
+        run: node --test tests/test_verify_lean_receipt.mjs
