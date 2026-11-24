@@ -90,6 +90,8 @@ def assess_field_timestep_refinement(
         divisor = refinement_ratio ** index
         dt = base_time_step / Decimal(divisor)
         count = base_steps * divisor
+        if dt * count != total_time:
+            raise ValueError("base_time_step and refinement_ratio must preserve the horizon exactly in Decimal arithmetic")
         if count > 10000:
             raise ValueError("refinement level exceeds the 10000-step trajectory limit")
         final_configuration, final_velocities, trajectory = evolve_field_trajectory(
