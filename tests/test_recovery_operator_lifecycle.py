@@ -840,3 +840,78 @@ def test_legacy_restore_receipt_migration_fails_closed_on_corrupt_signed_payload
         row = connection.execute(
             "SELECT receipt_json FROM lifecycle_chain_restore_receipt").fetchone()
         assert row[0] == "{not-json"
+
+
+def test_restore_ledger_head_advance_requires_exact_prior_external_pin(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        RecoveryOperatorLifecycleTrustAnchorStore,
+        verify_operator_lifecycle_restore_ledger_head_advance,
+    )
+    receipt_sk, receipt_authority = identity("head-advance-receipt-authority")
+    ledger_sk, ledger_authority = identity("head-advance-ledger-authority")
+    _, operator = identity("head-advance-operator")
+    receipt_ring = {"head-advance-receipt-authority": receipt_authority}
+    ledger_ring = {"head-advance-ledger-authority": ledger_authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="head-advance-registry", sequence=130,
+        previous_checkpoint_sha256="b" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="head-advance-receipt-authority",
+        operator_keys=[operator], private_key=receipt_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=131,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="head-advance-receipt-authority",
+        operator_keys=[operator], private_key=receipt_sk)
+    bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second])
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "head-advance.sqlite3"))
+    assert store.provision(
+        registry_id=first.registry_id, sequence=first.sequence,
+        checkpoint_sha256=first.digest(), updated_at_utc=first.issued_at_utc)
+    kwargs = dict(
+        authority_keyring=receipt_ring, expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256=second.digest(),
+        expected_ending_sequence=second.sequence,
+        authorization_time_utc="2026-11-24T08:10:00.000000Z")
+    first_receipt = store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, issued_at_utc="2026-11-24T08:02:00.000000Z",
+        receipt_private_key=receipt_sk, **kwargs)
+    assert first_receipt is not None
+    previous = store.export_restore_ledger_head(
+        registry_id=first.registry_id,
+        ledger_authority_key_id="head-advance-ledger-authority",
+        issued_at_utc="2026-11-24T08:03:00.000000Z",
+        private_key=ledger_sk, receipt_authority_keyring=receipt_ring)
+    assert previous is not None
+    second_receipt = store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, issued_at_utc="2026-11-24T08:04:00.000000Z",
+        receipt_private_key=receipt_sk, **kwargs)
+    assert second_receipt is not None
+    candidate = store.export_restore_ledger_head(
+        registry_id=first.registry_id,
+        ledger_authority_key_id="head-advance-ledger-authority",
+        issued_at_utc="2026-11-24T08:05:00.000000Z",
+        private_key=ledger_sk, receipt_authority_keyring=receipt_ring)
+    assert candidate is not None
+    ledger = store.read_checkpoint_chain_restore_ledger(first.registry_id)
+    advance_kwargs = dict(
+        ledger_authority_keyring=ledger_ring,
+        receipt_authority_keyring=receipt_ring,
+        expected_registry_id=first.registry_id,
+        authorization_time_utc="2026-11-24T08:06:00.000000Z")
+    accepted = verify_operator_lifecycle_restore_ledger_head_advance(
+        ledger, previous, candidate, **advance_kwargs)
+    assert accepted.accepted
+    assert accepted.ending_event_sequence == 2
+    assert not verify_operator_lifecycle_restore_ledger_head_advance(
+        ledger[:1], previous, candidate, **advance_kwargs).accepted
+    stale = candidate.model_copy(update={"event_sequence": 1})
+    assert not verify_operator_lifecycle_restore_ledger_head_advance(
+        ledger, previous, stale, **advance_kwargs).accepted
+    forked_prior = previous.model_copy(update={"ledger_entry_sha256": "0" * 64})
+    assert not verify_operator_lifecycle_restore_ledger_head_advance(
+        ledger, forked_prior, candidate, **advance_kwargs).accepted
