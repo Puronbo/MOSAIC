@@ -480,6 +480,27 @@ theorem exponent_second_derivative (x t : ℝ) (hx : 0 < x) :
   simpa [jointValue, value, pow_two, add_comm, mul_assoc] using h
 
 
+/-- The third derivative in the exponent coordinate, obtained by
+applying the fixed-base iterated-derivative theorem to the joint family. -/
+theorem exponent_third_derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt
+      (fun s : ℝ => jointValue x s * (Real.log x) ^ 2)
+      (jointValue x t * (Real.log x) ^ 3) t := by
+  have h := iterated_derivative x t 2 hx
+  have hfun :
+      (fun s : ℝ => iteratedDerivative x 2 s) =
+        (fun s : ℝ => jointValue x s * (Real.log x) ^ 2) := by
+    funext s
+    rw [iterated_derivative_formula]
+    simp [jointValue, value, add_comm, pow_two, mul_assoc]
+  rw [hfun] at h
+  have hvalue :
+      iteratedDerivative x 2 t = jointValue x t * (Real.log x) ^ 2 :=
+    congrFun hfun t
+  rw [hvalue] at h
+  convert h using 1 <;> simp [pow_succ, mul_assoc]
+
+
 /-- Evaluate the joint exponent family along a differentiable base path. -/
 noncomputable def alongBasePath (u : ℝ → ℝ) (t : ℝ) : ℝ :=
   u t ^ (u t + t)
