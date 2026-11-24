@@ -6,7 +6,12 @@ public keys or expected head digests from the artifact being verified.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import platform
+import sys
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -26,11 +31,50 @@ def _read_json(path: Path) -> Any:
     return value
 
 
+def _execution_provenance() -> dict[str, Any]:
+    """Describe the verifier and runtime; this is provenance, not attestation."""
+    root = Path(__file__).resolve().parents[1]
+    script_digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+    lock_candidates = (root / "uv.lock", root / "requirements-lock.txt",
+                       root / "poetry.lock")
+    lock_path = next((path for path in lock_candidates if path.is_file()), None)
+    lock_digest = (hashlib.sha256(lock_path.read_bytes()).hexdigest()
+                   if lock_path else None)
+    distributions: dict[str, str | None] = {}
+    for name in ("mosaic-math", "pydantic", "cryptography"):
+        try:
+            distributions[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            distributions[name] = None
+    manifest: dict[str, Any] = {
+        "provenance_schema_version": "1.0",
+        "verifier": "verify_operator_lifecycle_recovery_envelope",
+        "verifier_sha256": script_digest,
+        "mosaic_distribution_version": distributions["mosaic-math"],
+        "python_version": platform.python_version(),
+        "python_implementation": platform.python_implementation(),
+        "platform": platform.platform(),
+        "dependency_versions": distributions,
+        "dependency_lock_file": lock_path.name if lock_path else None,
+        "dependency_lock_sha256": lock_digest,
+        "source_revision": os.environ.get("GITHUB_SHA") or os.environ.get("MOSAIC_SOURCE_REVISION"),
+        "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
+    }
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=False).encode("utf-8")
+    manifest["manifest_sha256"] = hashlib.sha256(canonical).hexdigest()
+    return manifest
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--envelope", type=Path, required=True,
+    parser.add_argument("--version", action="version",
+                        version="MOSAIC recovery-envelope verifier 1.0")
+    parser.add_argument("--provenance", action="store_true",
+                        help="print verifier/runtime provenance and exit")
+    parser.add_argument("--envelope", type=Path,
                         help="Portable recovery evidence envelope JSON")
-    parser.add_argument("--trust", type=Path, required=True,
+    parser.add_argument("--trust", type=Path,
                         help="Independently provisioned trust configuration JSON")
     parser.add_argument("--authorization-time-utc",
                         help="Optional canonical UTC policy bound, supplied independently")
