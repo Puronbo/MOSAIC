@@ -72,3 +72,33 @@ management. The envelope digest alone cannot supply that guarantee.
 - Formal proof requires the relevant trusted kernel to accept the proof
   artifact. Model agreement, repeated computation, and envelope metadata do
   not substitute for that acceptance.
+
+## Authenticated Lean runner receipts
+
+For deployments that separate the proof runner from the envelope consumer,
+`mosaic.verification.lean_runner_receipt` adds an authenticated receipt
+format. A trusted runner can call
+`receipt_from_transformation_result` immediately after the actual
+request-bound Lean invocation. The receipt binds the request fingerprint,
+candidate bytes, generated proof-source digest, checker identity, Lean
+version (and pinned Mathlib revision where applicable), runner identity,
+and completed pass/rejection outcome.
+
+Receipts use HMAC-SHA256 with a shared secret of at least 32 bytes.
+`LeanRunnerReceipt.to_evidence_event` verifies the MAC before converting
+the receipt into a formal-kernel evidence event. Altered receipts and receipts
+presented with the wrong key are rejected.
+
+**Key boundary:** HMAC is symmetric authentication, not a public-key
+signature. Every verifier holding the shared secret can also mint receipts.
+The secret must remain inside a trusted runner/signing service and must never
+be available to untrusted API clients, models, or general envelope consumers.
+For independent third-party verification, use an asymmetric signing system
+or a platform-native signed build attestation with public-key verification.
+The current module does not implement key distribution, rotation, revocation,
+or remote attestation.
+
+Receipt tests exercise MAC generation, tamper detection, wrong-key rejection,
+and event conversion. These tests use a fixture key and mocked runner inputs;
+they do not claim that CI executed the Lean kernel.
+
