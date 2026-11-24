@@ -94,10 +94,10 @@ def evolve_field_configuration(
 ) -> tuple[FieldConfiguration1D, tuple[Decimal, ...], FieldDynamicsResult]:
     """Advance one semi-implicit Euler step with explicit initial velocity.
 
-    v[n+1] = v[n] - dt * grad(E_field) / M
+    M * dx * w_i * (v[n+1] - v[n]) / dt = -dE_field/dphi_i
     phi[n+1] = phi[n] + dt * v[n+1]
 
-    The discrete kinetic diagnostic is M/2 * dx * sum(w_i v_i^2),
+    The quadrature-weighted discrete kinetic diagnostic is M/2 * dx * sum(w_i v_i^2),
     with the same open/periodic quadrature convention as the field functional.
     No energy-conservation claim is made for this numerical integrator.
     """
@@ -128,9 +128,11 @@ def evolve_field_configuration(
         kinetic_coefficient_unit=kinetic_coefficient_unit,
     )
     gradient = _energy_gradient(configuration, potential, kinetic_coefficient)
+    weights = _quadrature_weights(configuration)
+    dx = configuration.spacing
     final_velocities = tuple(
-        velocity - time_step * force / inertia_coefficient
-        for velocity, force in zip(initial_velocities, gradient)
+        velocity - time_step * force / (inertia_coefficient * dx * weight)
+        for velocity, force, weight in zip(initial_velocities, gradient, weights)
     )
     final_values = tuple(
         value + time_step * velocity
@@ -154,8 +156,6 @@ def evolve_field_configuration(
         kinetic_coefficient=kinetic_coefficient,
         kinetic_coefficient_unit=kinetic_coefficient_unit,
     )
-    weights = _quadrature_weights(configuration)
-    dx = configuration.spacing
     kinetic_before = inertia_coefficient * dx * sum(
         weight * velocity * velocity
         for weight, velocity in zip(weights, initial_velocities)
