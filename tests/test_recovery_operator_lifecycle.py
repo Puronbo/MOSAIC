@@ -213,3 +213,95 @@ def test_signed_portable_lifecycle_anchor_receipt_binds_checkpoint_and_trust_anc
         receipt, later, authority_keyring=ring,
         expected_registry_id="receipt-registry",
         expected_checkpoint_sha256=later.digest())
+
+
+def test_lifecycle_store_exports_only_current_head_and_restores_guardedly(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        RecoveryOperatorLifecycleTrustAnchorStore,
+        SignedOperatorLifecycleTrustAnchorReceipt,
+    )
+    authority_sk, authority = identity("restore-authority")
+    _, operator = identity("restore-operator")
+    ring = {"restore-authority": authority}
+    checkpoint = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="restore-registry", sequence=7,
+        previous_checkpoint_sha256="e" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="restore-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "source.sqlite3"))
+    assert store.provision(
+        registry_id=checkpoint.registry_id, sequence=checkpoint.sequence,
+        checkpoint_sha256=checkpoint.digest(),
+        updated_at_utc="2026-11-24T08:00:00.000000Z")
+    receipt = store.export_receipt(
+        checkpoint=checkpoint, issued_at_utc="2026-11-24T08:02:00.000000Z",
+        private_key=authority_sk)
+    assert isinstance(receipt, SignedOperatorLifecycleTrustAnchorReceipt)
+    stale = checkpoint.model_copy(update={"sequence": 8})
+    assert store.export_receipt(
+        checkpoint=stale, issued_at_utc="2026-11-24T08:02:00.000000Z",
+        private_key=authority_sk) is None
+
+    restored = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "restored.sqlite3"))
+    kwargs = dict(
+        authority_keyring=ring, expected_registry_id=checkpoint.registry_id,
+        expected_checkpoint_sha256=checkpoint.digest(),
+        expected_sequence=checkpoint.sequence,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not restored.restore_receipt(receipt, checkpoint, **kwargs)
+    assert restored.read(checkpoint.registry_id) is None
+    assert restored.restore_receipt(receipt, checkpoint, allow_initial=True, **kwargs)
+    assert restored.read(checkpoint.registry_id)["checkpoint_sha256"] == checkpoint.digest()
+    assert restored.restore_receipt(receipt, checkpoint, **kwargs)  # exact idempotent replay
+
+    forged = receipt.model_copy(update={"sequence": 8})
+    assert not restored.restore_receipt(forged, checkpoint, **kwargs)
+    assert restored.read(checkpoint.registry_id)["checkpoint_sha256"] == checkpoint.digest()
+
+    newer = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "newer.sqlite3"))
+    assert newer.provision(
+        registry_id=checkpoint.registry_id, sequence=checkpoint.sequence + 1,
+        checkpoint_sha256="f" * 64,
+        updated_at_utc="2026-11-24T08:04:00.000000Z")
+    assert not newer.restore_receipt(receipt, checkpoint, allow_initial=True, **kwargs)
+    assert newer.read(checkpoint.registry_id)["checkpoint_sha256"] == "f" * 64
+
+
+def test_lifecycle_receipt_restore_rejects_same_sequence_equivocation(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        RecoveryOperatorLifecycleTrustAnchorStore,
+    )
+    authority_sk, authority = identity("equivocation-authority")
+    _, operator = identity("equivocation-operator")
+    ring = {"equivocation-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="equivocation-registry", sequence=4,
+        previous_checkpoint_sha256="a" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="equivocation-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    fork = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="equivocation-registry", sequence=4,
+        previous_checkpoint_sha256="a" * 64,
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="equivocation-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    receipt = __import__(
+        "mosaic.verification.recovery_operator_lifecycle",
+        fromlist=["SignedOperatorLifecycleTrustAnchorReceipt"]
+    ).SignedOperatorLifecycleTrustAnchorReceipt.sign(
+        checkpoint=fork, issued_at_utc="2026-11-24T08:02:00.000000Z",
+        private_key=authority_sk)
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "equivocation.sqlite3"))
+    assert store.provision(
+        registry_id=first.registry_id, sequence=first.sequence,
+        checkpoint_sha256=first.digest(),
+        updated_at_utc="2026-11-24T08:00:00.000000Z")
+    assert not store.restore_receipt(
+        receipt, fork, authority_keyring=ring,
+        expected_registry_id=fork.registry_id,
+        expected_checkpoint_sha256=fork.digest(), expected_sequence=fork.sequence,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z",
+        allow_initial=True)
+    assert store.read(first.registry_id)["checkpoint_sha256"] == first.digest()
