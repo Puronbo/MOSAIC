@@ -506,6 +506,8 @@ def obligation_verification_tasks(
                 "kind": obligation.finding.kind.value,
                 "statement": obligation.finding.statement,
                 "evidence_refs": list(obligation.finding.evidence_refs),
+                "request_sha256": obligation.finding.request_sha256,
+                "checker_id": obligation.finding.checker_id,
             },
             ensure_ascii=False,
             sort_keys=True,
