@@ -80,7 +80,7 @@ The currently green Lean entrypoint proves the polynomial identities and the nat
 \[
 a\le b\Longrightarrow a^k\le b^k.
 \]
-It also proves the denominator inequality \(2^{n-1}\le n^{n-1}\) for \(n\ge2\). These arithmetic facts are kernel-checked by the pinned Lean/Mathlib CI job.
+It also proves the denominator inequality \(2^{n-1}\le n^{n-1}\) for \(n\ge2\), and \(n^n\ne3\) for every natural number \(n\). These arithmetic facts are kernel-checked by the pinned Lean/Mathlib CI job.
 
 **The infinite-series formalization is not yet verified.** An attempted extension introduced real-valued terms, summability, a total-sum bound, and a shifted-tail bound, but the Lean CI run failed during theorem elaboration. The attempted source has been withdrawn rather than reported as a proof. In particular, the claims of summability, \(S\le2\), and the infinite tail estimate above currently rest on the written mathematical comparison argument, not on a Lean theorem in this repository.
 
@@ -94,12 +94,13 @@ x^x-1=2
 \]
 is equivalent (for real \(x>0\)) to \(x^x=3\). It has no natural-number
 solution, as established by the Lean theorem in formal/polynomial/Main.lean.
-Over the positive reals it has exactly one solution. Indeed, \(x^x=3\)
-implies \(x>1\), and
-\[
-\frac{d}{dx}(x^x)=x^x(\ln x+1)>0
-\]
-for \(x>1\), so the function is strictly increasing there. Solving
+Over the positive reals it has exactly one solution. The existence argument
+uses continuity and the intermediate value theorem between 1 and 2. For
+uniqueness, \(x^x=3\) implies \(x>1\), and taking logarithms gives
+\(x\ln x=\ln 3\). The Lean entrypoint now kernel-checks that
+\(x\mapsto x\ln x\) is strictly increasing on \((1,\infty)\), and hence
+that there is at most one positive real solution. Existence is still an
+ordinary analytic argument, not yet a Lean theorem. Solving
 \(x\ln x=\ln 3\) with the Lambert \(W\) function gives
 \[
 x=\exp(W(\ln 3))=\frac{\ln 3}{W(\ln 3)}
