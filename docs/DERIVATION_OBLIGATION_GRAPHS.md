@@ -141,3 +141,19 @@ it does not yet identify the sequence with `x^(x+k)` for positive real
 `x`, nor does it establish a real-exponent addition theorem or a
 continuous derivative. Those require a separate positive-real-power bridge
 and are not inferred from the generic shift laws.
+
+
+### Positive-real exponent family over integer indices
+
+`MosaicRealExponentShift` specializes the integer-indexed shift laws to
+the real-power sequence `F_x(k) = x^(x+k)` for `x > 0`. The
+formal target `integer_shift` states
+`F_x(k+m) = F_x(k) * x^m` for every pair of integer indices `k`
+and offsets `m`. A ratio corollary and a negative-offset division
+corollary expose the reversible form of the same law.
+
+The positivity hypothesis is essential to the real-exponent interpretation
+and to nonvanishing of the sequence. These are algebraic integer-offset
+identities, not yet a continuous derivative theorem. The formal kernel
+workflow for this addition must pass before these statements are described
+as verified.
