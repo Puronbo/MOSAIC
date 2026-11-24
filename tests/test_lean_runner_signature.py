@@ -397,3 +397,34 @@ def test_attestation_rejects_unknown_schema_version_and_bad_signature_length():
     assert not attestation.model_copy(update={
         "signature_b64": base64.b64encode(b"short").decode("ascii")
     }).verify(public)
+
+
+def test_strict_json_rejects_duplicate_keys():
+    from mosaic.verification.lean_runner_signature import _strict_json_loads
+
+    with pytest.raises(ValueError, match="duplicate JSON object key"):
+        _strict_json_loads('{"schema_version":"1.0","schema_version":"2.0"}')
+    with pytest.raises(ValueError, match="duplicate JSON object key"):
+        _strict_json_loads('{"outer":{"value":1,"value":2}}')
+
+
+def test_manifest_verifier_rejects_duplicate_environment_fields():
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    manifest = (
+        '{"source":{"commit":"' + "b" * 40 + '"},'
+        '"execution":{"run_id":"12345"},'
+        '"environment":{"lean_toolchain":"leanprover/lean4:v4.36.0",'
+        '"lean_toolchain":"attacker-toolchain",'
+        '"mathlib_revision":"' + "c" * 40 + '"}}'
+    )
+    raw = manifest.encode()
+    signed = sign_transformation_result(
+        verification, request, result, receipt_id="duplicate-manifest",
+        runner_id="runner", key_id="key", private_key=private,
+        environment_manifest_sha256=hashlib.sha256(raw).hexdigest(),
+        source_commit="b" * 40, workflow_run_id="12345",
+        lean_toolchain="leanprover/lean4:v4.36.0",
+        mathlib_revision="c" * 40,
+    )
+    assert not verify_attested_environment_manifest(signed, public, raw)
