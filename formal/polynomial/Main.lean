@@ -70,7 +70,9 @@ theorem no_nat_solution_n_pow_eq_three (n : Nat) : n^n ≠ 3 := by
 /-- The map x ↦ x * log x is strictly increasing for x > 1. -/
 theorem strictMonoOn_mul_log : StrictMonoOn (fun x : ℝ => x * Real.log x) (Set.Ioi 1) := by
   intro a ha b hb hab
-  have hloga : 0 < Real.log a := Real.log_pos ha
+  have ha' : 1 < a := ha
+  have hb' : 1 < b := hb
+  have hloga : 0 < Real.log a := Real.log_pos ha'
   have hlogab : Real.log a < Real.log b :=
     Real.log_lt_log (by linarith) hab
   calc
@@ -88,7 +90,6 @@ theorem one_lt_of_pos_rpow_eq_three {x : ℝ}
     calc
       x * Real.log x = Real.log (x ^ x) := by
         rw [Real.log_rpow hx x]
-        ring
       _ = Real.log 3 := congrArg Real.log heq
   have hlogx : Real.log x ≤ 0 := Real.log_nonpos hx.le hle
   have hprod : x * Real.log x ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hx.le hlogx
@@ -111,7 +112,6 @@ theorem eq_of_pos_rpow_eq_three {x y : ℝ}
     calc
       y * Real.log y = Real.log (y ^ y) := by
         rw [Real.log_rpow hy y]
-        ring
       _ = Real.log 3 := congrArg Real.log hyeq
   exact strictMonoOn_mul_log.injOn
     (Set.mem_Ioi.mpr hxgt) (Set.mem_Ioi.mpr hygt) (hxlog.trans hylog.symm)
