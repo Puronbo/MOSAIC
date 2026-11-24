@@ -1052,3 +1052,23 @@ a trusted timestamp. A compromised lifecycle authority can sign misleading
 snapshots. This helper is a separately verifiable trust primitive; callers
 must explicitly integrate its result into recovery authorization policy.
 The normative shape is `schemas/operator-lifecycle-checkpoint-v1.schema.json`.
+
+
+### G-EP110: lifecycle-checkpoint-bound recovery
+
+Administrative recovery can now accept a
+`SignedOperatorLifecycleCheckpoint` together with its independently
+provisioned authority keyring and externally retained checkpoint digest.
+Every operator who signed or approved the rebootstrap must appear in that
+same snapshot, and each complete key record must match the execution keyring.
+The checkpoint is verified at the supplied authorization time before the
+SQLite state transition. The signed checkpoint and its digest are persisted
+inside the hash-linked recovery audit.
+
+Independent audit verification accepts the lifecycle authority keyring and,
+when supplied, the externally retained expected lifecycle checkpoint digest.
+A missing authority keyring or altered expected digest rejects checkpoint-bound
+audit evidence. Omitting lifecycle checkpoint arguments remains a compatibility
+path for older deployments; it does not provide this stronger lifecycle
+governance. The lifecycle authority and expected digest remain external trust
+anchors, and the checkpoint chain is not a distributed consensus mechanism.
