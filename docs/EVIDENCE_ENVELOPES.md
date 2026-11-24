@@ -1240,3 +1240,26 @@ The ledger is append-only through this API, but it shares the SQLite file's
 privileged rollback and deletion limitations. Export or replicate receipts to
 an independently protected system when tamper evidence across database
 restoration is required.
+
+
+### G-EP120: externally anchored hash-linked restoration ledger
+
+The local restoration receipt ledger now assigns each event a monotonically
+increasing sequence and a predecessor link. Each ledger-entry digest commits
+to the registry ID, event sequence, previous entry digest, and digest of the
+authority-signed restoration receipt. The store exposes
+`read_checkpoint_chain_restore_ledger(registry_id)` and the independent
+`verify_operator_lifecycle_restore_ledger(...)` verifier.
+
+Verification checks event ordering, predecessor links, receipt digests,
+authority signatures, and caller-supplied terminal event sequence and ledger
+digest. An optional expected ending checkpoint digest additionally binds the
+last receipt to the externally pinned trust-anchor head. A truncated history,
+reordered entry, altered receipt, or modified link is rejected when compared
+with the independently retained terminal sequence and digest.
+
+This is tamper evidence, not immutable storage: an attacker able to rewrite
+the database can recompute an unanchored suffix. Retain the terminal ledger
+sequence and digest outside the SQLite database (for example, in a separately
+controlled deployment record or transparency service). The ledger's receipt
+history and the checkpoint authority signature remain separate trust layers.
