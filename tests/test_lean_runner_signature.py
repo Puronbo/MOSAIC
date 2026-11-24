@@ -208,3 +208,39 @@ def test_replay_uses_exact_signed_source_and_public_key(monkeypatch, tmp_path):
     assert replay_attested_proof_source(signed, public) is True
     assert observed["source"] == signed.proof_source
     assert observed["command"][:3] == ["/usr/bin/lake", "env", "lean"]
+
+
+def test_ed25519_attestation_binds_environment_manifest_and_ci_identity():
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    signed = sign_transformation_result(
+        verification, request, result, receipt_id="environment-bound",
+        runner_id="github-hosted-lean-runner", key_id="ci-key",
+        private_key=private,
+        environment_manifest_sha256="a" * 64,
+        source_commit="b" * 40,
+        workflow_run_id="45299999999",
+        lean_toolchain="leanprover/lean4:v4.36.0",
+        mathlib_revision="c" * 40,
+    )
+    assert signed.verify(public)
+    event = signed.to_evidence_event(event_id="environment-event", public_key=public)
+    assert event.runner_environment_manifest_sha256 == "a" * 64
+    assert event.runner_source_commit == "b" * 40
+    assert event.runner_workflow_run_id == "45299999999"
+    assert event.runner_lean_toolchain == "leanprover/lean4:v4.36.0"
+    assert event.runner_mathlib_revision == "c" * 40
+    assert verify_evidence_event_signature(event, {"ci-key": public})
+    altered = event.model_copy(update={"runner_source_commit": "d" * 40})
+    assert not verify_evidence_event_signature(altered, {"ci-key": public})
+
+
+def test_ed25519_environment_binding_must_be_complete():
+    private, _ = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    with pytest.raises(ValueError, match="complete set"):
+        sign_transformation_result(
+            verification, request, result, receipt_id="partial-environment",
+            runner_id="runner", key_id="key", private_key=private,
+            environment_manifest_sha256="a" * 64,
+        )
