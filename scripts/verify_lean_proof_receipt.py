@@ -21,6 +21,7 @@ from mosaic.verification.lean_runner_signature import (
     replay_attested_proof_source,
     verify_lean_proof_receipt_bundle,
     _strict_json_loads,
+    verify_local_lean_environment_manifest,
 )
 from mosaic.verification.obligations import request_fingerprint
 
@@ -54,6 +55,9 @@ def main() -> int:
             return 1
         attestation = SignedLeanAttestation.model_validate(receipt["attestation"])
         if args.replay:
+            if not verify_local_lean_environment_manifest(manifest):
+                print("INCONCLUSIVE/INVALID: local Lean environment does not match the signed provenance manifest")
+                return 2
             replay = replay_attested_proof_source(attestation, public_key)
             if replay is not True:
                 print(f"INCONCLUSIVE/INVALID: local exact-source replay returned {replay!r}")
