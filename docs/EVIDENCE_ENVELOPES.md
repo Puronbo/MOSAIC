@@ -758,3 +758,26 @@ The signature authenticates a policy statement; it does not prove that its
 threshold or operator identities are wise, independently administered, or
 mathematically correct. Existing recovery calls that supply a policy directly
 remain supported for compatibility.
+
+
+### Enforcing registry-governed recovery (G-EP100)
+
+`PolicyWitnessStateStore.recover_from_signed_snapshot(...)` now supports
+`require_trusted_recovery_policy=True`. In this mode, recovery fails closed
+unless the caller supplies the complete signed recovery-policy registry,
+a trusted signed head checkpoint, and the publisher/checkpoint keyrings.
+The method verifies the entire registry chain and checkpoint before deriving
+the effective approval policy from the registry's final entry. A direct
+`recovery_policy` override is rejected in this mode, as are registry
+arguments supplied while the enforcement flag is disabled.
+
+This enforcement occurs before the recovery transaction and before any
+witness state changes. Missing, stale, altered, wrongly signed, or
+lifecycle-invalid policy data cannot authorize recovery. The selected
+registry head should still be persisted independently by the deployment;
+the method verifies the checkpoint supplied for this operation but does not
+provide a remote freshness service or durable policy-head store of its own.
+The older direct-policy path remains available when the enforcement flag is
+false for backwards compatibility. Production deployments should enable the
+flag and source the checkpoint and keyrings from separately controlled trust
+configuration.
