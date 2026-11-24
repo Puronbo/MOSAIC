@@ -124,3 +124,20 @@ The exponent-shift module now exposes `shiftOperator`, with kernel-checked laws 
 
 
 The arbitrary-step API also includes a named first-difference corollary and a zero-step boundary theorem: every positive iteration of a zero-sized step is zero. This explicitly covers the degenerate `m = 0` case rather than relying on the intuitive interpretation of a step as positive.
+
+
+### Bi-infinite integer shifts
+
+`MosaicIntegerShift` extends translation from natural-indexed sequences to
+sequences indexed by `ℤ`. For an arbitrary real-valued sequence, the
+translation `T_m f(k) = f(k + m)` is proved to satisfy the identity and
+composition laws, and translation by `-m` is both a left and right
+inverse of translation by `m`. The unit forward difference commutes
+with every integer translation.
+
+This is a genuine group action on bi-infinite sequences, unlike the monoid of
+forward-only natural shifts. It is deliberately a generic sequence theorem:
+it does not yet identify the sequence with `x^(x+k)` for positive real
+`x`, nor does it establish a real-exponent addition theorem or a
+continuous derivative. Those require a separate positive-real-power bridge
+and are not inferred from the generic shift laws.
