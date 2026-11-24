@@ -118,7 +118,8 @@ def test_compromise_effective_time_rejects_backdated_post_compromise_receipt():
         revoked_at_utc="2026-11-24T01:03:00Z",
         compromise_effective_at_utc="2026-11-24T00:59:30Z",
     )
-    assert verify(before, compromised)
+    assert verify(before, compromised, witnessed="2026-11-24T00:59:15Z")
+    assert not verify(before, compromised, witnessed="2026-11-24T01:00:00Z")
     assert not verify(after, compromised)
 
 
