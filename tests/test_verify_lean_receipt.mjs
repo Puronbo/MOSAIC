@@ -53,3 +53,16 @@ test("Node verifies Unicode canonicalization conformance vector", () => {
   ));
   assert.equal(verifyAttestation(unicodeVector.attestation, unicodeVector.public_key_b64), true);
 });
+
+
+test("Node rejects non-string optional provenance values", () => {
+  const bound = {
+    environment_manifest_sha256: "2".repeat(64),
+    source_commit: "a".repeat(40),
+    workflow_run_id: "12345",
+    lean_toolchain: "leanprover/lean4:v4.36.0",
+    mathlib_revision: "b".repeat(40),
+  };
+  assert.equal(verifyAttestation({ ...vector.attestation, ...bound, environment_manifest_sha256: 123 }, vector.public_key_b64), false);
+  assert.equal(verifyAttestation({ ...vector.attestation, ...bound, source_commit: 123 }, vector.public_key_b64), false);
+});
