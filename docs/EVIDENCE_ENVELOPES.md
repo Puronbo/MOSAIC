@@ -169,9 +169,6 @@ gh attestation verify lean-provenance.json -R Puronbo/MOSAIC
 The manifest and attestation establish the provenance of the declared and
 observed environment metadata. They do not by themselves attest every
 individual theorem invocation, preserve each generated temporary proof source,
-or prove that the runner host was uncompromised. The current proof checkers
-still generate proof source in temporary directories and retain its SHA-256
-fingerprint in result metadata; preserving exact proof-source bytes and
-per-invocation execution records is a separate next step. GitHub's hosted
+or prove that the runner host was uncompromised. The affine and polynomial transformation checkers now retain the exact generated Lean source alongside its SHA-256 digest. Ed25519 runner attestations include those exact source bytes in the signed payload, and signed evidence events preserve the source so a consumer can inspect it and verify its digest. `replay_attested_proof_source(...)` verifies the signature and re-runs the retained source through `lake env lean` in the pinned polynomial Lake project. It returns `None` when the replay environment is unavailable or times out; a replay is a fresh check in the current environment, not proof that the original runner host was uncompromised. CI exercises an actual request-bound proof, signs its source, and independently replays that exact source before creating the environment provenance manifest. The source is preserved in the signed attestation and event, while theorem invocation logs and complete machine-level execution traces remain future work. GitHub's hosted
 runner image is identified at a broad platform level, not pinned to an
 immutable machine image. Reproducibility is therefore improved, not absolute.
