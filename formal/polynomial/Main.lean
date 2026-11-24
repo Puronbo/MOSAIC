@@ -332,7 +332,8 @@ def forwardDifference (f : ℤ → ℝ) (k : ℤ) : ℝ :=
 theorem difference_shift_commute (f : ℤ → ℝ) (m k : ℤ) :
     forwardDifference (fun j => shiftOperator f m j) k =
       shiftOperator (fun j => forwardDifference f j) m k := by
-  simp [forwardDifference, shiftOperator, Int.add_assoc]
+  simp only [forwardDifference, shiftOperator]
+  congr 1 <;> omega
 
 /-- The integer translations form a group action on bi-infinite sequences:
 the inverse law is witnessed by translation through the negated offset. -/
