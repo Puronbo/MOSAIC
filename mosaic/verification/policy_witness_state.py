@@ -6,10 +6,12 @@ distributed consensus or hardware anti-rollback mechanism.
 """
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from mosaic.verification.lean_runner_signature import _canonical
 from mosaic.verification.policy_governance import PolicyPublisherKey
 from mosaic.verification.policy_registry import SignedPolicyRegistryEntry
 from mosaic.verification.policy_transparency import (
@@ -48,6 +50,15 @@ class PolicyWitnessStateStore:
                     conflicting_checkpoint_sha256 TEXT NOT NULL,
                     reason TEXT NOT NULL,
                     observed_at_utc TEXT NOT NULL DEFAULT
+                      (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+                );
+                CREATE TABLE IF NOT EXISTS witness_recoveries (
+                    recovery_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    log_id TEXT NOT NULL,
+                    selected_checkpoint_sha256 TEXT NOT NULL,
+                    authorization_sha256 TEXT NOT NULL UNIQUE,
+                    authorization_json TEXT NOT NULL,
+                    recovered_at_utc TEXT NOT NULL DEFAULT
                       (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
                 );
             """)
@@ -325,5 +336,101 @@ class PolicyWitnessStateStore:
                         (snapshot.log_id, *identity),
                     )
                     existing.add(identity)
+            db.commit()
+            return True
+
+
+    def recovery_records(self, log_id: str) -> list[dict]:
+        """Return retained signed recovery authorizations for audit."""
+        with self._connection() as db:
+            rows = db.execute(
+                """SELECT log_id, selected_checkpoint_sha256,
+                   authorization_sha256, authorization_json, recovered_at_utc
+                   FROM witness_recoveries WHERE log_id=? ORDER BY recovery_id""",
+                (log_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def recover_from_signed_snapshot(
+        self, snapshot: "SignedPolicyWitnessSnapshot", *,
+        witness_keyring: dict[str, PolicyPublisherKey],
+        signer_keyring: dict[str, PolicyPublisherKey],
+        operator_keyring: dict[str, PolicyPublisherKey],
+        authorization: "SignedPolicyWitnessRecoveryAuthorization",
+        entries: list[SignedPolicyRegistryEntry],
+    ) -> bool:
+        """Recover a quarantined witness only with an exact signed approval."""
+        from mosaic.verification.policy_witness_snapshot import SignedPolicyWitnessSnapshot
+        from mosaic.verification.policy_witness_recovery import SignedPolicyWitnessRecoveryAuthorization
+        if (not isinstance(snapshot, SignedPolicyWitnessSnapshot)
+                or not isinstance(authorization, SignedPolicyWitnessRecoveryAuthorization)
+                or snapshot.quarantined
+                or not snapshot.verify(witness_keyring)
+                or not authorization.verify(operator_keyring)
+                or authorization.log_id != snapshot.log_id
+                or authorization.selected_snapshot_sha256 != hashlib.sha256(
+                    _canonical(snapshot.model_dump(mode="json"))
+                ).hexdigest()
+                or not snapshot.checkpoint_history
+                or snapshot.checkpoint_history[-1].digest() != snapshot.checkpoint.digest()
+                or len(snapshot.checkpoint_history) != snapshot.checkpoint.sequence + 1):
+            return False
+        prior = None
+        for index, historical in enumerate(snapshot.checkpoint_history):
+            if historical.sequence != index or historical.log_id != snapshot.log_id:
+                return False
+            if not verify_policy_checkpoint(
+                historical, entries=entries[:index + 1],
+                signer_keyring=signer_keyring, previous_checkpoint=prior,
+            ):
+                return False
+            prior = historical
+
+        with self._connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT quarantined FROM witness_heads WHERE log_id=?",
+                (snapshot.log_id,),
+            ).fetchone()
+            if row is None or not row["quarantined"]:
+                db.rollback()
+                return False
+            incidents = [dict(item) for item in db.execute(
+                """SELECT log_id, sequence, retained_checkpoint_sha256,
+                   conflicting_checkpoint_sha256, reason, observed_at_utc
+                   FROM witness_incidents WHERE log_id=? ORDER BY incident_id""",
+                (snapshot.log_id,),
+            ).fetchall()]
+            incident_digest = hashlib.sha256(_canonical(incidents)).hexdigest()
+            if (not incidents
+                    or authorization.incident_history_sha256 != incident_digest
+                    or db.execute(
+                        "SELECT 1 FROM witness_recoveries WHERE authorization_sha256=?",
+                        (authorization.digest(),),
+                    ).fetchone()):
+                db.rollback()
+                return False
+            for historical in snapshot.checkpoint_history:
+                db.execute(
+                    """INSERT OR IGNORE INTO witness_checkpoint_history
+                    (log_id, checkpoint_sha256, sequence, checkpoint_json)
+                    VALUES (?, ?, ?, ?)""",
+                    (snapshot.log_id, historical.digest(), historical.sequence,
+                     self._encode(historical)),
+                )
+            db.execute(
+                """UPDATE witness_heads SET checkpoint_json=?,
+                   checkpoint_sha256=?, quarantined=0 WHERE log_id=?""",
+                (self._encode(snapshot.checkpoint), snapshot.checkpoint.digest(),
+                 snapshot.log_id),
+            )
+            db.execute(
+                """INSERT INTO witness_recoveries
+                (log_id, selected_checkpoint_sha256, authorization_sha256,
+                 authorization_json)
+                VALUES (?, ?, ?, ?)""",
+                (snapshot.log_id, snapshot.checkpoint.digest(),
+                 authorization.digest(), authorization.model_dump_json()),
+            )
             db.commit()
             return True
