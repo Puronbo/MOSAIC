@@ -45,21 +45,6 @@ class AgentTask(BaseModel):
         return self
 
 
-class AgentProposal(BaseModel):
-    """Untrusted output from one agent; never a proof certificate."""
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    task_id: str
-    agent_id: str = Field(min_length=1, max_length=120)
-    role: AgentRole
-    claim: str = Field(min_length=1, max_length=8000)
-    rationale: str = Field(default="", max_length=12000)
-    assumptions: tuple[str, ...] = ()
-    evidence_refs: tuple[str, ...] = ()
-    findings: tuple[ReviewFinding, ...] = ()
-    status: TaskStatus = TaskStatus.COMPLETED
-
-
 class ReviewFindingKind(StrEnum):
     DERIVATION_GAP = "derivation-gap"
     UNSUPPORTED_ASSUMPTION = "unsupported-assumption"
@@ -77,6 +62,21 @@ class ReviewFinding(BaseModel):
     statement: str = Field(min_length=1, max_length=4000)
     requires_independent_check: bool = True
     evidence_refs: tuple[str, ...] = ()
+
+
+class AgentProposal(BaseModel):
+    """Untrusted output from one agent; never a proof certificate."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: str
+    agent_id: str = Field(min_length=1, max_length=120)
+    role: AgentRole
+    claim: str = Field(min_length=1, max_length=8000)
+    rationale: str = Field(default="", max_length=12000)
+    assumptions: tuple[str, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
+    findings: tuple[ReviewFinding, ...] = ()
+    status: TaskStatus = TaskStatus.COMPLETED
 
 
 class ReviewObligation(BaseModel):
