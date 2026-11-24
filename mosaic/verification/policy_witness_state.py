@@ -358,15 +358,26 @@ class PolicyWitnessStateStore:
         operator_keyring: dict[str, PolicyPublisherKey],
         authorization: "SignedPolicyWitnessRecoveryAuthorization",
         entries: list[SignedPolicyRegistryEntry],
+        recovery_policy=None,
+        approvals=None,
     ) -> bool:
         """Recover a quarantined witness only with an exact signed approval."""
         from mosaic.verification.policy_witness_snapshot import SignedPolicyWitnessSnapshot
         from mosaic.verification.policy_witness_recovery import SignedPolicyWitnessRecoveryAuthorization
+        from mosaic.verification.policy_witness_recovery_governance import (
+            PolicyWitnessRecoveryPolicy, verify_policy_witness_recovery_approvals,
+        )
+        effective_policy = recovery_policy or PolicyWitnessRecoveryPolicy(minimum_approvals=1)
+        effective_approvals = [] if approvals is None else approvals
         if (not isinstance(snapshot, SignedPolicyWitnessSnapshot)
                 or not isinstance(authorization, SignedPolicyWitnessRecoveryAuthorization)
                 or snapshot.quarantined
                 or not snapshot.verify(witness_keyring)
-                or not authorization.verify(operator_keyring)
+                or not verify_policy_witness_recovery_approvals(
+                    authorization, policy=effective_policy,
+                    approvals=effective_approvals, operator_keyring=operator_keyring,
+                    witness_keyring=witness_keyring, signer_keyring=signer_keyring,
+                )
                 or authorization.operator_key_id in witness_keyring
                 or operator_keyring[authorization.operator_key_id].public_key() == witness_keyring[snapshot.witness_key_id].public_key()
                 or authorization.operator_key_id in signer_keyring
