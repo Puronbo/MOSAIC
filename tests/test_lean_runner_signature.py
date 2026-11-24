@@ -541,9 +541,26 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
         "lean_entrypoint_sha256": project / "Main.lean",
     }.items():
         environment[key] = hashlib.sha256(file_path.read_bytes()).hexdigest()
-    manifest = json.dumps({"environment": environment}).encode()
+    manifest_payload = {
+        "schema_version": "mosaic.lean-build-provenance.v1",
+        "source": {"repository": "Puronbo/MOSAIC", "commit": "b" * 40},
+        "environment": environment,
+        "execution": {
+            "workflow": "Lean polynomial integration",
+            "run_id": "12345",
+            "run_attempt": "1",
+            "runner_os": "Linux",
+        },
+        "scope": "Test provenance manifest",
+    }
+    manifest = json.dumps(manifest_payload).encode()
     assert module.verify_local_lean_environment_manifest(manifest, project_dir=project)
     altered = dict(environment, lake_binary_sha256="0" * 64)
+    altered_payload = {**manifest_payload, "environment": altered}
     assert not module.verify_local_lean_environment_manifest(
-        json.dumps({"environment": altered}).encode(), project_dir=project
+        json.dumps(altered_payload).encode(), project_dir=project
+    )
+    malformed_payload = {**manifest_payload, "schema_version": "unknown"}
+    assert not module.verify_local_lean_environment_manifest(
+        json.dumps(malformed_payload).encode(), project_dir=project
     )
