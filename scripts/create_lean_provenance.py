@@ -1,7 +1,8 @@
 """Create a machine-readable provenance manifest for the pinned Lean/Mathlib project.
 
-This records the declared and observed environment. CI separately runs real Lean
-proof checks before generating and attesting this manifest.
+This records the declared and observed environment after pinned dependencies
+are installed. CI signs this manifest into each proof receipt, then publishes a
+GitHub artifact attestation only if the subsequent proof and replay checks pass.
 """
 from __future__ import annotations
 
@@ -66,8 +67,9 @@ def main() -> None:
         },
         "scope": (
             "Environment and source provenance for the Lean polynomial project. "
-            "This manifest is generated only after CI proof checks complete; "
-            "it is not itself a proof or a record of every theorem invocation."
+            "CI creates this manifest before request-bound proof checks, but only "
+            "attests it after those checks and exact-source replay pass. It is "
+            "not itself a proof or a record of every theorem invocation."
         ),
     }
     output = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "lean-provenance.json"
