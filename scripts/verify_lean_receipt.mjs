@@ -180,7 +180,7 @@ export function verifyReceiptBundle(receipt, {
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
   const [, , receiptPath, trustedPublicKeyB64, manifestPath, requestPath, candidatePath] = process.argv;
   if (!receiptPath || !trustedPublicKeyB64) {
-    process.stderr.write("Usage: node scripts/verify_lean_receipt.mjs <receipt-or-vector.json> <trusted-public-key-b64> [manifest.json request.json candidate.bin]\\n");
+    process.stderr.write("Usage: node scripts/verify_lean_receipt.mjs <receipt-or-vector.json> <trusted-public-key-b64> [manifest.json request.json candidate.bin]\n");
     process.exit(2);
   }
   try {
@@ -189,7 +189,7 @@ if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
     const document = parseJsonNoDuplicateKeys(receiptText);
     const fullArgs = [manifestPath, requestPath, candidatePath];
     if (fullArgs.some(Boolean) && !fullArgs.every(Boolean)) {
-      process.stderr.write("Full bundle verification requires manifest, request, and candidate paths\\n");
+      process.stderr.write("Full bundle verification requires manifest, request, and candidate paths\n");
       process.exit(2);
     }
     if (fullArgs.every(Boolean)) {
@@ -197,17 +197,17 @@ if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
       const request = parseJsonNoDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(requestPath)));
       const candidateBytes = readFileSync(candidatePath);
       if (!verifyReceiptBundle(document, { manifestBytes, trustedPublicKeyB64, request, candidateBytes })) {
-        process.stderr.write("Invalid Lean proof receipt bundle or external binding\\n");
+        process.stderr.write("Invalid Lean proof receipt bundle or external binding\n");
         process.exit(1);
       }
-      process.stdout.write("Complete Lean proof receipt bundle verified\\n");
+      process.stdout.write("Complete Lean proof receipt bundle verified\n");
     } else {
       const attestation = document.attestation ?? document;
       if (!verifyAttestation(attestation, trustedPublicKeyB64)) {
-        process.stderr.write("Invalid or untrusted Lean attestation\\n");
+        process.stderr.write("Invalid or untrusted Lean attestation\n");
         process.exit(1);
       }
-      process.stdout.write("Ed25519 Lean attestation verified\\n");
+      process.stdout.write("Ed25519 Lean attestation verified\n");
     }
   } catch (error) {
     process.stderr.write(`Unable to verify receipt: ${error.message}\n`);
