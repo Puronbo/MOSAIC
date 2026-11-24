@@ -39,17 +39,22 @@ theorem rapid_series_power_comparison (n : Nat) (hn : 2 ≤ n) :
 
 /-- Powers of two are at least four from exponent two onward. -/
 theorem four_le_two_pow (k : Nat) (hk : 2 ≤ k) : 4 ≤ 2^k := by
-  induction k with
-  | zero =>
-      omega
-  | succ k ih =>
-      cases k with
-      | zero =>
-          norm_num
-      | succ k =>
-          have hprev : 4 ≤ 2^(k + 1) := ih (by omega)
+  have hbound : ∀ m : Nat, 2 ≤ m → 4 ≤ 2^m := by
+    intro m
+    induction m with
+    | zero =>
+        intro hm
+        omega
+    | succ m ih =>
+        intro hm
+        by_cases hm2 : 2 ≤ m
+        · have hprev := ih hm2
           rw [Nat.pow_succ]
-          nlinarith [Nat.zero_le (2^(k + 1))]
+          nlinarith
+        · have hmEq : m = 1 := by omega
+          subst m
+          norm_num
+  exact hbound k hk
 
 /-- The natural-number equation n^n = 3 has no solution.
 This is the discrete counterpart of n^n - 1 = 2. -/
