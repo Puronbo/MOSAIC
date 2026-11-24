@@ -21,6 +21,23 @@ from mosaic.verification.policy_witness_recovery_policy_registry import (
 from mosaic.verification.policy_witness_recovery_governance import PolicyWitnessRecoveryPolicy
 
 
+class RecoveryPolicyCheckpointAuditVerificationReport(BaseModel):
+    """Explicit result for verified, empty, legacy, or invalid audit exports."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    status: Literal["verified", "empty", "legacy_unverifiable", "invalid"]
+    registry_id: str
+    record_count: int = Field(ge=0)
+    verified_record_count: int = Field(ge=0)
+    legacy_record_count: int = Field(ge=0)
+    head_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    expected_head_sha256: str | None = None
+    errors: tuple[str, ...] = ()
+
+    @property
+    def is_verified(self) -> bool:
+        return self.status in ("verified", "empty") and not self.errors
+
+
 class RecoveryPolicyCheckpointRebootstrapIntent(BaseModel):
     """Operator proposal bound to the exact quarantined state and selected fork."""
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -224,9 +241,11 @@ def rebootstrap_recovery_policy_checkpoint_store(
         }
         audit = _canonical(audit_data).decode()
         previous = db.execute(
-            "SELECT audit_sha256 FROM recovery_policy_rebootstrap_audit WHERE registry_id=? "
-            "ORDER BY epoch DESC LIMIT 1", (checkpoint.registry_id,)
+            "SELECT audit_sha256 FROM recovery_policy_rebootstrap_audit "
+            "WHERE registry_id=? AND audit_sha256 IS NOT NULL ORDER BY epoch DESC LIMIT 1",
+            (checkpoint.registry_id,)
         ).fetchone()
+        # Legacy rows are retained but cannot anchor a verified chain.
         previous_hash = previous["audit_sha256"] if previous else "0" * 64
         audit_hash = hashlib.sha256(_canonical({
             "previous_audit_sha256": previous_hash, "audit": audit_data
@@ -257,6 +276,7 @@ def export_rebootstrap_audit(store, *, registry_id: str) -> dict:
         "audit": json.loads(row["audit_json"]),
         "previous_audit_sha256": row["previous_audit_sha256"],
         "audit_sha256": row["audit_sha256"],
+        "record_version": "v1" if row["audit_sha256"] is not None else "legacy-unverifiable",
     } for row in rows]
     return {
         "schema_version": "mosaic.recovery-policy-rebootstrap-audit-export.v1",
@@ -267,7 +287,7 @@ def export_rebootstrap_audit(store, *, registry_id: str) -> dict:
     }
 
 
-def verify_rebootstrap_audit_export(
+def _verify_rebootstrap_audit_export_v1(
     export: dict, *, operator_keyring: dict, publisher_keyring: dict,
     checkpoint_keyring: dict | None,
     expected_head_sha256: str | None = None,
@@ -288,8 +308,16 @@ def verify_rebootstrap_audit_export(
     expected_epoch = None
     for item in export["records"]:
         if not isinstance(item, dict) or set(item) != {
-            "epoch", "audit", "previous_audit_sha256", "audit_sha256"
+            "epoch", "audit", "previous_audit_sha256", "audit_sha256", "record_version"
         }:
+            return False
+        if item["record_version"] == "legacy-unverifiable":
+            if item["audit_sha256"] is not None or item["previous_audit_sha256"] is not None:
+                return False
+            if not isinstance(item["audit"], dict) or item["epoch"] != item["audit"].get("epoch"):
+                return False
+            continue
+        if item["record_version"] != "v1":
             return False
         audit = item["audit"]
         if not isinstance(audit, dict) or set(audit) != {
@@ -339,3 +367,40 @@ def verify_rebootstrap_audit_export(
         return False
     # An externally retained head detects complete-record truncation and replacement.
     return expected_head_sha256 is None or expected_head_sha256 == previous
+
+
+def verify_rebootstrap_audit_export_report(
+    export: dict, *, operator_keyring: dict, publisher_keyring: dict,
+    checkpoint_keyring: dict | None, expected_head_sha256: str | None = None,
+) -> RecoveryPolicyCheckpointAuditVerificationReport:
+    """Return diagnostics without treating retained legacy rows as verified."""
+    registry_id = export.get("registry_id", "") if isinstance(export, dict) else ""
+    records = export.get("records", []) if isinstance(export, dict) and isinstance(export.get("records"), list) else []
+    count = len(records)
+    head = export.get("head_sha256", "0" * 64) if isinstance(export, dict) else "0" * 64
+    if not isinstance(head, str) or len(head) != 64 or any(c not in "0123456789abcdef" for c in head):
+        head = "0" * 64
+    legacy = sum(1 for item in records if isinstance(item, dict) and item.get("record_version") == "legacy-unverifiable")
+    valid = _verify_rebootstrap_audit_export_v1(
+        export, operator_keyring=operator_keyring, publisher_keyring=publisher_keyring,
+        checkpoint_keyring=checkpoint_keyring, expected_head_sha256=expected_head_sha256,
+    )
+    verified = sum(1 for item in records if isinstance(item, dict) and item.get("record_version") == "v1") if valid else 0
+    status = "invalid" if not valid else "legacy_unverifiable" if legacy else "empty" if not records else "verified"
+    errors = () if valid and not legacy else (("One or more legacy rows lack independently verifiable G-EP103 material.",) if valid else ("Audit structure, chain, signatures, registry proof, or expected head failed verification.",))
+    return RecoveryPolicyCheckpointAuditVerificationReport(
+        status=status, registry_id=registry_id if isinstance(registry_id, str) else "",
+        record_count=count, verified_record_count=verified, legacy_record_count=legacy,
+        head_sha256=head, expected_head_sha256=expected_head_sha256, errors=errors,
+    )
+
+
+def verify_rebootstrap_audit_export(
+    export: dict, *, operator_keyring: dict, publisher_keyring: dict,
+    checkpoint_keyring: dict | None, expected_head_sha256: str | None = None,
+) -> bool:
+    """Strict boolean wrapper; legacy records are deliberately not accepted."""
+    return verify_rebootstrap_audit_export_report(
+        export, operator_keyring=operator_keyring, publisher_keyring=publisher_keyring,
+        checkpoint_keyring=checkpoint_keyring, expected_head_sha256=expected_head_sha256,
+    ).is_verified
