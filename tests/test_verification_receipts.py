@@ -6,7 +6,7 @@ from mosaic.core.types import Operation
 from mosaic.verification.obligations import obligations_for_request, request_fingerprint
 from mosaic.verification.review_checkers import ReviewCheckerReceipt
 from mosaic.verification.lean_obligations import LeanIdentityVerification
-from mosaic.verification.receipts import VerificationReceipt, validate_receipt_for_replay
+from mosaic.verification.receipts import (\n    VerificationReceipt, load_receipt, serialize_receipt,\n    validate_receipt_for_replay,\n)
 
 
 def _request():
@@ -127,3 +127,17 @@ def test_non_success_outcome_can_be_recorded_without_promotion():
     )
     receipt = VerificationReceipt.issue(obligation, checked)
     assert validate_receipt_for_replay(receipt, request).status == "UNSUPPORTED"
+
+
+def test_receipt_survives_json_round_trip_and_replay():
+    request, _, receipt = _issued()
+    restored = load_receipt(serialize_receipt(receipt))
+    assert restored == receipt
+    assert validate_receipt_for_replay(restored, request) == receipt
+
+
+def test_receipt_loader_rejects_oversized_and_malformed_records():
+    with pytest.raises(ValueError, match="maximum serialized size"):
+        load_receipt(b"x" * 65_537)
+    with pytest.raises(Exception):
+        load_receipt("{not-json}")
