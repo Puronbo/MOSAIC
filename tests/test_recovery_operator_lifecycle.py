@@ -1140,23 +1140,46 @@ def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
         registry_id="envelope-registry", rotation_sequence=1,
         rotation_sha256=rotation.digest(), active_key_id=active.key_id,
         issued_at_utc="2026-11-24T08:01:00.000000Z", private_key=active_sk)
+    from mosaic.verification.recovery_operator_lifecycle import (
+        SignedOperatorLifecycleCheckpointChainRestoreReceipt)
+    from mosaic.verification.lean_runner_signature import _canonical
+    receipt_payload = {
+        "schema_version": "1.0", "registry_id": "envelope-registry",
+        "bundle_sha256": "1" * 64, "starting_sequence": 0,
+        "starting_checkpoint_sha256": "2" * 64, "ending_sequence": 1,
+        "ending_checkpoint_sha256": "3" * 64, "verified_transitions": 1,
+        "authority_key_id": active.key_id,
+        "issued_at_utc": "2026-11-24T08:01:30.000000Z",
+    }
+    signature = Ed25519PrivateKey.from_private_bytes(active_sk).sign(_canonical(receipt_payload))
+    receipt = SignedOperatorLifecycleCheckpointChainRestoreReceipt(
+        **receipt_payload, signature_b64=base64.b64encode(signature).decode("ascii"))
+    receipt_digest = receipt.digest()
+    entry_payload = {"registry_id": "envelope-registry", "event_sequence": 1,
+                     "previous_receipt_sha256": None, "receipt_sha256": receipt_digest}
+    import hashlib
+    entry_digest = hashlib.sha256(_canonical(entry_payload)).hexdigest()
+    ledger = ({"registry_id": "envelope-registry", "event_sequence": 1,
+               "previous_receipt_sha256": None, "receipt_sha256": receipt_digest,
+               "ledger_entry_sha256": entry_digest, "receipt": receipt.model_dump(mode="json")},)
     restore_head = SignedOperatorLifecycleRestoreLedgerHead.sign(
-        registry_id="envelope-registry", event_sequence=9,
-        ledger_entry_sha256="c" * 64, receipt_sha256="d" * 64,
+        registry_id="envelope-registry", event_sequence=1,
+        ledger_entry_sha256=entry_digest, receipt_sha256=receipt_digest,
         ledger_authority_key_id=active.key_id,
         issued_at_utc="2026-11-24T08:02:00.000000Z", private_key=active_sk)
     envelope = OperatorLifecycleRecoveryEvidenceEnvelope(
         registry_id="envelope-registry", initial_authority_key_id=root.key_id,
         rotations=(rotation,), rotation_head=rotation_head,
-        restore_ledger_head=restore_head)
+        restore_ledger_head=restore_head, restore_ledger=ledger)
     kwargs = dict(
         authority_keyring=ring, expected_registry_id="envelope-registry",
         expected_initial_key_id=root.key_id,
         expected_rotation_head_sha256=rotation_head.digest(),
         expected_rotation_sequence=1, expected_rotation_sha256=rotation.digest(),
-        expected_restore_event_sequence=9,
-        expected_restore_ledger_entry_sha256="c" * 64,
-        expected_restore_receipt_sha256="d" * 64,
+        expected_restore_event_sequence=1,
+        expected_restore_ledger_entry_sha256=entry_digest,
+        expected_restore_receipt_sha256=receipt_digest,
+        expected_restore_ledger_head_sha256=restore_head.digest(),
         authorization_time_utc="2026-11-24T08:03:00.000000Z")
     assert verify_operator_lifecycle_recovery_evidence_envelope(envelope, **kwargs)
     assert len(envelope.digest()) == 64
@@ -1171,3 +1194,9 @@ def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
     forked = envelope.model_copy(update={
         "rotation_head": rotation_head.model_copy(update={"rotation_sha256": "a" * 64})})
     assert not verify_operator_lifecycle_recovery_evidence_envelope(forked, **kwargs)
+    truncated = envelope.model_copy(update={"restore_ledger": ()})
+    assert not verify_operator_lifecycle_recovery_evidence_envelope(truncated, **kwargs)
+    reordered = envelope.model_copy(update={"restore_ledger": (dict(ledger[0], event_sequence=2),)})
+    assert not verify_operator_lifecycle_recovery_evidence_envelope(reordered, **kwargs)
+    wrong_head_pin = dict(kwargs, expected_restore_ledger_head_sha256="f" * 64)
+    assert not verify_operator_lifecycle_recovery_evidence_envelope(envelope, **wrong_head_pin)
