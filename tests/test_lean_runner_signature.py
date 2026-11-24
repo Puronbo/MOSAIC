@@ -20,6 +20,7 @@ from mosaic.verification.obligations import request_fingerprint
 
 
 def make_verified_result():
+    proof_source = "import Lean\\ntheorem mosaic_certificate (x : Int) : x + 1 = 1 + x := by omega\\n"
     request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
     result = "1 + x"
     artifact_hash = hashlib.sha256(result.encode()).hexdigest()
@@ -28,7 +29,8 @@ def make_verified_result():
         lhs_sha256=hashlib.sha256(request.expression.encode()).hexdigest(),
         rhs_sha256=artifact_hash,
         lean_version="Lean version 4.test",
-        proof_source_sha256=hashlib.sha256(b"generated Lean proof").hexdigest(),
+        proof_source_sha256=hashlib.sha256(proof_source.encode()).hexdigest(),
+        proof_source=proof_source,
         variables=("x",),
         explanation="accepted by configured Lean runner",
     )
@@ -62,6 +64,8 @@ def test_ed25519_signed_attestation_verifies_with_public_key_only():
     event = signed.to_evidence_event(event_id="signed-event-1", public_key=public)
     assert event.outcome == EvidenceEventOutcome.PASSED
     assert event.runner_signature_algorithm == "Ed25519"
+    assert event.runner_proof_source == verification.check.proof_source
+    assert hashlib.sha256(event.runner_proof_source.encode()).hexdigest() == event.proof_artifact_sha256
     assert event.runner_key_id == "ci-key-2026-01"
     assert verify_evidence_event_signature(
         event, {"ci-key-2026-01": public}
@@ -116,6 +120,7 @@ def test_ed25519_signer_requires_raw_private_key_bytes(bad_key):
             request_sha256=hashlib.sha256(b"r").hexdigest(),
             artifact_sha256=hashlib.sha256(b"a").hexdigest(),
             proof_artifact_sha256=hashlib.sha256(b"p").hexdigest(),
+            proof_source="proof",
             checker_id="checker", kernel_version="Lean 4",
             outcome=EvidenceEventOutcome.PASSED, private_key=bad_key,
         )
@@ -144,3 +149,31 @@ def test_isolated_runner_entrypoint_executes_verifier_then_signs(monkeypatch):
     assert calls == [(request, result)]
     assert attestation.verify(public)
 
+
+
+def test_signed_attestation_rejects_proof_source_tampering():
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    signed = sign_transformation_result(
+        verification, request, result, receipt_id="proof-source-tamper",
+        runner_id="runner", key_id="key", private_key=private,
+    )
+    altered = signed.model_copy(update={"proof_source": signed.proof_source + "-- altered"})
+    assert not altered.verify(public)
+
+
+def test_evidence_event_rejects_proof_source_digest_mismatch():
+    from mosaic.verification.evidence_envelope import EvidenceEvent
+
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    signed = sign_transformation_result(
+        verification, request, result, receipt_id="proof-source-event",
+        runner_id="runner", key_id="key", private_key=private,
+    )
+    event = signed.to_evidence_event(event_id="proof-event", public_key=public)
+    with pytest.raises(ValueError, match="proof source"):
+        EvidenceEvent.model_validate({
+            **event.model_dump(),
+            "runner_proof_source": "forged source",
+        })
