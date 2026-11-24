@@ -121,3 +121,6 @@ Here `m` is a natural-number step and `r` is the iteration order. The formal sta
 ### Shift-operator algebra
 
 The exponent-shift module now exposes `shiftOperator`, with kernel-checked laws for the identity shift, composition (`T_a(T_b f) = T_(a+b) f`), its action on the exponent-increment sequence, and commutation with the unit forward-difference operator. These are natural-indexed forward shifts. There is no inverse shift in this API: a natural sequence has no generally defined values at negative indices, so an inverse law would require a separately specified domain (for example, a bi-infinite integer-indexed sequence).
+
+
+The arbitrary-step API also includes a named first-difference corollary and a zero-step boundary theorem: every positive iteration of a zero-sized step is zero. This explicitly covers the degenerate `m = 0` case rather than relying on the intuitive interpretation of a step as positive.
