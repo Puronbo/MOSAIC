@@ -138,3 +138,40 @@ was uncompromised or that the claimed Lean executable was genuine. The
 deployment must isolate the runner, protect the private key, and control
 which runner software is authorized to sign.
 
+
+
+## Reproducible Lean environment and build provenance
+
+The polynomial Lean project pins Lean 4.36.0 in
+`formal/polynomial/lean-toolchain`, pins Mathlib and its transitive Lake
+dependencies in `formal/polynomial/lake-manifest.json`, and declares the
+Mathlib revision in `lakefile.lean`. CI installs that toolchain, obtains the
+Lake cache, and runs the project plus request-bound Python-to-Lean checks
+against the real Lean executable.
+
+After those checks pass, CI runs
+`scripts/create_lean_provenance.py`. The generator fails closed if the
+toolchain or Mathlib revision differs from the expected pins, then records the
+observed Lean version, complete Lake manifest digest, project source digests,
+repository commit, and workflow execution identifiers in
+`lean-provenance.json`. GitHub Actions signs that exact JSON artifact with
+the workflow's OIDC identity using `actions/attest@v4` (Sigstore-backed
+artifact attestation). The attestation binds the manifest's digest to the
+repository, commit, and workflow identity; it is stronger than a self-asserted
+runner ID or a locally generated hash.
+
+For a downloaded manifest, verify its GitHub artifact attestation with:
+
+```sh
+gh attestation verify lean-provenance.json -R Puronbo/MOSAIC
+```
+
+The manifest and attestation establish the provenance of the declared and
+observed environment metadata. They do not by themselves attest every
+individual theorem invocation, preserve each generated temporary proof source,
+or prove that the runner host was uncompromised. The current proof checkers
+still generate proof source in temporary directories and retain its SHA-256
+fingerprint in result metadata; preserving exact proof-source bytes and
+per-invocation execution records is a separate next step. GitHub's hosted
+runner image is identified at a broad platform level, not pinned to an
+immutable machine image. Reproducibility is therefore improved, not absolute.
