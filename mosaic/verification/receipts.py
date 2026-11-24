@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from mosaic.core.orchestration import ReviewObligation
 from mosaic.core.requests import MathRequest
 from mosaic.verification.obligations import request_fingerprint
+from mosaic.verification.lean_obligations import LeanIdentityVerification
 from mosaic.verification.review_checkers import ReviewCheckerReceipt
 
 RECEIPT_SCHEMA_VERSION = 1
@@ -37,7 +38,7 @@ class VerificationReceipt(BaseModel):
         "FORMALLY_VERIFIED", "REJECTED", "UNSUPPORTED",
         "KERNEL_UNAVAILABLE", "KERNEL_ERROR", "INVALID_CERTIFICATE",
     ]
-    checker_result: dict | None = None
+    checker_result: LeanIdentityVerification | None = None
     explanation: str = Field(max_length=4000)
     receipt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
@@ -61,10 +62,7 @@ class VerificationReceipt(BaseModel):
             raise ValueError("checker receipt does not match finding request binding")
         if checker_receipt.checker_id != obligation.finding.checker_id:
             raise ValueError("checker receipt does not match finding checker binding")
-        result = (
-            checker_receipt.checker_result.model_dump(mode="json")
-            if checker_receipt.checker_result is not None else None
-        )
+        result = checker_receipt.checker_result
         provisional = cls(
             obligation_id=obligation.obligation_id,
             request_sha256=checker_receipt.request_sha256,
@@ -92,6 +90,30 @@ def _receipt_digest(receipt: VerificationReceipt) -> str:
     if len(payload) > MAX_RECEIPT_BYTES:
         raise ValueError("receipt exceeds the maximum serialized size")
     return hashlib.sha256(payload).hexdigest()
+
+
+def serialize_receipt(receipt: VerificationReceipt) -> bytes:
+    """Return the canonical, bounded JSON representation for durable storage."""
+    payload = receipt.model_dump(mode="json")
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    if len(encoded) > MAX_RECEIPT_BYTES:
+        raise ValueError("receipt exceeds the maximum serialized size")
+    return encoded
+
+
+def load_receipt(data: bytes | str) -> VerificationReceipt:
+    """Parse one bounded receipt record; integrity is checked during replay."""
+    if isinstance(data, str):
+        encoded = data.encode("utf-8")
+    elif isinstance(data, bytes):
+        encoded = data
+    else:
+        raise TypeError("receipt data must be bytes or text")
+    if len(encoded) > MAX_RECEIPT_BYTES:
+        raise ValueError("receipt exceeds the maximum serialized size")
+    return VerificationReceipt.model_validate_json(encoded)
 
 
 def validate_receipt_for_replay(
