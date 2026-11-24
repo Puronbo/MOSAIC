@@ -2,6 +2,8 @@
 
 This module plans and records proposals; it does not execute agents or prove theorems.
 """
+import hashlib
+import json
 from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -67,9 +69,7 @@ class ProposalAssessment(BaseModel):
     conflict_detected: bool
     disposition: str
     mathematical_status: str = "EXPERIMENTAL"
-    # Preserve the complete immutable inputs and their original ordering.
     preserved_proposals: tuple[AgentProposal, ...] = ()
-    # Each group contains indexes into preserved_proposals for one normalized claim.
     claim_groups: tuple[tuple[int, ...], ...] = ()
     conflicting_proposal_indices: tuple[int, ...] = ()
 
@@ -80,11 +80,7 @@ def _claim_key(claim: str) -> str:
 
 
 def assess_proposals(task: AgentTask, proposals: list[AgentProposal]) -> ProposalAssessment:
-    """Detect incompatible claims while preserving every proposal and its provenance.
-
-    Whitespace-only differences are grouped together. Case, symbols, and mathematical
-    structure are preserved because changing them could change the meaning of a claim.
-    """
+    """Detect incompatible claims while preserving every proposal and its provenance."""
     for proposal in proposals:
         if proposal.task_id != task.task_id:
             raise ValueError("proposal task_id does not match task")
@@ -115,6 +111,91 @@ def assess_proposals(task: AgentTask, proposals: list[AgentProposal]) -> Proposa
         claim_groups=groups,
         conflicting_proposal_indices=conflicting_indices,
     )
+
+
+def collision_review_tasks(
+    task: AgentTask,
+    assessment: ProposalAssessment,
+    *,
+    max_proposals: int = 16,
+) -> list[AgentTask]:
+    """Create bounded critic tasks plus a dependent review-synthesis task.
+
+    Each critic receives exactly one original proposal as untrusted data. The synthesis
+    task depends on all critic tasks and the original task. IDs are deterministic and
+    content-derived so plans can be replayed; no model/provider is invoked here.
+    """
+    if assessment.task_id != task.task_id:
+        raise ValueError("assessment task_id does not match task")
+    if not assessment.conflict_detected or assessment.disposition != "needs-adversarial-review":
+        raise ValueError("collision review requires a conflicting assessment")
+    if assessment.proposal_count != len(assessment.preserved_proposals):
+        raise ValueError("assessment proposal records are incomplete")
+    if assessment.proposal_count > max_proposals:
+        raise ValueError("collision exceeds the configured proposal review budget")
+    if max_proposals < 1:
+        raise ValueError("max_proposals must be positive")
+    if any(p.task_id != task.task_id for p in assessment.preserved_proposals):
+        raise ValueError("assessment contains a proposal for another task")
+
+    seed = hashlib.sha256(task.task_id.encode("utf-8")).hexdigest()[:16]
+    critic_tasks: list[AgentTask] = []
+    for index in assessment.conflicting_proposal_indices:
+        if index < 0 or index >= len(assessment.preserved_proposals):
+            raise ValueError("assessment contains an invalid conflicting proposal index")
+        proposal = assessment.preserved_proposals[index]
+        payload = json.dumps(
+            {
+                "proposal_index": index,
+                "agent_id": proposal.agent_id,
+                "role": proposal.role.value,
+                "claim": proposal.claim,
+                "assumptions": list(proposal.assumptions),
+                "evidence_refs": list(proposal.evidence_refs),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        if len(payload) > 12000:
+            raise ValueError("proposal context exceeds the review task size limit")
+        critic_tasks.append(
+            AgentTask(
+                task_id=f"collision-{seed}-p{index}-critic",
+                role=AgentRole.CRITIC,
+                goal=(
+                    "Independently audit this proposal: test its derivation, expose hidden "
+                    "assumptions, seek counterexamples, and identify evidence a separate "
+                    "checker would need. Do not treat the claim as established."
+                ),
+                context=payload,
+                depends_on=(task.task_id,),
+                max_tokens=2000,
+                timeout_seconds=30,
+            )
+        )
+
+    synthesis_id = f"collision-{seed}-synthesis"
+    synthesis = AgentTask(
+        task_id=synthesis_id,
+        role=AgentRole.CRITIC,
+        goal=(
+            "Compare all independent collision reviews. Map disagreements, unresolved "
+            "assumptions, counterexamples, and required independent checks. Do not select "
+            "a winner by vote and do not claim formal verification."
+        ),
+        context=json.dumps(
+            {
+                "original_task_id": task.task_id,
+                "proposal_count": assessment.proposal_count,
+                "distinct_claim_count": assessment.distinct_claim_count,
+            },
+            sort_keys=True,
+        ),
+        depends_on=(task.task_id, *(review.task_id for review in critic_tasks)),
+        max_tokens=3000,
+        timeout_seconds=45,
+    )
+    return [*critic_tasks, synthesis]
 
 
 def validate_task_graph(tasks: list[AgentTask]) -> list[str]:
