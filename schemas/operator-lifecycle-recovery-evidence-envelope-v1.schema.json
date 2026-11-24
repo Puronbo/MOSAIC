@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-recovery-evidence-envelope-v1.schema.json",
+  "title": "MOSAIC Operator Lifecycle Recovery Evidence Envelope v1",
+  "description": "Portable container for a signed authority-rotation history, its signed external head, and a signed restoration-ledger head. Trust expectations must be supplied independently.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry_id", "initial_authority_key_id", "rotations", "rotation_head", "restore_ledger_head"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "registry_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "initial_authority_key_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "rotations": {
+      "type": "array",
+      "items": {"$ref": "operator-lifecycle-restore-ledger-authority-rotation-v1.schema.json"}
+    },
+    "rotation_head": {"$ref": "operator-lifecycle-restore-ledger-authority-rotation-head-v1.schema.json"},
+    "restore_ledger_head": {"$ref": "operator-lifecycle-restore-ledger-head-v1.schema.json"}
+  }
+}
