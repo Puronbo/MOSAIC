@@ -287,3 +287,58 @@ theorem zero_step_difference (n k r : Nat) :
   simp [iteratedDifferenceBy, forwardDifferenceBy]
 
 end MosaicExponentShift
+
+
+/-! ## Bi-infinite integer shift group
+
+Unlike natural-indexed sequences, integer-indexed sequences have values in
+both directions. Translation by an integer therefore has a genuine inverse.
+This layer is stated for arbitrary real-valued sequences; it does not assume
+that every sequence is an exponent-power sequence.
+-/
+
+namespace MosaicIntegerShift
+
+/-- Translate a bi-infinite sequence by an integer offset. -/
+def shiftOperator (f : ℤ → ℝ) (m k : ℤ) : ℝ :=
+  f (k + m)
+
+/-- Translation by zero is the identity. -/
+theorem shift_zero (f : ℤ → ℝ) (k : ℤ) :
+    shiftOperator f 0 k = f k := by
+  simp [shiftOperator]
+
+/-- Integer translations compose by addition. -/
+theorem shift_compose (f : ℤ → ℝ) (a b k : ℤ) :
+    shiftOperator (fun j => shiftOperator f b j) a k =
+      shiftOperator f (a + b) k := by
+  simp [shiftOperator, Int.add_assoc]
+
+/-- Translation by the negative offset is a left inverse. -/
+theorem shift_inverse_left (f : ℤ → ℝ) (m k : ℤ) :
+    shiftOperator (fun j => shiftOperator f (-m) j) m k = f k := by
+  simp [shiftOperator, Int.add_assoc]
+
+/-- Translation by the negative offset is a right inverse. -/
+theorem shift_inverse_right (f : ℤ → ℝ) (m k : ℤ) :
+    shiftOperator (fun j => shiftOperator f m j) (-m) k = f k := by
+  simp [shiftOperator, Int.add_assoc]
+
+/-- The unit forward difference on a bi-infinite sequence. -/
+def forwardDifference (f : ℤ → ℝ) (k : ℤ) : ℝ :=
+  f (k + 1) - f k
+
+/-- Integer translations commute with the unit forward difference. -/
+theorem difference_shift_commute (f : ℤ → ℝ) (m k : ℤ) :
+    forwardDifference (fun j => shiftOperator f m j) k =
+      shiftOperator (fun j => forwardDifference f j) m k := by
+  simp [forwardDifference, shiftOperator, Int.add_assoc]
+
+/-- The integer translations form a group action on bi-infinite sequences:
+the inverse law is witnessed by translation through the negated offset. -/
+theorem translation_group_laws (f : ℤ → ℝ) (m k : ℤ) :
+    shiftOperator (fun j => shiftOperator f (-m) j) m k = f k ∧
+    shiftOperator (fun j => shiftOperator f m j) (-m) k = f k := by
+  exact ⟨shift_inverse_left f m k, shift_inverse_right f m k⟩
+
+end MosaicIntegerShift
