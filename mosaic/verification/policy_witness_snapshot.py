@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
