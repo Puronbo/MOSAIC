@@ -208,3 +208,86 @@ def test_snapshot_cannot_clear_existing_quarantine(tmp_path):
         entries=[first_entry], signer_keyring=SIGNERS,
     )
     assert target.is_quarantined(first.log_id)
+
+
+from mosaic.verification.policy_witness_snapshot import SignedPolicyWitnessSnapshot
+from mosaic.verification.policy_witness_reconciliation import (
+    reconcile_policy_witness_snapshots,
+)
+
+
+def _snapshot_for(checkpoints, key_id, private_key, quarantined=False):
+    return SignedPolicyWitnessSnapshot.sign(
+        log_id=checkpoints[-1].log_id, checkpoint=checkpoints[-1],
+        checkpoint_history=checkpoints, quarantined=quarantined, incidents=[],
+        witness_key_id=key_id, exported_at_utc="2026-11-24T05:00:00Z",
+        private_key=private_key,
+    )
+
+
+def test_reconciliation_reports_agreement_and_compatible_extension(tmp_path):
+    _, second_public = generate_ed25519_keypair()
+    second_private, second_public = generate_ed25519_keypair()
+    second_key = key("witness-2", second_public)
+    first_entry = entry(0)
+    first = checkpoint([first_entry])
+    second_entry = entry(1, first_entry.entry_sha256())
+    second = checkpoint([first_entry, second_entry], first)
+    older = _snapshot_for([first], "witness-1", WITNESS_PRIVATE)
+    newer = _snapshot_for([first, second], "witness-2", second_private)
+    keyring = {"witness-1": WITNESS_KEY, "witness-2": second_key}
+    result = reconcile_policy_witness_snapshots(
+        [older, newer], witness_keyring=keyring,
+        signer_keyring=SIGNERS, entries=[first_entry, second_entry],
+    )
+    assert result.status == "compatible_extension"
+    assert result.common_prefix_length == 1
+    assert result.divergence_sequence is None
+
+    same = _snapshot_for([first], "witness-2", second_private)
+    agreement = reconcile_policy_witness_snapshots(
+        [older, same], witness_keyring=keyring,
+        signer_keyring=SIGNERS, entries=[first_entry],
+    )
+    assert agreement.status == "agreement"
+    assert agreement.common_prefix_length == 1
+
+
+def test_reconciliation_reports_checkpoint_history_divergence_without_selecting_head():
+    second_private, second_public = generate_ed25519_keypair()
+    second_key = key("witness-2", second_public)
+    first_entry = entry(0)
+    first = checkpoint([first_entry])
+    refreshed = PolicyRegistryCheckpoint.sign(
+        log_id=first.log_id, sequence=0,
+        head_entry_sha256=first.head_entry_sha256,
+        previous_checkpoint_sha256=None,
+        issued_at_utc="2026-11-24T04:30:00Z",
+        signer_key_id="log-signer", private_key=LOG_PRIVATE,
+    )
+    left = _snapshot_for([first], "witness-1", WITNESS_PRIVATE)
+    right = _snapshot_for([refreshed], "witness-2", second_private)
+    result = reconcile_policy_witness_snapshots(
+        [left, right],
+        witness_keyring={"witness-1": WITNESS_KEY, "witness-2": second_key},
+        signer_keyring=SIGNERS, entries=[first_entry],
+    )
+    assert result.status == "divergence"
+    assert result.divergence_sequence == 0
+    assert "do not choose by majority" in result.operator_action
+
+
+def test_reconciliation_rejects_invalid_snapshot():
+    second_private, second_public = generate_ed25519_keypair()
+    second_key = key("witness-2", second_public)
+    first_entry = entry(0)
+    first = checkpoint([first_entry])
+    valid = _snapshot_for([first], "witness-1", WITNESS_PRIVATE)
+    tampered = valid.model_copy(update={"quarantined": True})
+    result = reconcile_policy_witness_snapshots(
+        [tampered, _snapshot_for([first], "witness-2", second_private)],
+        witness_keyring={"witness-1": WITNESS_KEY, "witness-2": second_key},
+        signer_keyring=SIGNERS, entries=[first_entry],
+    )
+    assert result.status == "invalid_input"
+    assert result.rejected_witness_key_ids == ("witness-1",)
