@@ -45,10 +45,22 @@ Consequently, `kernel_pass_recorded` means exactly that the record contains
 such a pass event; it must not be interpreted as a newly established
 `FORMALLY_VERIFIED` result.
 
-The existing verified-agent and proof-checking paths remain responsible for
-actual Lean invocation and kernel acceptance. A formal verification claim
-must be grounded in that trusted execution path, not in a user-authored
-evidence envelope or a hash.
+The request-bound transformation path now has an in-process adapter:
+`verify_transformation_with_evidence` calls
+`verify_request_transformation_with_lean` itself and creates an envelope
+only when that call returns a completed `FORMALLY_VERIFIED` or `REJECTED`
+result with a proof-source digest and Lean version. The candidate hash is
+recomputed from the exact submitted result and checked against the generated
+obligation. Kernel-unavailable, unsupported, timeout, and execution-error
+outcomes produce no kernel event.
+
+This adapter reduces accidental hand-assembly of kernel records, but it is
+not a cryptographic attestation boundary. Python callers can construct model
+objects, and the adapter trusts the MOSAIC process, imported verifier code,
+configured Lean/Lake executable, and runtime environment. Deployments needing
+remote or tamper-resistant attestations still need a separately authenticated
+runner receipt (for example, a signed CI/build attestation) and trusted key
+management. The envelope digest alone cannot supply that guarantee.
 
 ## Status discipline
 
