@@ -1148,3 +1148,12 @@ without opening the originating SQLite database. Receipt issuance does not
 replace independent distribution of the authority key or external retention
 of the expected checkpoint digest. A signed stale receipt remains stale unless
 the verifier's current expected digest accepts it.
+
+
+### G-EP115: guarded portable lifecycle receipt export and restoration
+
+RecoveryOperatorLifecycleTrustAnchorStore.export_receipt(...) signs a portable receipt only when the supplied signed checkpoint exactly matches the store's retained registry, sequence, and digest. A stale or mismatched checkpoint cannot be exported as the current local head.
+
+restore_receipt(...) verifies the receipt signature, checkpoint signature, registry, sequence, digest, authority-key lifecycle, and optional authorization time before opening its write transaction. An empty store can be initialized only with explicit allow_initial=True and caller-supplied external registry, sequence, and exact checkpoint-digest expectations. Restoring an exact already-retained head is idempotent. A lower sequence, same-sequence fork/equivocation, or any other conflicting head is rejected without changing the database.
+
+This restore operation intentionally does not advance an existing head. Advancement requires the predecessor checkpoint and the contiguous checkpoint-advance verifier; a portable receipt is not a substitute for missing history. The receipt and checkpoint are portable evidence, not a backup of the full lifecycle history. The authority public key and expected digest/sequence must still come from an independent trusted channel. SQLite transactions prevent partial local writes but cannot prevent privileged replacement or rollback of the database file.
