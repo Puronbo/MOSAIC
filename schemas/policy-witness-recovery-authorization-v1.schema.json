@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/policy-witness-recovery-authorization-v1.schema.json",
+  "title": "MOSAIC Signed Policy Witness Recovery Authorization v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "log_id", "selected_snapshot_sha256",
+    "incident_history_sha256", "evidence_sha256", "reason",
+    "operator_key_id", "approved_at_utc", "signature_b64"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "log_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "selected_snapshot_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "incident_history_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "evidence_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "reason": { "type": "string", "minLength": 20, "maxLength": 2000 },
+    "operator_key_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "approved_at_utc": { "type": "string", "format": "date-time" },
+    "signature_b64": { "type": "string", "minLength": 1, "maxLength": 128 }
+  }
+}
