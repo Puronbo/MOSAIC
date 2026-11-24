@@ -56,6 +56,7 @@ class AgentProposal(BaseModel):
     rationale: str = Field(default="", max_length=12000)
     assumptions: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
+    findings: tuple[ReviewFinding, ...] = ()
     status: TaskStatus = TaskStatus.COMPLETED
 
 
