@@ -416,4 +416,33 @@ theorem secant_slope_limit_left (x t : ℝ) (hx : 0 < x) :
       (nhds (value x t * Real.log x)) := by
   simpa [secantSlope] using (derivative x t hx).tendsto_slope_zero_left
 
+
+/-- The r-th formal derivative function of the fixed-base exponent family. -/
+def iteratedDerivative (x : ℝ) : Nat → ℝ → ℝ
+  | 0, t => value x t
+  | r + 1, t => iteratedDerivative x r t * Real.log x
+
+/-- Every order of derivative exists, and differentiating once more
+multiplies the current derivative by log x. -/
+theorem iterated_derivative (x t : ℝ) (r : Nat) (hx : 0 < x) :
+    HasDerivAt (fun s => iteratedDerivative x r s)
+      (iteratedDerivative x r t * Real.log x) t := by
+  induction r with
+  | zero =>
+      simpa [iteratedDerivative] using derivative x t hx
+  | succ r ih =>
+      have h := (ih t).mul_const (Real.log x)
+      simpa [iteratedDerivative, mul_assoc] using h
+
+/-- Closed form for every iterated derivative:
+the r-th derivative is (log x)^r times the original value. -/
+theorem iterated_derivative_formula (x t : ℝ) (r : Nat) :
+    iteratedDerivative x r t = (Real.log x) ^ r * value x t := by
+  induction r with
+  | zero =>
+      simp [iteratedDerivative]
+  | succ r ih =>
+      rw [iteratedDerivative, ih]
+      ring
+
 end MosaicRealExponentShift
