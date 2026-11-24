@@ -7,7 +7,7 @@ from mosaic.verification.obligations import obligations_for_request, request_fin
 from mosaic.verification.review_checkers import ReviewCheckerReceipt
 from mosaic.verification.lean_obligations import LeanIdentityVerification
 from mosaic.verification.receipts import (
-    VerificationReceipt, load_receipt, serialize_receipt,
+    ReceiptStore, VerificationReceipt, load_receipt, serialize_receipt,
     validate_receipt_for_replay,
 )
 
@@ -78,8 +78,7 @@ def test_receipt_rejects_tampered_explanation():
 
 def test_receipt_rejects_tampered_checker_result():
     request, _, receipt = _issued()
-    altered_result = dict(receipt.checker_result)
-    altered_result["explanation"] = "forged result"
+    altered_result = receipt.checker_result.model_copy(update={"explanation": "forged result"})
     tampered = receipt.model_copy(update={"checker_result": altered_result})
     with pytest.raises(ValueError, match="integrity"):
         validate_receipt_for_replay(tampered, request)
@@ -144,3 +143,28 @@ def test_receipt_loader_rejects_oversized_and_malformed_records():
         load_receipt(b"x" * 65_537)
     with pytest.raises(Exception):
         load_receipt("{not-json}")
+
+
+def test_file_store_persists_and_replays_receipt_after_reconstruction(tmp_path):
+    request, _, receipt = _issued()
+    store = ReceiptStore(tmp_path / "receipts")
+    path = store.save(receipt)
+    assert path.exists()
+    reconstructed_store = ReceiptStore(tmp_path / "receipts")
+    restored = reconstructed_store.load(receipt.receipt_sha256, request)
+    assert restored == receipt
+
+
+def test_file_store_refuses_tampered_disk_record(tmp_path):
+    request, _, receipt = _issued()
+    store = ReceiptStore(tmp_path / "receipts")
+    path = store.save(receipt)
+    path.write_bytes(path.read_bytes().replace(b"Exact request", b"Forged request"))
+    with pytest.raises(Exception):
+        store.load(receipt.receipt_sha256, request)
+
+
+def test_file_store_rejects_path_injection_identifier(tmp_path):
+    store = ReceiptStore(tmp_path / "receipts")
+    with pytest.raises(ValueError, match="identifier"):
+        store.load("../outside", _request())
