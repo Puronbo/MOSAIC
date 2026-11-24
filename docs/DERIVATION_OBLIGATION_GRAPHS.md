@@ -101,3 +101,8 @@ The pinned Lean project now contains the `MosaicExponentShift` theorem family. F
 - zero-valued terms for base zero after the initial exponent-zero boundary.
 
 The natural-number base is intentional. It avoids silently treating negative bases as arbitrary real exponentiation, and the strict-growth theorem has the explicit hypothesis `2 ≤ n`. The initial zero-base term is not assigned a special value by this theorem family: `0^0` remains a boundary case. These are kernel-checked Lean statements when the pinned polynomial-kernel workflow passes. They establish the recurrence and its stated domain-specific properties, not a universal monotonicity claim over all real or complex bases.
+
+
+### Higher-order finite differences
+
+The exponent-shift formalization now defines `forwardDifference` and recursively defined `iteratedDifference`. Its target theorem is `iterated_difference`: for natural base `n`, shift `k`, and order `r`, the r-th forward difference of `(n : ℝ)^(n+k)` equals `((n : ℝ)-1)^r` times the original value. A positivity corollary is restricted to `2 ≤ n`. This is a finite-difference theorem over a natural-indexed sequence embedded in the reals; it does not assert arbitrary real/complex base semantics or continuous differentiation.
