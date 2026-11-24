@@ -39,6 +39,18 @@ class RecoveryPolicyCheckpointAuditVerificationReport(BaseModel):
         return self.status in ("verified", "empty") and not self.errors
 
 
+class RecoveryProposalConflictReport(BaseModel):
+    """Deterministic attribution of submitted proposal digests to retained audit winners."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    registry_id: str
+    proposal_count: int = Field(ge=0)
+    distinct_proposal_count: int = Field(ge=0)
+    conflicting: bool
+    winning_intent_sha256: str | None = None
+    losing_intent_sha256: tuple[str, ...] = ()
+    unattributed_intent_sha256: tuple[str, ...] = ()
+
+
 class RecoveryPolicyCheckpointRebootstrapIntent(BaseModel):
     """Operator proposal bound to the exact quarantined state and selected fork."""
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -309,6 +321,50 @@ def export_rebootstrap_audit(store, *, registry_id: str) -> dict:
         "records": records,
         "head_sha256": next((item["audit_sha256"] for item in reversed(records) if item["audit_sha256"] is not None), "0" * 64),
     }
+
+
+def report_rebootstrap_proposal_conflicts(
+    intents: list[RecoveryPolicyCheckpointRebootstrapIntent], audit_export: dict,
+) -> RecoveryProposalConflictReport:
+    """Attribute exact submitted intent digests to the single retained audit winner.
+
+    This is an audit comparison, not a proposal-validity check or a winner-selection
+    algorithm. Unmatched proposals are explicitly left unattributed.
+    """
+    if not isinstance(intents, list) or any(
+        not isinstance(item, RecoveryPolicyCheckpointRebootstrapIntent) for item in intents
+    ):
+        raise ValueError("intents must be a list of rebootstrap intent records")
+    if not isinstance(audit_export, dict) or not isinstance(audit_export.get("records"), list):
+        raise ValueError("audit_export must contain a records list")
+    registry_id = audit_export.get("registry_id", "")
+    if not isinstance(registry_id, str) or not registry_id:
+        raise ValueError("audit_export registry_id must be non-empty")
+    submitted = sorted({item.digest() for item in intents})
+    audited = []
+    for record in audit_export["records"]:
+        if not isinstance(record, dict) or record.get("record_version") != "v1":
+            continue
+        audit = record.get("audit")
+        if not isinstance(audit, dict) or not isinstance(audit.get("intent"), dict):
+            continue
+        try:
+            audited.append(RecoveryPolicyCheckpointRebootstrapIntent.model_validate(
+                audit["intent"]).digest())
+        except (ValueError, TypeError):
+            continue
+    winners = sorted(set(submitted) & set(audited))
+    # The retained audit order is authoritative; do not infer priority from
+    # proposal order, timestamps, or digest sorting.
+    winning = winners[-1] if len(winners) == 1 else None
+    losing = tuple(item for item in submitted if item in audited and item != winning)
+    unattributed = tuple(item for item in submitted if item not in audited)
+    return RecoveryProposalConflictReport(
+        registry_id=registry_id, proposal_count=len(intents),
+        distinct_proposal_count=len(submitted), conflicting=len(submitted) > 1,
+        winning_intent_sha256=winning, losing_intent_sha256=losing,
+        unattributed_intent_sha256=unattributed,
+    )
 
 
 def _verify_rebootstrap_audit_export_v1(
