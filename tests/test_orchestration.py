@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from mosaic.core.orchestration import (
-    AgentProposal, AgentRole, AgentTask, TaskRunRecord, TaskStatus, assess_proposals, collision_review_tasks, complete_task, dispatch_ready_tasks, fail_task, initialize_task_records, validate_task_graph,
+    AgentProposal, AgentRole, AgentTask, ReviewFinding, ReviewFindingKind, TaskRunRecord, TaskStatus, assess_completed_reviews, assess_proposals, collision_review_tasks, complete_task, dispatch_ready_tasks, fail_task, initialize_task_records, obligation_verification_tasks, validate_task_graph,
 )
 
 
@@ -223,3 +223,105 @@ def test_scheduler_rejects_duplicate_or_missing_records():
     duplicate = (TaskRunRecord(task_id="task"), TaskRunRecord(task_id="task"))
     with pytest.raises(ValueError, match="match task IDs"):
         dispatch_ready_tasks([task], duplicate, now=1)
+
+
+
+def _completed_review_fixture():
+    original = AgentTask(task_id="root-review", role=AgentRole.SOLVER, goal="Solve theorem")
+    reviews = [
+        AgentTask(task_id="critic-a", role=AgentRole.CRITIC, goal="Audit A", depends_on=(original.task_id,)),
+        AgentTask(task_id="critic-b", role=AgentRole.CRITIC, goal="Audit B", depends_on=(original.task_id,)),
+    ]
+    tasks = [original, *reviews]
+    records = initialize_task_records(tasks)
+    records = dispatch_ready_tasks(tasks, records, now=1, max_concurrency=3)
+    root_proposal = AgentProposal(
+        task_id=original.task_id, agent_id="solver", role=AgentRole.SOLVER, claim="candidate"
+    )
+    records = complete_task(original, records, root_proposal)
+    records = dispatch_ready_tasks(tasks, records, now=2, max_concurrency=3)
+    for index, review in enumerate(reviews):
+        proposal = AgentProposal(
+            task_id=review.task_id,
+            agent_id=f"critic-{index}",
+            role=AgentRole.CRITIC,
+            claim="reviewed",
+            findings=(
+                ReviewFinding(
+                    finding_id=f"finding-{index}",
+                    kind=ReviewFindingKind.DERIVATION_GAP,
+                    statement=f"Check derivation step {index}",
+                    evidence_refs=(f"source:{index}",),
+                ),
+            ),
+        )
+        records = complete_task(review, records, proposal)
+    return original, reviews, records
+
+
+def test_completed_reviews_route_only_explicit_typed_findings():
+    original, reviews, records = _completed_review_fixture()
+    review_records = tuple(r for r in records if r.task_id != original.task_id)
+    assessment = assess_completed_reviews(original, reviews, review_records)
+    assert assessment.completed_review_count == 2
+    assert len(assessment.obligations) == 2
+    assert assessment.disposition == "independent-checks-required"
+    assert assessment.mathematical_status == "EXPERIMENTAL"
+    tasks = obligation_verification_tasks(original, assessment)
+    assert len(tasks) == 2
+    assert all(task.role == AgentRole.VERIFIER for task in tasks)
+    assert tasks[0].depends_on == (original.task_id, reviews[0].task_id)
+    assert validate_task_graph([original, *reviews, *tasks])
+
+
+def test_review_assessment_requires_every_expected_critic_result():
+    original, reviews, records = _completed_review_fixture()
+    partial = tuple(r for r in records if r.task_id == reviews[0].task_id)
+    with pytest.raises(ValueError, match="exactly"):
+        assess_completed_reviews(original, reviews, partial)
+
+
+def test_review_assessment_rejects_wrong_role_or_task_proposal():
+    original, reviews, records = _completed_review_fixture()
+    bad = list(records)
+    index = next(i for i, record in enumerate(bad) if record.task_id == reviews[0].task_id)
+    bad[index] = bad[index].model_copy(update={
+        "proposal": AgentProposal(
+            task_id=reviews[0].task_id,
+            agent_id="wrong",
+            role=AgentRole.SOLVER,
+            claim="not a critic",
+        )
+    })
+    review_records = tuple(r for r in bad if r.task_id != original.task_id)
+    with pytest.raises(ValueError, match="does not match"):
+        assess_completed_reviews(original, reviews, review_records)
+
+
+def test_untyped_narrative_does_not_become_an_obligation():
+    original = AgentTask(task_id="root", role=AgentRole.SOLVER, goal="Solve")
+    critic = AgentTask(task_id="critic", role=AgentRole.CRITIC, goal="Review", depends_on=("root",))
+    records = initialize_task_records([original, critic])
+    records = dispatch_ready_tasks([original, critic], records, now=1)
+    records = complete_task(original, records, AgentProposal(
+        task_id="root", agent_id="solver", role=AgentRole.SOLVER, claim="candidate"
+    ))
+    records = dispatch_ready_tasks([original, critic], records, now=2)
+    records = complete_task(critic, records, AgentProposal(
+        task_id="critic", agent_id="critic-agent", role=AgentRole.CRITIC,
+        claim="There may be a gap, please investigate.",
+    ))
+    assessment = assess_completed_reviews(
+        original, [critic], tuple(r for r in records if r.task_id == "critic")
+    )
+    assert assessment.obligations == ()
+    assert assessment.disposition == "no-typed-checks-requested"
+
+
+def test_obligation_verification_task_budget_is_enforced():
+    original, reviews, records = _completed_review_fixture()
+    assessment = assess_completed_reviews(
+        original, reviews, tuple(r for r in records if r.task_id != original.task_id)
+    )
+    with pytest.raises(ValueError, match="budget"):
+        obligation_verification_tasks(original, assessment, max_obligations=1)
