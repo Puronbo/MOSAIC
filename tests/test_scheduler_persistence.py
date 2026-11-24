@@ -11,7 +11,8 @@ from mosaic.core.orchestration import (
 )
 from mosaic.core.scheduler_persistence import (
     SchedulerSnapshot,
-    SchedulerSnapshotStore,\n    quarantine_interrupted_tasks,
+    SchedulerSnapshotStore,
+    quarantine_interrupted_tasks,
     load_scheduler_snapshot,
     serialize_scheduler_snapshot,
 )
