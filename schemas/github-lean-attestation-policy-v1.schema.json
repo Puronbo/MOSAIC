@@ -5,7 +5,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema_version", "repository", "repository_id", "workflow_path",
+    "schema_version", "repository", "repository_id", "repository_owner_id", "workflow_path",
     "signer_workflow", "workflow_ref", "source_repository_uri",
     "oidc_issuer", "predicate_type", "require_github_hosted_runner",
     "require_verified_timestamp"
@@ -14,6 +14,7 @@
     "schema_version": { "const": "mosaic.github-attestation-policy.v1" },
     "repository": { "const": "Puronbo/MOSAIC" },
     "repository_id": { "const": "1468522236" },
+    "repository_owner_id": { "const": "297216003" },
     "workflow_path": { "const": ".github/workflows/lean-polynomial.yml" },
     "signer_workflow": { "const": "Puronbo/MOSAIC/.github/workflows/lean-polynomial.yml" },
     "workflow_ref": { "const": "refs/heads/main" },
