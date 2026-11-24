@@ -196,3 +196,54 @@ class ReceiptStore:
         if not hmac.compare_digest(receipt.receipt_sha256, receipt_sha256):
             raise ValueError("stored receipt identifier does not match its content")
         return validate_receipt_for_replay(receipt, request)
+
+
+
+class AuthenticatedReceipt(BaseModel):
+    """Receipt plus an HMAC tag for deployments with a protected shared key."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    receipt: VerificationReceipt
+    hmac_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @classmethod
+    def seal(cls, receipt: VerificationReceipt, key: bytes) -> "AuthenticatedReceipt":
+        if not isinstance(key, bytes) or len(key) < 32:
+            raise ValueError("receipt authentication key must contain at least 32 bytes")
+        expected = _receipt_digest(receipt)
+        if not hmac.compare_digest(receipt.receipt_sha256, expected):
+            raise ValueError("cannot authenticate a receipt with an invalid digest")
+        tag = hmac.new(key, bytes.fromhex(receipt.receipt_sha256), hashlib.sha256).hexdigest()
+        return cls(receipt=receipt, hmac_sha256=tag)
+
+    def verify(self, key: bytes, request: MathRequest) -> VerificationReceipt:
+        if not isinstance(key, bytes) or len(key) < 32:
+            raise ValueError("receipt authentication key must contain at least 32 bytes")
+        expected = hmac.new(
+            key, bytes.fromhex(self.receipt.receipt_sha256), hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(self.hmac_sha256, expected):
+            raise ValueError("receipt authentication failed")
+        return validate_receipt_for_replay(self.receipt, request)
+
+
+def serialize_authenticated_receipt(receipt: AuthenticatedReceipt) -> bytes:
+    encoded = json.dumps(
+        receipt.model_dump(mode="json"),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if len(encoded) > MAX_RECEIPT_BYTES:
+        raise ValueError("authenticated receipt exceeds the maximum serialized size")
+    return encoded
+
+
+def load_authenticated_receipt(data: bytes | str) -> AuthenticatedReceipt:
+    encoded = data.encode("utf-8") if isinstance(data, str) else data
+    if not isinstance(encoded, bytes):
+        raise TypeError("authenticated receipt data must be bytes or text")
+    if len(encoded) > MAX_RECEIPT_BYTES:
+        raise ValueError("authenticated receipt exceeds the maximum serialized size")
+    return AuthenticatedReceipt.model_validate_json(encoded)
