@@ -47,6 +47,7 @@ class LeanPolynomialCheck(BaseModel):
         "fc4f59e577feb1a4956671bc04ac18aaaf8cd842"
     ] = "fc4f59e577feb1a4956671bc04ac18aaaf8cd842"
     proof_source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    proof_source: str | None = Field(default=None, max_length=10000)
     variables: tuple[str, ...] = ()
     explanation: str
 
@@ -213,7 +214,7 @@ def verify_polynomial_int_identity(
     if executable is None or not (_PROJECT_DIR / "lakefile.lean").is_file():
         return LeanPolynomialCheck(
             status="KERNEL_UNAVAILABLE", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            proof_source_sha256=proof_hash, variables=variables,
+            proof_source_sha256=proof_hash, proof_source=source, variables=variables,
             explanation="The pinned Mathlib Lake project is unavailable; no formal verification was performed.",
         )
 
@@ -239,25 +240,25 @@ def verify_polynomial_int_identity(
         if completed.returncode == 0:
             return LeanPolynomialCheck(
                 status="FORMALLY_VERIFIED", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-                lean_version=version, proof_source_sha256=proof_hash,
+                lean_version=version, proof_source_sha256=proof_hash, proof_source=source,
                 variables=variables,
                 explanation="The pinned Mathlib ring tactic produced a proof accepted by the Lean kernel for all integer assignments.",
             )
         return LeanPolynomialCheck(
             status="REJECTED", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            lean_version=version, proof_source_sha256=proof_hash,
+            lean_version=version, proof_source_sha256=proof_hash, proof_source=source,
             variables=variables,
             explanation="Lean rejected the generated polynomial identity theorem.",
         )
     except subprocess.TimeoutExpired:
         return LeanPolynomialCheck(
             status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            proof_source_sha256=proof_hash, variables=variables,
+            proof_source_sha256=proof_hash, proof_source=source, variables=variables,
             explanation="Mathlib exceeded the configured wall-clock limit; no formal verification result is available.",
         )
     except OSError:
         return LeanPolynomialCheck(
             status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            proof_source_sha256=proof_hash, variables=variables,
+            proof_source_sha256=proof_hash, proof_source=source, variables=variables,
             explanation="The pinned Mathlib project could not be executed; no formal verification result is available.",
         )
