@@ -3,7 +3,7 @@ from decimal import Decimal
 import pytest
 
 from mosaic.core.field_configuration import FieldConfiguration1D, LatticeBoundary
-from mosaic.core.field_refinement import assess_field_timestep_refinement
+from mosaic.core.field_refinement import _observed_order, assess_field_timestep_refinement
 from mosaic.core.scalar_potential import PolynomialTerm, ScalarPotential
 
 
@@ -71,6 +71,11 @@ def test_refinement_reports_endpoint_errors_and_order_when_available():
     assert coarse.observed_field_order is None
     assert middle.observed_field_order is not None
     assert middle.observed_field_order > 0
+
+
+def test_observed_order_uses_the_configured_refinement_ratio():
+    order = _observed_order(Decimal("0.04"), Decimal("0.01"), 4)
+    assert order == Decimal("1")
 
 
 def test_invalid_refinement_ratio_and_level_count_rejected():
