@@ -445,3 +445,33 @@ immutable policy documents and authenticate registry updates; a local SHA-256
 digest establishes content identity, not publisher authenticity. Policy
 timestamps are evaluated against the independently verified artifact
 timestamp, never the runner's wall clock.
+
+
+## Authenticated historical trust-policy registry
+
+`mosaic.verification.policy_registry` defines a signed, hash-linked policy
+publication log. Each entry binds a sequence number, previous-entry digest,
+complete content-addressed policy record, publication timestamp, and publisher
+key ID in an Ed25519 signature. Consumers verify publisher signatures using
+public keys provisioned independently of the registry.
+
+The first entry has sequence zero and no predecessor. Every subsequent entry
+must increment the sequence by one and name the SHA-256 digest of the complete
+previous signed entry. Reordering, omission, mutation, and invalid signatures
+are rejected. The entry schema is
+`schemas/signed-policy-registry-entry-v1.schema.json`.
+
+A valid chain alone does **not** prove that it is the newest chain: an attacker
+could replay an older, correctly signed prefix. Consumers that need rollback
+protection must persist or obtain an expected head sequence and digest through
+a separate trusted channel. `verify_policy_registry` supports this checkpoint,
+and `verify_historical_with_policy_registry` requires it before accepting a
+historical receipt against a policy in the registry.
+
+Publisher public keys and registry checkpoints are trust roots; distributing
+them through the same untrusted registry would defeat the design. This module
+does not implement publisher-key rotation, transparency publication, quorum
+signing, or freshness discovery. A signed publication timestamp is still a
+publisher claim, not an independent timestamp authority. Historical receipt
+acceptance continues to require separately verified external timestamp
+evidence.
