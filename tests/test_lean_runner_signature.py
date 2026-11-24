@@ -18,6 +18,8 @@ from mosaic.verification.lean_runner_signature import (
     replay_attested_proof_source,
     verify_attested_environment_manifest,
     verify_lean_proof_receipt_bundle,
+    LeanTrustedKey,
+    verify_with_keyring,
 )
 from mosaic.verification.obligations import request_fingerprint
 
@@ -330,3 +332,68 @@ def test_portable_receipt_bundle_verifies_all_external_bindings():
         bundle, manifest=manifest_bytes, trusted_public_key=other_public,
         request_sha256=request_fingerprint(request), candidate=result.encode(),
     )
+
+
+def test_fixed_v1_signature_conformance_vector():
+    import base64
+    import json
+    from pathlib import Path
+    from mosaic.verification.lean_runner_signature import _canonical
+
+    vector = json.loads(
+        (Path(__file__).parent / "fixtures" / "lean_receipt_v1_vector.json").read_text()
+    )
+    attestation = SignedLeanAttestation.model_validate(vector["attestation"])
+    public_key = base64.b64decode(vector["public_key_b64"], validate=True)
+    private_key = base64.b64decode(vector["private_key_b64"], validate=True)
+    assert attestation.verify(public_key)
+    assert hashlib.sha256(_canonical(attestation.model_dump(mode="json", exclude={"signature_b64"}))).hexdigest() == vector["canonical_sha256"]
+    regenerated = SignedLeanAttestation.sign(
+        **attestation.model_dump(mode="python", exclude={"signature_b64"}),
+        private_key=private_key,
+    )
+    assert regenerated.signature_b64 == attestation.signature_b64
+
+
+def test_trusted_keyring_rotation_and_revocation():
+    import base64
+
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    attestation = sign_transformation_result(
+        verification, request, result, receipt_id="keyring-test",
+        runner_id="runner", key_id="rotated-key", private_key=private,
+    )
+    encoded = base64.b64encode(public).decode("ascii")
+    active = {"rotated-key": LeanTrustedKey(
+        key_id="rotated-key", public_key_b64=encoded, status="active"
+    )}
+    retired = {"rotated-key": LeanTrustedKey(
+        key_id="rotated-key", public_key_b64=encoded, status="retired"
+    )}
+    revoked = {"rotated-key": LeanTrustedKey(
+        key_id="rotated-key", public_key_b64=encoded, status="revoked"
+    )}
+    assert verify_with_keyring(attestation, active)
+    assert verify_with_keyring(attestation, retired)
+    assert not verify_with_keyring(attestation, revoked)
+    assert not verify_with_keyring(attestation, {})
+    wrong_id = {"other-key": LeanTrustedKey(
+        key_id="other-key", public_key_b64=encoded, status="active"
+    )}
+    assert not verify_with_keyring(attestation, wrong_id)
+
+
+def test_attestation_rejects_unknown_schema_version_and_bad_signature_length():
+    import base64
+
+    private, public = generate_ed25519_keypair()
+    request, result, verification = make_verified_result()
+    attestation = sign_transformation_result(
+        verification, request, result, receipt_id="strict-schema",
+        runner_id="runner", key_id="key", private_key=private,
+    )
+    assert not attestation.model_copy(update={"schema_version": "2.0"}).verify(public)
+    assert not attestation.model_copy(update={
+        "signature_b64": base64.b64encode(b"short").decode("ascii")
+    }).verify(public)
