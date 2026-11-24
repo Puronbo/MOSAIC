@@ -157,3 +157,14 @@ test("Node CLI verifies a complete receipt, manifest, request and candidate bund
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test("published bundle JSON Schema exactly describes the portable receipt wrapper", () => {
+  const schema = JSON.parse(readFileSync(
+    new URL("../schemas/lean-proof-receipt-bundle-v1.schema.json", import.meta.url), "utf8"
+  ));
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual([...schema.required].sort(), Object.keys(bundleVector.receipt).sort());
+  assert.deepEqual(Object.keys(schema.properties).sort(), Object.keys(bundleVector.receipt).sort());
+  assert.equal(schema.properties.replay.additionalProperties, false);
+});
