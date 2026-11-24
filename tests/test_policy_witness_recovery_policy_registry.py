@@ -1,7 +1,7 @@
 import base64
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 
 from mosaic.verification.policy_governance import PolicyPublisherKey
 from mosaic.verification.policy_witness_recovery_governance import PolicyWitnessRecoveryPolicy
@@ -14,7 +14,7 @@ from mosaic.verification.policy_witness_recovery_policy_registry import (
 
 def keypair(key_id):
     private = Ed25519PrivateKey.generate()
-    raw_private = private.private_bytes_raw()
+    raw_private = private.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
     public = private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
     record = PolicyPublisherKey(
         key_id=key_id, public_key_b64=base64.b64encode(public).decode(),
