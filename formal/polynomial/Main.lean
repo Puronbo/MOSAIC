@@ -106,7 +106,6 @@ theorem eq_of_pos_rpow_eq_three {x y : ℝ}
     calc
       x * Real.log x = Real.log (x ^ x) := by
         rw [Real.log_rpow hx x]
-        ring
       _ = Real.log 3 := congrArg Real.log hxeq
   have hylog : y * Real.log y = Real.log 3 := by
     calc
