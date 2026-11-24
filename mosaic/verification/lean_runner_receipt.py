@@ -90,7 +90,41 @@ class LeanRunnerReceipt(BaseModel):
             kernel_id=self.kernel_id,
             kernel_version=self.kernel_version,
             proof_artifact_sha256=self.proof_artifact_sha256,
+            runner_id=self.runner_id,
+            runner_receipt_id=self.receipt_id,
+            runner_request_sha256=self.request_sha256,
+            runner_mac_sha256=self.mac_sha256,
         )
+
+
+def verify_evidence_event_receipt(event: EvidenceEvent, signing_key: bytes) -> bool:
+    """Verify the HMAC retained on an event converted from a runner receipt."""
+    if (
+        event.kind != EvidenceEventKind.FORMAL_KERNEL_CHECK
+        or not event.runner_id
+        or not event.runner_receipt_id
+        or not event.runner_request_sha256
+        or not event.runner_mac_sha256
+        or not event.kernel_id
+        or not event.kernel_version
+        or not event.proof_artifact_sha256
+    ):
+        return False
+    try:
+        receipt = LeanRunnerReceipt(
+            receipt_id=event.runner_receipt_id,
+            runner_id=event.runner_id,
+            request_sha256=event.runner_request_sha256,
+            artifact_sha256=event.artifact_sha256,
+            proof_artifact_sha256=event.proof_artifact_sha256,
+            checker_id=event.tool_id,
+            kernel_version=event.kernel_version,
+            outcome=event.outcome,
+            mac_sha256=event.runner_mac_sha256,
+        )
+    except ValueError:
+        return False
+    return receipt.verify(signing_key)
 
 
 def _unsigned(receipt: LeanRunnerReceipt) -> dict:
