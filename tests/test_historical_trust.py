@@ -8,11 +8,25 @@ from mosaic.verification.historical_trust import (
     HistoricalSignedLeanAttestation,
     verify_historical_with_keyring,
 )
+from mosaic.verification.trust_policy import (
+    HistoricalTrustPolicy, HistoricalTrustPolicyRecord,
+)
 
 
 ISSUED = "2026-11-24T01:00:00.000000Z"
 WITNESSED = "2026-11-24T01:01:00.000000Z"
 PRIVATE, PUBLIC = generate_ed25519_keypair()
+POLICY = HistoricalTrustPolicy(
+    policy_id="mosaic-ci",
+    policy_version="1.0.0",
+    allowed_kernel_ids=("Lean",),
+    allowed_checker_ids=("lean",),
+)
+POLICY_RECORD = HistoricalTrustPolicyRecord(
+    policy_sha256=POLICY.digest(),
+    policy=POLICY,
+    activated_at_utc="2026-11-01T00:00:00Z",
+)
 
 
 def signed(issued=ISSUED):
@@ -21,6 +35,7 @@ def signed(issued=ISSUED):
 
     return HistoricalSignedLeanAttestation.sign_v2(
         issued_at_utc=issued,
+        trust_policy_sha256=POLICY.digest(),
         receipt_id="historical-test",
         runner_id="runner",
         key_id="key-1",
@@ -50,6 +65,7 @@ def verify(receipt, record, witnessed=WITNESSED, trusted=True):
         receipt, {"key-1": record},
         verified_timestamp_utc=witnessed,
         timestamp_evidence_verified=trusted,
+        trusted_policies={POLICY.digest(): POLICY_RECORD},
     )
 
 
@@ -111,3 +127,77 @@ def test_rejects_timezone_naive_times_and_malformed_lifecycle_records():
     receipt = signed()
     malformed = key("revoked", revoked_at_utc="not-a-time")
     assert not verify(receipt, malformed)
+
+
+def test_receipt_binds_exact_content_addressed_policy():
+    receipt = signed()
+    assert receipt.trust_policy_sha256 == POLICY.digest()
+    other = HistoricalTrustPolicy(
+        policy_id="mosaic-ci",
+        policy_version="1.0.1",
+        allowed_kernel_ids=("Lean",),
+        allowed_checker_ids=("lean",),
+    )
+    assert other.digest() != receipt.trust_policy_sha256
+    assert not verify_historical_with_keyring(
+        receipt, {"key-1": key()},
+        verified_timestamp_utc=WITNESSED,
+        timestamp_evidence_verified=True,
+        trusted_policies={other.digest(): HistoricalTrustPolicyRecord(
+            policy_sha256=other.digest(), policy=other,
+            activated_at_utc="2026-11-01T00:00:00Z",
+        )},
+    )
+
+
+def test_policy_substitution_and_lifecycle_are_rejected():
+    receipt = signed()
+    corrupted = HistoricalTrustPolicyRecord(
+        policy_sha256="0" * 64,
+        policy=POLICY,
+        activated_at_utc="2026-11-01T00:00:00Z",
+    )
+    assert not verify_historical_with_keyring(
+        receipt, {"key-1": key()},
+        verified_timestamp_utc=WITNESSED,
+        timestamp_evidence_verified=True,
+        trusted_policies={receipt.trust_policy_sha256: corrupted},
+    )
+    not_yet_active = HistoricalTrustPolicyRecord(
+        policy_sha256=POLICY.digest(), policy=POLICY,
+        activated_at_utc="2026-11-24T01:02:00Z",
+    )
+    assert not verify_historical_with_keyring(
+        receipt, {"key-1": key()},
+        verified_timestamp_utc=WITNESSED,
+        timestamp_evidence_verified=True,
+        trusted_policies={receipt.trust_policy_sha256: not_yet_active},
+    )
+
+
+def test_policy_restricts_checker_kernel_and_timestamp_lag():
+    restrictive = HistoricalTrustPolicy(
+        policy_id="restricted",
+        policy_version="1.0.0",
+        allowed_kernel_ids=("Lean",),
+        allowed_checker_ids=("other-checker",),
+    )
+    record = HistoricalTrustPolicyRecord(
+        policy_sha256=restrictive.digest(), policy=restrictive,
+        activated_at_utc="2026-11-01T00:00:00Z",
+    )
+    receipt = HistoricalSignedLeanAttestation.sign_v2(
+        issued_at_utc=ISSUED,
+        trust_policy_sha256=restrictive.digest(),
+        receipt_id="historical-test", runner_id="runner", key_id="key-1",
+        request_sha256="1" * 64, artifact_sha256="2" * 64,
+        proof_artifact_sha256=__import__("hashlib").sha256(b"theorem receipt_test : True := by trivial").hexdigest(),
+        proof_source="theorem receipt_test : True := by trivial",
+        checker_id="lean", kernel_version="4.36.0",
+        outcome=EvidenceEventOutcome.PASSED, private_key=PRIVATE,
+    )
+    assert not verify_historical_with_keyring(
+        receipt, {"key-1": key()}, verified_timestamp_utc=WITNESSED,
+        timestamp_evidence_verified=True,
+        trusted_policies={restrictive.digest(): record},
+    )
