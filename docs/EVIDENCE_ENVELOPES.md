@@ -1535,3 +1535,31 @@ artifact's storage and threat domain. The optional authorization time must
 also come from the caller's policy environment; it is not a trusted timestamp
 service. The CLI does not fetch keys, infer trust from the envelope, or claim
 the underlying restoration statements are substantively true.
+
+
+## Verifier execution provenance
+
+The portable recovery-envelope CLI supports:
+
+```bash
+python scripts/verify_operator_lifecycle_recovery_envelope.py --provenance
+python scripts/verify_operator_lifecycle_recovery_envelope.py --version
+```
+
+The provenance output identifies the verifier script by SHA-256 and records the
+MOSAIC, Pydantic, and cryptography distribution versions when installed, the
+Python implementation/version, platform, optional source revision and CI
+workflow run ID, and the digest of a recognized dependency lock file when one
+is present. The canonical manifest digest is computed over the manifest fields
+before the `manifest_sha256` field is added. The output follows
+`schemas/verifier-execution-provenance-v1.schema.json`.
+
+This is descriptive execution metadata, not a signed attestation. Environment
+variables such as `GITHUB_SHA` and `GITHUB_RUN_ID` are caller/runtime
+metadata and can be spoofed outside the corresponding trusted CI environment.
+A missing lock-file digest is explicit: this repository's current
+`pyproject.toml` uses lower-bounded dependencies and does not yet provide a
+complete transitive dependency lock. Consequently, this output improves
+inspection and auditability but does **not** claim bit-for-bit reproducible
+installation or execution. It also does not prove that the verifier or its
+dependencies are correct, nor that the reported verification result is true.
