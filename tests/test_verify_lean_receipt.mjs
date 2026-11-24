@@ -29,3 +29,19 @@ test("Node JSON parser rejects duplicate keys at every nesting level", () => {
     array: [true, null, 3],
   });
 });
+
+
+test("Node parser accepts JSON number grammar and rejects non-JSON whitespace", () => {
+  assert.deepEqual(parseJsonNoDuplicateKeys('{"n":-12.5e+2,"items":[0,1.25]}'), {
+    n: -1250,
+    items: [0, 1.25],
+  });
+  assert.throws(() => parseJsonNoDuplicateKeys('{"a":1}\\u00a0'), /trailing data/);
+});
+
+
+test("Node verifier counts Unicode code points for source limits", () => {
+  const supplementary = { ...vector.attestation, proof_source: "😀".repeat(10000) };
+  assert.equal(verifyAttestation(supplementary, vector.public_key_b64), false);
+  assert.equal(verifyAttestation({ ...vector.attestation, proof_source: "\\ud800" }, vector.public_key_b64), false);
+});
