@@ -105,3 +105,22 @@ def verify_operator_lifecycle_checkpoint(
         return True
     except (ValueError, TypeError, InvalidSignature):
         return False
+
+
+class RecoveryOperatorLifecycleTrustPolicy(BaseModel):
+    """Deployment-pinned lifecycle trust anchors for fail-closed recovery."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    authority_key_id: str = Field(min_length=1, max_length=160)
+    minimum_sequence: int = Field(ge=0)
+    expected_checkpoint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    def accepts(self, checkpoint: SignedOperatorLifecycleCheckpoint) -> bool:
+        return (
+            isinstance(checkpoint, SignedOperatorLifecycleCheckpoint)
+            and checkpoint.registry_id == self.registry_id
+            and checkpoint.authority_key_id == self.authority_key_id
+            and checkpoint.sequence >= self.minimum_sequence
+            and checkpoint.digest() == self.expected_checkpoint_sha256
+        )
