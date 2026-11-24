@@ -36,6 +36,7 @@ class LeanLinearCheck(BaseModel):
     rhs_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     lean_version: str | None = None
     proof_source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    proof_source: str | None = Field(default=None, max_length=10000)
     variables: tuple[str, ...] = ()
     explanation: str
 
@@ -173,7 +174,7 @@ def verify_linear_int_identity(
     if executable is None:
         return LeanLinearCheck(
             status="KERNEL_UNAVAILABLE", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            proof_source_sha256=proof_hash, variables=variables,
+            proof_source_sha256=proof_hash, proof_source=source, variables=variables,
             explanation="Lean was not found; no formal verification was performed.",
         )
 
@@ -199,25 +200,25 @@ def verify_linear_int_identity(
         if completed.returncode == 0:
             return LeanLinearCheck(
                 status="FORMALLY_VERIFIED", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-                lean_version=version, proof_source_sha256=proof_hash,
+                lean_version=version, proof_source_sha256=proof_hash, proof_source=source,
                 variables=variables,
                 explanation="Lean accepted the universally quantified affine Int identity using omega; the configured Lean kernel checked the theorem.",
             )
         return LeanLinearCheck(
             status="REJECTED", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            lean_version=version, proof_source_sha256=proof_hash,
+            lean_version=version, proof_source_sha256=proof_hash, proof_source=source,
             variables=variables,
             explanation="Lean rejected the generated affine Int identity theorem.",
         )
     except subprocess.TimeoutExpired:
         return LeanLinearCheck(
             status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            proof_source_sha256=proof_hash, variables=variables,
+            proof_source_sha256=proof_hash, proof_source=source, variables=variables,
             explanation="Lean exceeded the configured wall-clock limit; no formal verification result is available.",
         )
     except OSError:
         return LeanLinearCheck(
             status="KERNEL_ERROR", lhs_sha256=lhs_hash, rhs_sha256=rhs_hash,
-            proof_source_sha256=proof_hash, variables=variables,
+            proof_source_sha256=proof_hash, proof_source=source, variables=variables,
             explanation="Lean could not be executed; no formal verification result is available.",
         )
