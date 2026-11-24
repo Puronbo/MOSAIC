@@ -21,13 +21,13 @@ function canonical(value) {
 
 export function parseJsonNoDuplicateKeys(source) {
   let index = 0;
-  const whitespace = () => { while (/\\s/.test(source[index] ?? "") && index < source.length) index += 1; };
+  const whitespace = () => { while (/\s/.test(source[index] ?? "") && index < source.length) index += 1; };
   const string = () => {
     const start = index;
-    if (source[index++] !== '" '.trim()) throw new Error("expected JSON string");
+    if (source[index++] !== '"') throw new Error("expected JSON string");
     while (index < source.length) {
       const char = source[index++];
-      if (char === "\\\\") { index += 1; continue; }
+      if (char === "\\") { index += 1; continue; }
       if (char === '"') return JSON.parse(source.slice(start, index));
       if (char.charCodeAt(0) < 0x20) throw new Error("control character in JSON string");
     }
