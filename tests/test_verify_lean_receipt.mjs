@@ -45,3 +45,11 @@ test("Node verifier counts Unicode code points for source limits", () => {
   assert.equal(verifyAttestation(supplementary, vector.public_key_b64), false);
   assert.equal(verifyAttestation({ ...vector.attestation, proof_source: "\\ud800" }, vector.public_key_b64), false);
 });
+
+
+test("Node verifies Unicode canonicalization conformance vector", () => {
+  const unicodeVector = JSON.parse(readFileSync(
+    new URL("./fixtures/lean_receipt_v1_unicode_vector.json", import.meta.url), "utf8"
+  ));
+  assert.equal(verifyAttestation(unicodeVector.attestation, unicodeVector.public_key_b64), true);
+});
