@@ -210,10 +210,130 @@ def rebootstrap_recovery_policy_checkpoint_store(
                        (checkpoint.registry_id, new_epoch, entry.sequence, entry.digest(), entry_json))
         db.execute("UPDATE recovery_policy_heads SET checkpoint_json=?, checkpoint_sha256=?, quarantined=0, epoch=? WHERE registry_id=?",
                    (checkpoint_json, checkpoint_hash, new_epoch, checkpoint.registry_id))
-        audit = _canonical({"intent": intent.model_dump(mode="json"),
-                            "approvals": [a.model_dump(mode="json") for a in approvals],
-                            "epoch": new_epoch, "checkpoint_sha256": checkpoint_hash}).decode()
-        db.execute("INSERT INTO recovery_policy_rebootstrap_audit (intent_sha256, registry_id, epoch, audit_json) VALUES (?, ?, ?, ?)",
-                   (intent.digest(), checkpoint.registry_id, new_epoch, audit))
+        audit_data = {
+            "schema_version": "1.0",
+            "intent": intent.model_dump(mode="json"),
+            "approvals": [a.model_dump(mode="json") for a in approvals],
+            "policy": policy.model_dump(mode="json"),
+            "checkpoint": checkpoint.model_dump(mode="json"),
+            "entries": [entry.model_dump(mode="json") for entry in entries],
+            "epoch": new_epoch,
+            "checkpoint_sha256": checkpoint_hash,
+        }
+        audit = _canonical(audit_data).decode()
+        previous = db.execute(
+            "SELECT audit_sha256 FROM recovery_policy_rebootstrap_audit WHERE registry_id=? "
+            "ORDER BY epoch DESC LIMIT 1", (checkpoint.registry_id,)
+        ).fetchone()
+        previous_hash = previous["audit_sha256"] if previous else "0" * 64
+        audit_hash = hashlib.sha256(_canonical({
+            "previous_audit_sha256": previous_hash, "audit": audit_data
+        })).hexdigest()
+        db.execute(
+            "INSERT INTO recovery_policy_rebootstrap_audit "
+            "(intent_sha256, registry_id, epoch, audit_json, previous_audit_sha256, audit_sha256) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (intent.digest(), checkpoint.registry_id, new_epoch, audit, previous_hash, audit_hash),
+        )
         db.commit()
     return True
+
+
+
+def export_rebootstrap_audit(store, *, registry_id: str) -> dict:
+    """Export retained rebootstrap records and their chain head for independent verification."""
+    if not isinstance(registry_id, str) or not registry_id:
+        raise ValueError("registry_id must be a non-empty string")
+    with store._connection() as db:
+        rows = db.execute(
+            "SELECT epoch, audit_json, previous_audit_sha256, audit_sha256 "
+            "FROM recovery_policy_rebootstrap_audit WHERE registry_id=? ORDER BY epoch",
+            (registry_id,),
+        ).fetchall()
+    records = [{
+        "epoch": row["epoch"],
+        "audit": __import__("json").loads(row["audit_json"]),
+        "previous_audit_sha256": row["previous_audit_sha256"],
+        "audit_sha256": row["audit_sha256"],
+    } for row in rows]
+    return {
+        "schema_version": "mosaic.recovery-policy-rebootstrap-audit-export.v1",
+        "registry_id": registry_id,
+        "record_count": len(records),
+        "records": records,
+        "head_sha256": records[-1]["audit_sha256"] if records else "0" * 64,
+    }
+
+
+def verify_rebootstrap_audit_export(
+    export: dict, *, operator_keyring: dict, publisher_keyring: dict,
+    checkpoint_keyring: dict | None,
+    expected_head_sha256: str | None = None,
+) -> bool:
+    """Verify audit chain, every operator signature, policy threshold, and saved registry proof."""
+    if not isinstance(export, dict) or set(export) != {
+        "schema_version", "registry_id", "record_count", "records", "head_sha256"
+    }:
+        return False
+    if (export["schema_version"] != "mosaic.recovery-policy-rebootstrap-audit-export.v1"
+            or not isinstance(export["registry_id"], str) or not export["registry_id"]
+            or not isinstance(export["records"], list)
+            or export["record_count"] != len(export["records"])):
+        return False
+    if expected_head_sha256 is not None and export["head_sha256"] != expected_head_sha256:
+        return False
+    previous = "0" * 64
+    expected_epoch = None
+    for item in export["records"]:
+        if not isinstance(item, dict) or set(item) != {
+            "epoch", "audit", "previous_audit_sha256", "audit_sha256"
+        }:
+            return False
+        audit = item["audit"]
+        if not isinstance(audit, dict) or set(audit) != {
+            "schema_version", "intent", "approvals", "policy", "checkpoint",
+            "entries", "epoch", "checkpoint_sha256"
+        }:
+            return False
+        if (item["previous_audit_sha256"] != previous
+                or item["epoch"] != audit["epoch"]
+                or (expected_epoch is not None and item["epoch"] <= expected_epoch)
+                or audit["schema_version"] != "1.0"):
+            return False
+        try:
+            intent = RecoveryPolicyCheckpointRebootstrapIntent.model_validate(audit["intent"])
+            policy = RecoveryPolicyCheckpointRebootstrapPolicy.model_validate(audit["policy"])
+            approvals = [RecoveryPolicyCheckpointRebootstrapApproval.model_validate(x)
+                         for x in audit["approvals"]]
+            checkpoint = SignedPolicyWitnessRecoveryPolicyCheckpoint.model_validate(audit["checkpoint"])
+            entries = [SignedPolicyWitnessRecoveryPolicyEntry.model_validate(x)
+                       for x in audit["entries"]]
+        except (ValueError, TypeError):
+            return False
+        checkpoint_hash = hashlib.sha256(checkpoint.model_dump_json().encode()).hexdigest()
+        if (intent.registry_id != export["registry_id"]
+                or audit["checkpoint_sha256"] != checkpoint_hash
+                or intent.selected_checkpoint_sha256 != checkpoint_hash
+                or not verify_rebootstrap_approvals(
+                    intent, policy=policy, approvals=approvals,
+                    operator_keyring=operator_keyring,
+                    publisher_keyring=publisher_keyring,
+                    checkpoint_keyring=checkpoint_keyring or publisher_keyring,
+                )
+                or not verify_policy_witness_recovery_policy_registry(
+                    entries, publisher_keyring=publisher_keyring,
+                    trusted_checkpoint=checkpoint,
+                    checkpoint_keyring=checkpoint_keyring,
+                )):
+            return False
+        computed = hashlib.sha256(_canonical({
+            "previous_audit_sha256": previous, "audit": audit
+        })).hexdigest()
+        if item["audit_sha256"] != computed:
+            return False
+        previous = computed
+        expected_epoch = item["epoch"]
+    if export["head_sha256"] != previous:
+        return False
+    # An externally retained head detects complete-record truncation and replacement.
+    return expected_head_sha256 is None or expected_head_sha256 == previous
