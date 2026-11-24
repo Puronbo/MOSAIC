@@ -337,6 +337,87 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         except (ValueError, TypeError, self._sqlite3.Error):
             return False
 
+    def restore_checkpoint_chain_bundle(
+        self, bundle: "OperatorLifecycleCheckpointChainBundle",
+        starting_checkpoint: SignedOperatorLifecycleCheckpoint, *,
+        authority_keyring: dict[str, PolicyPublisherKey],
+        expected_registry_id: str,
+        expected_starting_checkpoint_sha256: str,
+        expected_ending_checkpoint_sha256: str,
+        expected_ending_sequence: int,
+        authorization_time_utc: str | None = None,
+        allow_initial: bool = False,
+    ) -> bool:
+        """Atomically restore a fully verified chain, advancing only its exact local head.
+
+        Empty stores require explicit initial-import approval. Existing stores accept
+        only an exact idempotent ending head or a chain whose supplied predecessor
+        exactly matches the current local head. All writes are rechecked under
+        BEGIN IMMEDIATE so concurrent changes cannot be overwritten.
+        """
+        if (not isinstance(bundle, OperatorLifecycleCheckpointChainBundle)
+                or not isinstance(starting_checkpoint, SignedOperatorLifecycleCheckpoint)
+                or not isinstance(expected_ending_checkpoint_sha256, str)
+                or not isinstance(expected_ending_sequence, int)
+                or expected_ending_sequence < 0):
+            return False
+        report = verify_operator_lifecycle_checkpoint_chain_bundle(
+            bundle, starting_checkpoint, authority_keyring=authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_starting_checkpoint_sha256=expected_starting_checkpoint_sha256,
+            expected_ending_checkpoint_sha256=expected_ending_checkpoint_sha256,
+            expected_ending_sequence=expected_ending_sequence,
+            authorization_time_utc=authorization_time_utc)
+        if not report.accepted:
+            return False
+        ending = bundle.checkpoints[-1]
+        try:
+            timestamp = _canonical_timestamp(ending.issued_at_utc)
+            with self._connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT sequence, checkpoint_sha256 FROM lifecycle_trust_anchor WHERE registry_id=?",
+                    (expected_registry_id,)
+                ).fetchone()
+                if row is None:
+                    if not allow_initial:
+                        connection.rollback()
+                        return False
+                    cursor = connection.execute(
+                        "INSERT INTO lifecycle_trust_anchor "
+                        "(registry_id, sequence, checkpoint_sha256, updated_at_utc) VALUES (?, ?, ?, ?)",
+                        (expected_registry_id, ending.sequence, ending.digest(), timestamp))
+                    if cursor.rowcount != 1:
+                        connection.rollback()
+                        return False
+                    connection.commit()
+                    return True
+
+                # An exact replay is safe and idempotent, even when its verified
+                # bundle starts earlier than the already-retained final head.
+                if row[0] == expected_ending_sequence and row[1] == expected_ending_checkpoint_sha256:
+                    connection.commit()
+                    return True
+
+                # Never overwrite a newer head, a fork, or a stale predecessor.
+                if (row[0] != starting_checkpoint.sequence
+                        or row[1] != expected_starting_checkpoint_sha256
+                        or ending.sequence <= row[0]):
+                    connection.rollback()
+                    return False
+                cursor = connection.execute(
+                    "UPDATE lifecycle_trust_anchor SET sequence=?, checkpoint_sha256=?, updated_at_utc=? "
+                    "WHERE registry_id=? AND sequence=? AND checkpoint_sha256=?",
+                    (ending.sequence, ending.digest(), timestamp, expected_registry_id,
+                     starting_checkpoint.sequence, expected_starting_checkpoint_sha256))
+                if cursor.rowcount != 1:
+                    connection.rollback()
+                    return False
+                connection.commit()
+                return True
+        except (ValueError, TypeError, self._sqlite3.Error):
+            return False
+
     def advance(self, previous: SignedOperatorLifecycleCheckpoint,
                 candidate: SignedOperatorLifecycleCheckpoint, *,
                 authority_keyring: dict[str, PolicyPublisherKey],
