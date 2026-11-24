@@ -81,6 +81,22 @@ def test_threshold_rebootstrap_preserves_incidents_and_starts_new_epoch(tmp_path
     approval = RecoveryPolicyCheckpointRebootstrapApproval.sign(
         intent=intent, operator_key_id="operator-2",
         approved_at_utc="2026-11-24T07:01:00Z", private_key=op2_sk)
+    with sqlite3.connect(db_path) as db:
+        db.execute("""
+            CREATE TRIGGER fail_rebootstrap_audit BEFORE INSERT ON recovery_policy_rebootstrap_audit
+            BEGIN SELECT RAISE(ABORT, 'simulated interrupted audit persistence'); END
+        """)
+    import pytest
+    with pytest.raises(sqlite3.IntegrityError):
+        rebootstrap_recovery_policy_checkpoint_store(
+            store, [fork], checkpoint=new_cp, publisher_keyring={"publisher": pub},
+            checkpoint_keyring={"checkpoint": cp_key}, intent=intent, approvals=[approval],
+            policy=RecoveryPolicyCheckpointRebootstrapPolicy(minimum_approvals=2),
+            operator_keyring={"operator-1": op1, "operator-2": op2})
+    assert store.is_quarantined("registry")
+    with sqlite3.connect(db_path) as db:
+        assert db.execute("SELECT COUNT(*) FROM recovery_policy_epoch_entries WHERE registry_id='registry' AND epoch=1").fetchone()[0] == 0
+        db.execute("DROP TRIGGER fail_rebootstrap_audit")
     assert rebootstrap_recovery_policy_checkpoint_store(
         store, [fork], checkpoint=new_cp, publisher_keyring={"publisher": pub},
         checkpoint_keyring={"checkpoint": cp_key}, intent=intent, approvals=[approval],
