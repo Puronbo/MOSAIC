@@ -50,7 +50,7 @@ def required_ci_metadata() -> dict[str, str]:
             "missing required GitHub Actions provenance metadata: "
             + ", ".join(missing)
         )
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", values["repository"]):
+    if not re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*", values["repository"]):
         raise SystemExit("GITHUB_REPOSITORY must have owner/repository form")
     for key in ("run_id", "run_attempt"):
         if not values[key].isdigit() or int(values[key]) < 1:
