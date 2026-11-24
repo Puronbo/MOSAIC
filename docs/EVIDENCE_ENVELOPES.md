@@ -371,3 +371,49 @@ GitHub's CLI documentation describes the verified JSON certificate and
 timestamp fields and the importance of checking immutable repository IDs:
 https://cli.github.com/manual/gh_attestation_verify and
 https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline.
+
+
+## Historical receipt trust and key lifecycle (v2)
+
+The original signed receipt schema (`1.0`) remains supported for ordinary
+signature verification. It has no signed issuance time and therefore cannot
+be used for historical key-lifecycle decisions. New historical decisions use
+`HistoricalSignedLeanAttestation` (`schema_version="2.0"`), whose
+`issued_at_utc` is included in the Ed25519-signed canonical payload.
+The normative shape is `schemas/historical-lean-trust-v2.schema.json`.
+
+An issuance timestamp is a claim made by the signing key. It is not proof of
+when the signature existed. Historical acceptance therefore additionally
+requires a verified external timestamp from the enclosing GitHub artifact
+attestation. The caller must first verify the artifact with
+`gh attestation verify`, enforce the pinned producer policy, match the
+artifact subject digest, and only then supply the timestamp as trusted evidence
+to `verify_historical_with_keyring(...)`. A Boolean assertion by an untrusted
+caller is not a substitute for this verification sequence.
+
+`HistoricalLeanTrustedKey` records activation, retirement, revocation, and
+compromise-effective UTC times. The verifier applies these rules:
+
+- The signed issuance time cannot precede key activation.
+- The external verified timestamp cannot precede signed issuance.
+- An active key must have no retirement, revocation, or compromise boundary.
+- A retired key is accepted only when issuance and independently witnessed
+  existence both precede retirement.
+- A revoked key is accepted historically only when independently witnessed
+  existence precedes revocation and signed issuance precedes revocation.
+- If a compromise-effective time is recorded, any receipt issued at or after
+  that time is rejected, even if it claims an earlier timestamp.
+- A v1 receipt without signed issuance time is never accepted by the historical
+  verifier.
+
+This design prevents a compromised key from creating a newly signed,
+backdated receipt and claiming that it predates revocation: the independent
+timestamp must also prove the artifact existed before the lifecycle boundary.
+The exact trust semantics of a revocation timestamp must be chosen by the
+registry operator; compromise-effective time should reflect the earliest
+credible compromise, not merely the administrative discovery date.
+
+GitHub's verified timestamp objects are cryptographically verified transparency
+log or timestamp-authority evidence; they are distinct from workflow-controlled
+predicate fields. See the
+[GitHub CLI verification reference](https://cli.github.com/manual/gh_attestation_verify).
