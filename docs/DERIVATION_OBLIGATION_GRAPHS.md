@@ -240,7 +240,7 @@ The theorem `exponent_partial_derivative` differentiates with respect to `t` whi
 =x^{x+t}\\log x.
 \\]
 
-These are one-variable `HasDerivAt` statements for the two coordinate slices, not yet a single Fréchet-derivative theorem for the joint map `(x,t) ↦ x^(x+t)`. The positive-base hypothesis is essential to the real-power derivative rule used here. Higher mixed partials and a full two-variable smoothness result remain separate targets.
+These are one-variable `HasDerivAt` statements for the two coordinate slices. The positive-base hypothesis is essential to the real-power derivative rule used here.
 
 
 The theorem `along_base_path_derivative` goes one step further: for any differentiable path `u(t)` that remains positive at the evaluation point, it differentiates `u(t)^(u(t)+t)`. Its formula is
@@ -265,9 +265,7 @@ u'(u+v)u^{u+v-1}+(u'+v')u^{u+v}\log u.
 
 This gives the derivative along every differentiable curve in the positive-base
 domain, including affine directional paths. It is stronger than the special
-path `u(s)^(u(s)+s)`, but it is still a pathwise chain-rule theorem rather
-than a bundled Fréchet derivative of the two-variable map. The pinned Lean
-integration workflow is the acceptance gate for the new theorem.
+path `u(s)^(u(s)+s)`.
 
 
 The joint exponent family now also has a full Fréchet chain-rule theorem,
@@ -285,8 +283,10 @@ The derivative is the continuous linear map
 Here \(f'\) and \(g'\) are the Fréchet derivatives at the selected point;
 scalar multiplication and addition are operations on continuous linear maps.
 This formulation works on arbitrary real normed domains, not only on a
-one-dimensional path. The pinned Lean kernel workflow remains the acceptance
-gate; the theorem is not described as verified until that workflow succeeds.
+one-dimensional path. It was accepted by the pinned Lean/Mathlib integration
+workflow (run `45472095343`, commit `29eee11ddf`), which replays the exact
+signed proof source in the pinned environment. The theorem is therefore
+Lean-kernel verified for the stated positive-base domain and hypotheses.
 
 
 ### Differential geometry of the joint exponent surface
@@ -321,7 +321,7 @@ At that point G = 1 and the Hessian is
 whose determinant is -1. Thus the stationary point is a nondegenerate
 saddle, not a local maximum or minimum.
 
-These formulas are analytic consequences of the real-variable derivative
-rules. They are documented as mathematical targets here; they must not be
-described as Lean-kernel verified until corresponding formal theorems and
-successful pinned proof-source replay exist.
+The first differential is covered by the kernel-verified Fréchet theorem
+above. The displayed second-partial and saddle formulas remain analytic
+derivations, not Lean-kernel verified: formal second-derivative and Hessian
+theorems, including a pinned proof-source replay, are still required.
