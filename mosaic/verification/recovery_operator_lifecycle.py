@@ -244,7 +244,7 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
             timestamp = _canonical_timestamp(updated_at_utc)
             if timestamp != updated_at_utc:
                 return False
-            with self._connect() as connection:
+            with self._connection() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 cursor = connection.execute(
                     "INSERT OR IGNORE INTO lifecycle_trust_anchor "
