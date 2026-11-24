@@ -31,6 +31,14 @@ def _load_policy(policy: dict[str, Any] | str | Path) -> dict[str, Any]:
         raise AttestationPolicyError("policy has missing or unexpected fields")
     if value["schema_version"] != "mosaic.github-attestation-policy.v1":
         raise AttestationPolicyError("unsupported policy schema version")
+    for field in ("repository", "workflow_path", "source_repository_uri", "oidc_issuer", "predicate_type"):
+        if not isinstance(value[field], str) or not value[field]:
+            raise AttestationPolicyError(f"policy field {field} must be a nonempty string")
+    for field in ("require_github_hosted_runner", "require_verified_timestamp"):
+        if type(value[field]) is not bool:
+            raise AttestationPolicyError(f"policy field {field} must be boolean")
+    if value["source_repository_uri"] != "https://github.com/" + value["repository"]:
+        raise AttestationPolicyError("source_repository_uri must match repository")
     if value["signer_workflow"] != value["repository"] + "/" + value["workflow_path"]:
         raise AttestationPolicyError("signer_workflow must match repository and workflow_path")
     if not re.fullmatch(r"[0-9]+", str(value["repository_id"])):
