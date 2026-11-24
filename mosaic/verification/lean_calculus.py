@@ -267,7 +267,7 @@ def _source(raw: str, candidate_derivative: str | None = None) -> tuple[str, str
         if _polynomial(candidate_tree) != expected_derivative:
             raise _CandidateMismatch("candidate derivative differs from the independently computed derivative")
         derivative = _render(candidate_tree, "x")
-        reconcile = f"  have h := {proof}\n  convert h using 1 <;> ring\n"
+        reconcile = f"  have h := {proof}\n  convert h using 1 <;> ring_nf\n"
     source = (
         "import Mathlib.Analysis.Calculus.Deriv.Add\n"
         "import Mathlib.Analysis.Calculus.Deriv.Mul\n"
