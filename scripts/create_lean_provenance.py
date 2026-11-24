@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,13 @@ EXPECTED_MATHLIB_REVISION = "fc4f59e577feb1a4956671bc04ac18aaaf8cd842"
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def executable_sha256(name: str) -> str:
+    executable = shutil.which(name)
+    if executable is None:
+        raise SystemExit(f"required executable not found on PATH: {name}")
+    return sha256(Path(executable).resolve())
 
 
 def main() -> None:
@@ -44,6 +52,10 @@ def main() -> None:
     ).stdout.strip()
     lake = subprocess.run(
         ["lake", "--version"], cwd=PROJECT, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    elan = subprocess.run(
+        ["elan", "--version"], cwd=PROJECT, check=True,
         capture_output=True, text=True,
     ).stdout.strip()
     if "4.36.0" not in lean:
@@ -72,6 +84,10 @@ def main() -> None:
             "lean_toolchain": toolchain,
             "lean_version_output": lean,
             "lake_version_output": lake,
+            "elan_version_output": elan,
+            "lean_binary_sha256": executable_sha256("lean"),
+            "lake_binary_sha256": executable_sha256("lake"),
+            "elan_binary_sha256": executable_sha256("elan"),
             "root_lean_toolchain_sha256": sha256(root_toolchain_path),
             "formal_lean_toolchain_sha256": sha256(toolchain_path),
             "mathlib_revision": EXPECTED_MATHLIB_REVISION,
