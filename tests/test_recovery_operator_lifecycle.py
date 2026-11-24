@@ -166,3 +166,50 @@ def test_durable_lifecycle_anchor_store_advances_atomically_and_rejects_replay(t
                              expected_current_sha256=first.digest(),
                              authorization_time_utc="2026-11-24T08:10:00.000000Z").accepted
     assert store.read(first.registry_id)["checkpoint_sha256"] == winner.digest()
+
+
+def test_signed_portable_lifecycle_anchor_receipt_binds_checkpoint_and_trust_anchor():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        SignedOperatorLifecycleTrustAnchorReceipt,
+        verify_operator_lifecycle_trust_anchor_receipt,
+    )
+    authority_sk, authority = identity("receipt-authority")
+    op_sk, operator = identity("receipt-operator")
+    ring = {"receipt-authority": authority}
+    checkpoint = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="receipt-registry", sequence=31, previous_checkpoint_sha256="d" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="receipt-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    receipt = SignedOperatorLifecycleTrustAnchorReceipt.sign(
+        checkpoint=checkpoint, issued_at_utc="2026-11-24T08:02:00.000000Z",
+        private_key=authority_sk)
+    assert verify_operator_lifecycle_trust_anchor_receipt(
+        receipt, checkpoint, authority_keyring=ring,
+        expected_registry_id="receipt-registry",
+        expected_checkpoint_sha256=checkpoint.digest(), expected_sequence=31,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not verify_operator_lifecycle_trust_anchor_receipt(
+        receipt, checkpoint, authority_keyring=ring,
+        expected_registry_id="receipt-registry",
+        expected_checkpoint_sha256="0" * 64,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert not verify_operator_lifecycle_trust_anchor_receipt(
+        receipt, checkpoint, authority_keyring=ring,
+        expected_registry_id="other-registry",
+        expected_checkpoint_sha256=checkpoint.digest())
+    tampered = receipt.model_copy(update={"sequence": 32})
+    assert not verify_operator_lifecycle_trust_anchor_receipt(
+        tampered, checkpoint, authority_keyring=ring,
+        expected_registry_id="receipt-registry",
+        expected_checkpoint_sha256=checkpoint.digest())
+    later = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="receipt-registry", sequence=32,
+        previous_checkpoint_sha256=checkpoint.digest(),
+        issued_at_utc="2026-11-24T08:04:00.000000Z",
+        authority_key_id="receipt-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    assert not verify_operator_lifecycle_trust_anchor_receipt(
+        receipt, later, authority_keyring=ring,
+        expected_registry_id="receipt-registry",
+        expected_checkpoint_sha256=later.digest())
