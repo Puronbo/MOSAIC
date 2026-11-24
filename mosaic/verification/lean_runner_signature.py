@@ -8,6 +8,7 @@ responsibilities.
 import base64
 import hashlib
 import json
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -428,20 +429,19 @@ def verify_local_lean_environment_manifest(
             not isinstance(source, dict)
             or set(source) != {"repository", "commit"}
             or not isinstance(source.get("repository"), str)
-            or not source["repository"].strip()
+            or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", source["repository"])
             or not isinstance(source.get("commit"), str)
             or len(source["commit"]) != 40
             or any(ch not in "0123456789abcdef" for ch in source["commit"])
             or not isinstance(execution, dict)
             or set(execution) != {"workflow", "run_id", "run_attempt", "runner_os"}
             or not isinstance(execution.get("run_id"), str)
-            or not execution["run_id"].isdigit()
+            or not re.fullmatch(r"[1-9][0-9]*", execution["run_id"])
             or not isinstance(execution.get("run_attempt"), str)
-            or not execution["run_attempt"].isdigit()
+            or not re.fullmatch(r"[1-9][0-9]*", execution["run_attempt"])
             or not isinstance(execution.get("workflow"), str)
             or not execution["workflow"].strip()
-            or not isinstance(execution.get("runner_os"), str)
-            or not execution["runner_os"].strip()
+            or execution.get("runner_os") not in {"Linux", "Windows", "macOS"}
             or not isinstance(expected, dict)
         ):
             return False
