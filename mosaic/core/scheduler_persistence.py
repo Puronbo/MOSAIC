@@ -54,6 +54,7 @@ class SchedulerSnapshot(BaseModel):
                 if (
                     record.proposal.task_id != task.task_id
                     or record.proposal.role != task.role
+                    or record.proposal.status != TaskStatus.COMPLETED
                 ):
                     raise ValueError("snapshot proposal does not match its task")
             elif record.proposal is not None:
