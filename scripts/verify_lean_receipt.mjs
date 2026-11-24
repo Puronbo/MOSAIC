@@ -130,11 +130,11 @@ function normalizeMathRequest(request) {
   const allowed = ["schema_version", "operation", "expression", "variable", "rhs"];
   if (Object.keys(request).some((key) => !allowed.includes(key))) return null;
   const normalized = {
-    schema_version: request.schema_version ?? "1.0",
+    schema_version: Object.hasOwn(request, "schema_version") ? request.schema_version : "1.0",
     operation: request.operation,
     expression: request.expression,
-    variable: request.variable ?? "x",
-    rhs: request.rhs ?? null,
+    variable: Object.hasOwn(request, "variable") ? request.variable : "x",
+    rhs: Object.hasOwn(request, "rhs") ? request.rhs : null,
   };
   if (typeof normalized.schema_version !== "string") return null;
   if (!["simplify", "expand", "factor", "differentiate", "integrate", "verify_identity", "solve", "verify_certificate", "search", "counterexample", "analyze"].includes(normalized.operation)) return null;
@@ -178,21 +178,37 @@ export function verifyReceiptBundle(receipt, {
 }
 
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
-  const [, , receiptPath, trustedPublicKeyB64] = process.argv;
+  const [, , receiptPath, trustedPublicKeyB64, manifestPath, requestPath, candidatePath] = process.argv;
   if (!receiptPath || !trustedPublicKeyB64) {
-    process.stderr.write("Usage: node scripts/verify_lean_receipt.mjs <receipt-or-vector.json> <trusted-public-key-b64>\n");
+    process.stderr.write("Usage: node scripts/verify_lean_receipt.mjs <receipt-or-vector.json> <trusted-public-key-b64> [manifest.json request.json candidate.bin]\\n");
     process.exit(2);
   }
   try {
     const receiptBytes = readFileSync(receiptPath);
     const receiptText = new TextDecoder("utf-8", { fatal: true }).decode(receiptBytes);
     const document = parseJsonNoDuplicateKeys(receiptText);
-    const attestation = document.attestation ?? document;
-    if (!verifyAttestation(attestation, trustedPublicKeyB64)) {
-      process.stderr.write("Invalid or untrusted Lean attestation\n");
-      process.exit(1);
+    const fullArgs = [manifestPath, requestPath, candidatePath];
+    if (fullArgs.some(Boolean) && !fullArgs.every(Boolean)) {
+      process.stderr.write("Full bundle verification requires manifest, request, and candidate paths\\n");
+      process.exit(2);
     }
-    process.stdout.write("Ed25519 Lean attestation verified\n");
+    if (fullArgs.every(Boolean)) {
+      const manifestBytes = readFileSync(manifestPath);
+      const request = parseJsonNoDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(requestPath)));
+      const candidateBytes = readFileSync(candidatePath);
+      if (!verifyReceiptBundle(document, { manifestBytes, trustedPublicKeyB64, request, candidateBytes })) {
+        process.stderr.write("Invalid Lean proof receipt bundle or external binding\\n");
+        process.exit(1);
+      }
+      process.stdout.write("Complete Lean proof receipt bundle verified\\n");
+    } else {
+      const attestation = document.attestation ?? document;
+      if (!verifyAttestation(attestation, trustedPublicKeyB64)) {
+        process.stderr.write("Invalid or untrusted Lean attestation\\n");
+        process.exit(1);
+      }
+      process.stdout.write("Ed25519 Lean attestation verified\\n");
+    }
   } catch (error) {
     process.stderr.write(`Unable to verify receipt: ${error.message}\n`);
     process.exit(1);
