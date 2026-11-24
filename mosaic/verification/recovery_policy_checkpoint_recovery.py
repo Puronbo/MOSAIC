@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from datetime import datetime
 from typing import Literal
 
 from cryptography.exceptions import InvalidSignature
@@ -186,8 +187,13 @@ def rebootstrap_recovery_policy_checkpoint_store(
     approvals: list[RecoveryPolicyCheckpointRebootstrapApproval],
     policy: RecoveryPolicyCheckpointRebootstrapPolicy,
     operator_keyring: dict,
+    authorization_time_utc: str | None = None,
 ) -> bool:
-    """Atomically start a new retained epoch; old histories and incidents remain intact."""
+    """Atomically start a new retained epoch; old histories and incidents remain intact.
+
+    Supply a trusted authorization_time_utc to enforce current key lifecycle status.
+    If omitted, the latest signed approval time is used for backward compatibility.
+    """
     if not store._verify(entries, checkpoint, publisher_keyring, checkpoint_keyring):
         return False
     if intent.registry_id != checkpoint.registry_id:
@@ -197,6 +203,24 @@ def rebootstrap_recovery_policy_checkpoint_store(
         publisher_keyring=publisher_keyring,
         checkpoint_keyring=checkpoint_keyring or publisher_keyring,
     ):
+        return False
+    # Historical signature validity is distinct from authorization at execution.
+    # A key revoked after signing remains verifiable, but cannot authorize a
+    # new state transition after its revocation time.
+    if authorization_time_utc is None:
+        authorization_time_utc = max(
+            [intent.approved_at_utc] + [approval.approved_at_utc for approval in approvals]
+        )
+    try:
+        if _canonical_timestamp(authorization_time_utc) != authorization_time_utc:
+            return False
+        authorized_at = datetime.fromisoformat(authorization_time_utc.replace("Z", "+00:00"))
+        for key_id in [intent.operator_key_id] + [approval.operator_key_id for approval in approvals]:
+            record = operator_keyring.get(key_id)
+            if (record is None or not record.permits(key_id, authorization_time_utc)
+                    or datetime.fromisoformat(record.activated_at_utc.replace("Z", "+00:00")) > authorized_at):
+                return False
+    except (ValueError, TypeError):
         return False
     checkpoint_json = checkpoint.model_dump_json()
     checkpoint_hash = hashlib.sha256(checkpoint_json.encode()).hexdigest()
