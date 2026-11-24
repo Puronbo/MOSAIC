@@ -522,7 +522,7 @@ theorem joint_map_fderiv
     (hf : HasFDerivAt f f' z) (hg : HasFDerivAt g g' z)
     (hx : 0 < f z) :
     HasFDerivAt (fun w : E => jointMap f g w)
-      ((f z + g z) * f z ^ (f z + g z - 1) • f' +
+      (((f z + g z) * f z ^ (f z + g z - 1)) • f' +
         (f z ^ (f z + g z) * Real.log (f z)) • (f' + g')) z := by
   have hexponent : HasFDerivAt (fun w : E => f w + g w) (f' + g') z := by
     exact hf.add hg
