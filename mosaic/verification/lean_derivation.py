@@ -103,3 +103,30 @@ def verify_derivation_root_derivative_with_lean(
             else check.explanation
         ),
     )
+
+
+
+def validate_lean_derivation_receipt(
+    request: MathRequest,
+    tree: DerivationTree,
+    candidate_derivative: str,
+    receipt: LeanDerivationReceipt,
+    *,
+    timeout_seconds: float = 30.0,
+    lake_executable: str = "lake",
+) -> LeanDerivationReceipt:
+    """Replay Lean checking and reject stale, altered, or cross-bound receipts.
+
+    A receipt digest is not an authenticity mechanism. Validation reruns the
+    restricted checker and requires exact equality with the resulting receipt.
+    """
+    expected = verify_derivation_root_derivative_with_lean(
+        request,
+        tree,
+        candidate_derivative,
+        timeout_seconds=timeout_seconds,
+        lake_executable=lake_executable,
+    )
+    if receipt != expected:
+        raise ValueError("Lean derivation receipt does not match independent replay")
+    return receipt
