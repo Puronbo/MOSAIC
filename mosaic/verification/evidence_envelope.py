@@ -99,6 +99,9 @@ def create_evidence_envelope(
     """Create an envelope whose events all bind to the same result artifact."""
     if not events:
         raise ValueError("at least one evidence event is required")
+    event_ids = [event.event_id for event in events]
+    if len(event_ids) != len(set(event_ids)):
+        raise ValueError("evidence event identifiers must be unique")
     if any(event.artifact_sha256 != artifact_sha256 for event in events):
         raise ValueError("all evidence events must refer to the envelope artifact")
     unsigned = EvidenceEnvelope(
@@ -117,9 +120,11 @@ def verify_evidence_envelope(envelope: EvidenceEnvelope) -> bool:
     try:
         if hashlib.sha256(_canonical_payload(envelope)).hexdigest() != envelope.integrity_sha256:
             return False
-        return bool(envelope.events) and all(
-            event.artifact_sha256 == envelope.artifact_sha256
-            for event in envelope.events
+        event_ids = [event.event_id for event in envelope.events]
+        return (
+            bool(envelope.events)
+            and len(event_ids) == len(set(event_ids))
+            and all(event.artifact_sha256 == envelope.artifact_sha256 for event in envelope.events)
         )
     except (ArithmeticError, TypeError, ValueError):
         return False
