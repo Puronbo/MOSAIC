@@ -124,6 +124,59 @@ export function verifyAttestation(attestation, trustedPublicKeyB64) {
   }
 }
 
+
+function normalizeMathRequest(request) {
+  if (!request || typeof request !== "object" || Array.isArray(request)) return null;
+  const allowed = ["schema_version", "operation", "expression", "variable", "rhs"];
+  if (Object.keys(request).some((key) => !allowed.includes(key))) return null;
+  const normalized = {
+    schema_version: request.schema_version ?? "1.0",
+    operation: request.operation,
+    expression: request.expression,
+    variable: request.variable ?? "x",
+    rhs: request.rhs ?? null,
+  };
+  if (typeof normalized.schema_version !== "string") return null;
+  if (!["simplify", "expand", "factor", "differentiate", "integrate", "verify_identity", "solve", "verify_certificate", "search", "counterexample", "analyze"].includes(normalized.operation)) return null;
+  if (typeof normalized.expression !== "string" || normalized.expression.length < 1 || Array.from(normalized.expression).length > 2000) return null;
+  if (typeof normalized.variable !== "string" || normalized.variable.length < 1 || Array.from(normalized.variable).length > 32) return null;
+  if (normalized.rhs !== null && (typeof normalized.rhs !== "string" || Array.from(normalized.rhs).length > 2000)) return null;
+  return normalized;
+}
+
+export function verifyReceiptBundle(receipt, {
+  manifestBytes, trustedPublicKeyB64, request, candidateBytes,
+}) {
+  try {
+    if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) return false;
+    const wrapperFields = ["schema_version", "attestation", "public_key_b64", "environment_manifest_sha256", "replay"];
+    if (Object.keys(receipt).sort().join("|") !== [...wrapperFields].sort().join("|")) return false;
+    if (receipt.schema_version !== "mosaic.signed-lean-proof-receipt.v1") return false;
+    if (receipt.public_key_b64 !== trustedPublicKeyB64) return false;
+    if (!verifyAttestation(receipt.attestation, trustedPublicKeyB64)) return false;
+    if (!Buffer.isBuffer(manifestBytes) || !Buffer.isBuffer(candidateBytes)) return false;
+    const manifestDigest = sha256(manifestBytes);
+    if (receipt.environment_manifest_sha256 !== manifestDigest ||
+        receipt.attestation.environment_manifest_sha256 !== manifestDigest ||
+        sha256(candidateBytes) !== receipt.attestation.artifact_sha256) return false;
+    const normalizedRequest = normalizeMathRequest(request);
+    if (!normalizedRequest || sha256(Buffer.from(canonical(normalizedRequest), "utf8")) !== receipt.attestation.request_sha256) return false;
+    const manifest = parseJsonNoDuplicateKeys(new TextDecoder("utf-8", { fatal: true }).decode(manifestBytes));
+    if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return false;
+    if (manifest.schema_version !== "mosaic.lean-build-provenance.v1") return false;
+    if (manifest.source?.commit !== receipt.attestation.source_commit ||
+        manifest.execution?.run_id !== receipt.attestation.workflow_run_id ||
+        manifest.environment?.lean_toolchain !== receipt.attestation.lean_toolchain ||
+        manifest.environment?.mathlib_revision !== receipt.attestation.mathlib_revision) return false;
+    if (!receipt.replay || typeof receipt.replay !== "object" || Array.isArray(receipt.replay) ||
+        Object.keys(receipt.replay).join("|") !== "exact_signed_source_replayed" ||
+        receipt.replay.exact_signed_source_replayed !== true) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
   const [, , receiptPath, trustedPublicKeyB64] = process.argv;
   if (!receiptPath || !trustedPublicKeyB64) {
