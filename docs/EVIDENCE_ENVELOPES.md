@@ -109,11 +109,13 @@ they do not claim that CI executed the Lean kernel.
 
 For consumers that must not hold a signing secret, the optional
 `mosaic.verification.lean_runner_signature` module provides Ed25519-signed
-attestations. The runner calls `sign_transformation_result` after the
-request-bound Lean invocation using its private key. Consumers receive only
-the signed attestation and a trusted public-key registry; they can convert it
-to an evidence event and verify it with
-`verify_evidence_event_signature`.
+attestations. The isolated runner calls `run_and_sign_transformation`, which invokes the
+request-bound Lean verifier and signs only its completed result using the
+runner's private key. Consumers receive only the signed attestation and a
+trusted public-key registry; they can convert it to an evidence event and
+verify it with `verify_evidence_event_signature`. The lower-level
+`sign_transformation_result` is also available when the trusted runner
+already holds a completed verification result.
 
 The signed payload includes the request fingerprint, exact candidate digest,
 proof-source digest, checker ID, Lean/Mathlib version, runner ID, receipt ID,
