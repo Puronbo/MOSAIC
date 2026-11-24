@@ -254,6 +254,32 @@ def sign_transformation_result(
     )
 
 
+
+def verify_attested_environment_manifest(
+    attestation: SignedLeanAttestation,
+    public_key: bytes,
+    manifest: bytes | str,
+) -> bool:
+    """Verify signed manifest digest and its commit/run/toolchain identifiers."""
+    if not attestation.verify(public_key) or not attestation.environment_manifest_sha256:
+        return False
+    try:
+        raw = manifest.encode("utf-8") if isinstance(manifest, str) else manifest
+        if not isinstance(raw, bytes):
+            return False
+        if hashlib.sha256(raw).hexdigest() != attestation.environment_manifest_sha256:
+            return False
+        payload = json.loads(raw)
+        return (
+            payload.get("source", {}).get("commit") == attestation.source_commit
+            and payload.get("execution", {}).get("run_id") == attestation.workflow_run_id
+            and payload.get("environment", {}).get("lean_toolchain") == attestation.lean_toolchain
+            and payload.get("environment", {}).get("mathlib_revision") == attestation.mathlib_revision
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError):
+        return False
+
+
 def generate_ed25519_keypair() -> tuple[bytes, bytes]:
     """Generate raw 32-byte (private, public) Ed25519 keys for provisioning."""
     from cryptography.hazmat.primitives import serialization
