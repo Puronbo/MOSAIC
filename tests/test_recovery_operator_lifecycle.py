@@ -1014,6 +1014,7 @@ def test_rotation_head_external_pin_detects_truncation_and_fork():
     from mosaic.verification.recovery_operator_lifecycle import (
         SignedOperatorLifecycleLedgerAuthorityRotation,
         SignedOperatorLifecycleLedgerAuthorityRotationHead,
+        verify_operator_lifecycle_ledger_authority_rotation_head,
         verify_operator_lifecycle_ledger_authority_rotation_head_advance,
     )
     old_sk, old_key = identity("rotation-pin-root")
