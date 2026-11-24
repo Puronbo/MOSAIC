@@ -132,28 +132,20 @@
       ],
       "properties": {
         "workflow": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string",
+          "minLength": 1
         },
         "run_id": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string",
+          "pattern": "^[0-9]+$"
         },
         "run_attempt": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string",
+          "pattern": "^[0-9]+$"
         },
         "runner_os": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string",
+          "minLength": 1
         }
       }
     },
