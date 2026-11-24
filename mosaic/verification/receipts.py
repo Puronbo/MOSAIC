@@ -247,3 +247,81 @@ def load_authenticated_receipt(data: bytes | str) -> AuthenticatedReceipt:
     if len(encoded) > MAX_RECEIPT_BYTES:
         raise ValueError("authenticated receipt exceeds the maximum serialized size")
     return AuthenticatedReceipt.model_validate_json(encoded)
+
+
+
+class ReceiptCoverageAssessment(BaseModel):
+    """Coverage report for review obligations; never a verdict on the original claim."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    obligation_count: int = Field(ge=0)
+    verified_obligation_ids: tuple[str, ...] = ()
+    unresolved_obligation_ids: tuple[str, ...] = ()
+    receipt_sha256s: tuple[str, ...] = ()
+    disposition: Literal[
+        "no-obligations",
+        "all-required-checks-formally-verified",
+        "checks-incomplete-or-not-verified",
+    ]
+    mathematical_status: Literal["EXPERIMENTAL"] = "EXPERIMENTAL"
+
+
+def assess_receipt_coverage(
+    obligations: tuple[ReviewObligation, ...] | list[ReviewObligation],
+    receipts: tuple[VerificationReceipt, ...] | list[VerificationReceipt],
+    request: MathRequest,
+) -> ReceiptCoverageAssessment:
+    """Require exact one-to-one receipt coverage before reporting review completion.
+
+    Every receipt is revalidated for digest and request binding, then matched to
+    the originating obligation and finding provenance. Missing, duplicate, extra,
+    stale, or cross-wired receipts are rejected. Even complete coverage remains
+    EXPERIMENTAL because review obligations do not necessarily prove the original
+    mathematical claim.
+    """
+    obligation_ids = [item.obligation_id for item in obligations]
+    if len(set(obligation_ids)) != len(obligation_ids):
+        raise ValueError("review obligations contain duplicate IDs")
+    receipt_ids = [item.obligation_id for item in receipts]
+    if len(set(receipt_ids)) != len(receipt_ids):
+        raise ValueError("verification receipts contain duplicate obligation IDs")
+    if set(receipt_ids) != set(obligation_ids):
+        raise ValueError("verification receipts must cover the exact obligation set")
+
+    by_id = {item.obligation_id: item for item in obligations}
+    verified: list[str] = []
+    unresolved: list[str] = []
+    digests: list[str] = []
+    for receipt in receipts:
+        validate_receipt_for_replay(receipt, request)
+        obligation = by_id[receipt.obligation_id]
+        finding = obligation.finding
+        if (
+            receipt.source_task_id != obligation.source_task_id
+            or receipt.source_agent_id != obligation.source_agent_id
+            or receipt.finding_id != finding.finding_id
+            or receipt.request_sha256 != finding.request_sha256
+            or receipt.checker_id != finding.checker_id
+        ):
+            raise ValueError("receipt provenance does not match its review obligation")
+        digests.append(receipt.receipt_sha256)
+        if receipt.status == "FORMALLY_VERIFIED":
+            verified.append(receipt.obligation_id)
+        else:
+            unresolved.append(receipt.obligation_id)
+
+    if not obligations:
+        disposition = "no-obligations"
+    elif not unresolved:
+        disposition = "all-required-checks-formally-verified"
+    else:
+        disposition = "checks-incomplete-or-not-verified"
+    return ReceiptCoverageAssessment(
+        obligation_count=len(obligations),
+        verified_obligation_ids=tuple(sorted(verified)),
+        unresolved_obligation_ids=tuple(sorted(unresolved)),
+        receipt_sha256s=tuple(sorted(digests)),
+        disposition=disposition,
+        mathematical_status="EXPERIMENTAL",
+    )
