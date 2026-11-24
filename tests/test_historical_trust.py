@@ -7,6 +7,7 @@ from mosaic.verification.historical_trust import (
     HistoricalLeanTrustedKey,
     HistoricalSignedLeanAttestation,
     verify_historical_with_keyring,
+    verify_historical_with_policy_registry,
 )
 from mosaic.verification.trust_policy import (
     HistoricalTrustPolicy, HistoricalTrustPolicyRecord,
@@ -255,4 +256,28 @@ def test_revoked_history_is_disabled_unless_policy_explicitly_allows_it():
         receipt, {"key-1": key("revoked", revoked_at_utc="2026-11-24T01:02:00Z")},
         verified_timestamp_utc=WITNESSED, timestamp_evidence_verified=True,
         trusted_policies={restrictive.digest(): policy_record},
+    )
+
+
+
+def test_historical_verification_accepts_only_checkpointed_signed_policy_registry():
+    from mosaic.verification.policy_registry import SignedPolicyRegistryEntry
+
+    registry = SignedPolicyRegistryEntry.sign(
+        sequence=0, previous_entry_sha256=None, policy_record=POLICY_RECORD,
+        published_at_utc="2026-11-24T01:02:00Z", publisher_key_id="policy-publisher",
+        private_key=PRIVATE,
+    )
+    receipt = signed()
+    args = dict(
+        verified_timestamp_utc=WITNESSED, timestamp_evidence_verified=True,
+        registry_entries=[registry], publisher_public_keys={"policy-publisher": PUBLIC},
+        expected_registry_head_sequence=0, expected_registry_head_sha256=registry.entry_sha256(),
+    )
+    assert verify_historical_with_policy_registry(receipt, {"key-1": key()}, **args)
+    assert not verify_historical_with_policy_registry(
+        receipt, {"key-1": key()}, **{**args, "expected_registry_head_sha256": "0" * 64}
+    )
+    assert not verify_historical_with_policy_registry(
+        receipt, {"key-1": key()}, **{**args, "publisher_public_keys": {}}
     )
