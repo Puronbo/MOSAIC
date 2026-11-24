@@ -201,6 +201,7 @@ jobs:
               generate_ed25519_keypair,
               replay_attested_proof_source,
               run_and_sign_transformation,
+              verify_attested_environment_manifest,
           )
 
           private_key, public_key = generate_ed25519_keypair()
@@ -225,6 +226,7 @@ jobs:
           assert attestation.environment_manifest_sha256 == hashlib.sha256(manifest_bytes).hexdigest()
           assert attestation.source_commit == manifest["source"]["commit"]
           assert attestation.workflow_run_id == manifest["execution"]["run_id"]
+          assert verify_attested_environment_manifest(attestation, public_key, manifest_bytes)
           assert replay_attested_proof_source(attestation, public_key) is True
           print("Exact signed proof source replayed successfully under pinned Lean/Mathlib.")
           PY
