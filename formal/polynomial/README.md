@@ -29,10 +29,10 @@ cached build, and runs the proof entrypoint with Lake. It then runs
 `scripts/create_lean_provenance.py`, which fails closed unless the root and
 project toolchain pins agree, the observed Lean version matches the pin, and
 the installed `.lake/packages/mathlib` checkout is exactly the Mathlib
-revision in the manifest. The output records Lean and Lake version strings,
-both toolchain-file hashes, the observed and declared Mathlib revision,
-the Lake manifest hash, source hashes, Python runtime, commit, and workflow
-identity. Its structure is described by
+revision in the manifest. The output records Lean, Lake, and Elan version strings; SHA-256 hashes of
+the resolved Lean, Lake, and Elan executables; both toolchain-file hashes;
+the observed and declared Mathlib revision; the Lake manifest hash; source
+hashes; Python runtime; commit; and workflow identity. Its structure is described by
 `schemas/lean-build-provenance-v1.schema.json`.
 
 MOSAIC's Python/CI dependencies are installed from the committed
