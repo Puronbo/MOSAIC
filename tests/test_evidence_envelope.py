@@ -180,6 +180,7 @@ def test_request_bound_lean_success_generates_kernel_event(monkeypatch):
     from mosaic.verification.lean_transformations import (
         LeanTransformationObligation, LeanTransformationVerification,
     )
+    from mosaic.verification.obligations import request_fingerprint
     from mosaic.verification.evidence_envelope import verify_transformation_with_evidence
 
     request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
@@ -188,7 +189,7 @@ def test_request_bound_lean_success_generates_kernel_event(monkeypatch):
     proof_hash = hashlib.sha256(b"generated Lean theorem").hexdigest()
     check = LeanLinearCheck(
         status="FORMALLY_VERIFIED",
-        lhs_sha256=hashlib.sha256(b"x + 1").hexdigest(),
+        lhs_sha256=hashlib.sha256(request.expression.encode()).hexdigest(),
         rhs_sha256=hashlib.sha256(result.encode()).hexdigest(),
         lean_version="Lean version 4.test",
         proof_source_sha256=proof_hash,
@@ -197,7 +198,7 @@ def test_request_bound_lean_success_generates_kernel_event(monkeypatch):
     )
     obligation = LeanTransformationObligation(
         obligation_id="obligation-1",
-        request_sha256="a" * 64,
+        request_sha256=request_fingerprint(request),
         candidate_sha256=candidate_hash,
         operation="expand",
         checker_id=check.checker_id,
@@ -248,7 +249,7 @@ def test_request_bound_lean_rejection_generates_failed_not_pass(monkeypatch):
         explanation="rejected",
     )
     obligation = LeanTransformationObligation(
-        obligation_id="obligation-2", request_sha256="b" * 64,
+        obligation_id="obligation-2", request_sha256=request_fingerprint(request),
         candidate_sha256=hashlib.sha256(result.encode()).hexdigest(),
         operation="expand", checker_id=check.checker_id,
         proposition="x + 1 = x + 2", variables=("x",),
