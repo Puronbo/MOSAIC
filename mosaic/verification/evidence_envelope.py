@@ -61,14 +61,13 @@ class EvidenceEvent(BaseModel):
                 raise ValueError("kernel-check events must have outcome PASSED or FAILED")
             if not self.kernel_id or not self.kernel_version or not self.proof_artifact_sha256:
                 raise ValueError("kernel events require kernel identity, version, and proof artifact digest")
-            runner_fields = (
-                self.runner_id, self.runner_receipt_id,
-                self.runner_request_sha256, self.runner_mac_sha256,
+            runner_identity = (
+                self.runner_id, self.runner_receipt_id, self.runner_request_sha256,
             )
-            if any(value is not None for value in runner_fields) and not all(
-                value is not None for value in runner_fields
+            if any(value is not None for value in runner_identity) and not all(
+                value is not None for value in runner_identity
             ):
-                raise ValueError("authenticated runner metadata must be supplied as a complete set")
+                raise ValueError("runner identity and request metadata must be supplied together")
             signature_fields = (
                 self.runner_signature_b64, self.runner_signature_algorithm,
                 self.runner_key_id,
@@ -79,10 +78,20 @@ class EvidenceEvent(BaseModel):
                 raise ValueError("signed runner metadata must be supplied as a complete set")
             if self.runner_signature_algorithm not in {None, "Ed25519"}:
                 raise ValueError("unsupported runner signature algorithm")
+            if self.runner_mac_sha256 is not None and not all(
+                value is not None for value in runner_identity
+            ):
+                raise ValueError("HMAC metadata requires runner identity and request hash")
             if all(value is not None for value in signature_fields) and not all(
-                value is not None for value in runner_fields
+                value is not None for value in runner_identity
             ):
                 raise ValueError("signed runner metadata requires receipt identity and request hash")
+            if any(value is not None for value in runner_identity) and (
+                self.runner_mac_sha256 is None and not all(
+                    value is not None for value in signature_fields
+                )
+            ):
+                raise ValueError("runner metadata requires an HMAC or public-key signature")
         elif any(value is not None for value in (
             self.kernel_id, self.kernel_version, self.proof_artifact_sha256,
             self.runner_id, self.runner_receipt_id, self.runner_request_sha256,
