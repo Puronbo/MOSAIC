@@ -88,6 +88,9 @@ def verify_gh_attestation_result(
             if certificate.get(field) != expected:
                 raise AttestationPolicyError(f"attestation {index} certificate field {field} does not match policy")
 
+        if rules["require_github_hosted_runner"] and certificate.get("runnerEnvironment") != "github-hosted":
+            raise AttestationPolicyError(f"attestation {index} was not produced on a GitHub-hosted runner")
+
         expected_workflow_uri = expected_signer_prefix + rules["workflow_ref"]
         signer = certificate.get("buildSignerURI")
         config = certificate.get("buildConfigURI")
@@ -95,7 +98,7 @@ def verify_gh_attestation_result(
             raise AttestationPolicyError(f"attestation {index} signer/config URI does not exactly match policy")
 
         invocation = certificate.get("runInvocationURI")
-        run_pattern = rf"^https://github\\.com/{re.escape(rules['repository'])}/actions/runs/{re.escape(str(expected_run_id))}/attempts/[1-9][0-9]*$"
+        run_pattern = rf"^https://github\.com/{re.escape(rules['repository'])}/actions/runs/{re.escape(str(expected_run_id))}/attempts/[1-9][0-9]*$"
         if not isinstance(invocation, str) or not re.fullmatch(run_pattern, invocation):
             raise AttestationPolicyError(f"attestation {index} run invocation does not match the expected workflow run")
 
