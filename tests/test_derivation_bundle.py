@@ -78,3 +78,54 @@ def test_derivation_bundle_rejects_candidate_size_and_count_overflow():
     too_many = {f"unknown-{i}": "" for i in range(257)}
     with pytest.raises(ValueError, match="bounded dictionary"):
         create_derivation_bundle(source, tree, too_many)
+
+
+def test_derivation_bundle_reaches_duplicate_candidate_guard_after_resealing():
+    from mosaic.verification.derivation_bundle import DerivationCandidate, _digest
+
+    source = request()
+    tree = build_derivation_tree(source)
+    bundle = create_derivation_bundle(source, tree, {})
+    obligation_id = bundle.graph.nodes[0].obligation.obligation_id
+    duplicate = bundle.model_copy(update={
+        "candidates": (
+            DerivationCandidate(obligation_id=obligation_id, payload="first"),
+            DerivationCandidate(obligation_id=obligation_id, payload="second"),
+        ),
+        "bundle_sha256": "0" * 64,
+    })
+    duplicate = duplicate.model_copy(update={"bundle_sha256": _digest(duplicate)})
+    with pytest.raises(ValueError, match="duplicate candidate"):
+        validate_derivation_bundle(source, duplicate)
+
+
+def test_derivation_bundle_rejects_resealed_graph_and_result_tampering():
+    from mosaic.verification.derivation_bundle import _digest
+
+    source = request()
+    bundle = create_derivation_bundle(source, build_derivation_tree(source), {})
+    altered_graph = bundle.model_copy(update={
+        "graph": bundle.graph.model_copy(update={"nodes": ()}),
+        "bundle_sha256": "0" * 64,
+    })
+    altered_graph = altered_graph.model_copy(update={
+        "bundle_sha256": _digest(altered_graph)
+    })
+    with pytest.raises(ValueError, match="graph does not match"):
+        validate_derivation_bundle(source, altered_graph)
+
+    altered_result = bundle.model_copy(update={
+        "result": bundle.result.model_copy(update={"status": "VERIFIED"}),
+        "bundle_sha256": "0" * 64,
+    })
+    altered_result = altered_result.model_copy(update={
+        "bundle_sha256": _digest(altered_result)
+    })
+    with pytest.raises(ValueError, match="result does not match"):
+        validate_derivation_bundle(source, altered_result)
+
+
+@pytest.mark.parametrize("payload", [b"", b"{", b"[]", b'{"unexpected":true}'])
+def test_derivation_bundle_loader_rejects_malformed_or_wrong_shape_json(payload):
+    with pytest.raises((ValueError, TypeError)):
+        load_derivation_bundle(payload)
