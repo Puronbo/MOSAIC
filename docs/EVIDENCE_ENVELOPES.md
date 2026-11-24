@@ -880,3 +880,35 @@ preserve those legacy rows and their original external evidence packages.
 The hash chain is an integrity structure, not a signature or external
 timestamp. Database rollback, audit-head custody, evidence retention, and
 operator-key governance remain deployment responsibilities.
+
+
+
+### Audit verification lifecycle and legacy handling (G-EP104)
+
+G-EP104 adds
+`verify_rebootstrap_audit_export_report(...)`, returning a structured
+`RecoveryPolicyCheckpointAuditVerificationReport` with status,
+record/verified/legacy counts, the verifiable chain head, an optional expected
+head, and diagnostic errors. Statuses distinguish `verified`, `empty`,
+`legacy_unverifiable`, and `invalid`. The boolean
+`verify_rebootstrap_audit_export(...)` remains a strict compatibility
+wrapper: it returns true only for fully verified or genuinely empty exports.
+Legacy rows are preserved and explicitly counted, never silently promoted to
+verified evidence.
+
+New v1 records chain from the most recent verifiable v1 record. If a database
+contains only pre-G-EP103 rows, the first v1 record starts a fresh chain at
+the zero digest; the legacy rows remain visible in the export but do not
+pretend to authenticate that chain's predecessor. The export head identifies
+the latest verifiable v1 record, or the zero digest when none exists.
+Operators should retain the report and expected head outside the SQLite
+database. An externally retained head detects database rollback that removes
+later audit records; without that independent anchor, a self-consistent old
+database image cannot prove that it is stale.
+
+This report classifies historical records, not their truth. A legacy row is
+unverifiable because it lacks the signed policy-registry material introduced
+in G-EP103; it is not thereby proven malicious or intact. SQLite transaction
+atomicity protects a rebootstrap operation against partial commits, but
+database replacement, backup rollback, external-head custody, and genuinely
+independent operator-key administration remain deployment responsibilities.
