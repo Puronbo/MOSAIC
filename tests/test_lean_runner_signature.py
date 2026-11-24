@@ -437,7 +437,7 @@ def test_strict_json_rejects_nonstandard_constants_and_lone_surrogates():
     with pytest.raises(ValueError, match="non-standard JSON constant"):
         _strict_json_loads('{"value":NaN}')
     with pytest.raises(ValueError, match="Unicode scalar"):
-        _strict_json_loads('{"value":"\\\\ud800"}')
+        _strict_json_loads('{"value":"\\ud800"}')
 
 
 def test_unicode_v1_conformance_vector_matches_python_canonical_bytes():
