@@ -40,6 +40,11 @@ class EvidenceEvent(BaseModel):
     kernel_version: str | None = Field(default=None, max_length=80)
     proof_artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     runner_proof_source: str | None = Field(default=None, max_length=10000)
+    runner_environment_manifest_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runner_source_commit: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
+    runner_workflow_run_id: str | None = Field(default=None, min_length=1, max_length=40)
+    runner_lean_toolchain: str | None = Field(default=None, max_length=160)
+    runner_mathlib_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
     runner_id: str | None = Field(default=None, max_length=160)
     runner_receipt_id: str | None = Field(default=None, max_length=120)
     runner_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -87,6 +92,15 @@ class EvidenceEvent(BaseModel):
                 value is not None for value in runner_identity
             ):
                 raise ValueError("signed runner metadata requires receipt identity and request hash")
+            environment_fields = (
+                self.runner_environment_manifest_sha256, self.runner_source_commit,
+                self.runner_workflow_run_id, self.runner_lean_toolchain,
+                self.runner_mathlib_revision,
+            )
+            if any(value is not None for value in environment_fields) and not all(
+                value is not None for value in environment_fields
+            ):
+                raise ValueError("runner environment provenance must be supplied as a complete set")
             if self.runner_signature_algorithm == "Ed25519" and not self.runner_proof_source:
                 raise ValueError("Ed25519 runner events must retain the exact signed proof source")
             if self.runner_proof_source is not None and hashlib.sha256(
@@ -104,7 +118,9 @@ class EvidenceEvent(BaseModel):
             self.runner_id, self.runner_receipt_id, self.runner_request_sha256,
             self.runner_mac_sha256, self.runner_signature_b64,
             self.runner_signature_algorithm, self.runner_key_id,
-            self.runner_proof_source,
+            self.runner_proof_source, self.runner_environment_manifest_sha256,
+            self.runner_source_commit, self.runner_workflow_run_id,
+            self.runner_lean_toolchain, self.runner_mathlib_revision,
         )):
             raise ValueError("kernel metadata is only valid for FORMAL_KERNEL_CHECK")
         return self
