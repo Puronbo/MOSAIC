@@ -76,3 +76,11 @@ present. Both declared and observed Mathlib revisions must be full lowercase
 40-character Git object IDs, and the Lean toolchain identifier must match the
 project's pinned version. These checks prevent incomplete local or hand-edited
 metadata from being treated as a CI-produced replay environment.
+
+
+The provenance generator itself now refuses to emit a CI manifest if any
+GitHub Actions identity field is absent or malformed. It requires repository,
+workflow name, numeric run ID, numeric run attempt, and runner OS, and checks
+that the source revision is a full lowercase commit ID. This avoids producing
+a superficially successful but schema-invalid manifest outside a fully
+identified CI execution.
