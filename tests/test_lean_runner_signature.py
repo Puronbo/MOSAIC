@@ -429,3 +429,12 @@ def test_manifest_verifier_rejects_duplicate_environment_fields():
         mathlib_revision="c" * 40,
     )
     assert not verify_attested_environment_manifest(signed, public, raw)
+
+
+def test_strict_json_rejects_nonstandard_constants_and_lone_surrogates():
+    from mosaic.verification.lean_runner_signature import _strict_json_loads
+
+    with pytest.raises(ValueError, match="non-standard JSON constant"):
+        _strict_json_loads('{"value":NaN}')
+    with pytest.raises(ValueError, match="Unicode scalar"):
+        _strict_json_loads('{"value":"\\\\ud800"}')
