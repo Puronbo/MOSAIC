@@ -1396,3 +1396,28 @@ must atomically persist each accepted new rotation-head checkpoint in an
 independent control plane; the helper does not provide distributed consensus,
 trusted timestamping, or immutable storage. A rotation chain without an
 independent latest-head pin remains susceptible to wholesale rollback.
+
+
+### G-EP126: composition of external rotation pins and restore-ledger heads
+
+`verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(...)`
+composes the G-EP125 rotation-chain checkpoint with the G-EP121 restore-ledger
+head. It first verifies the supplied rotation history from the independently
+provisioned initial key against the caller's exact expected rotation sequence
+and digest and the separately retained signed rotation head. It then requires
+the restore-ledger head to be signed by the active key established by that
+verified rotation history and checks its exact registry, event sequence,
+ledger-entry digest, and optional receipt digest pins.
+
+The restore-ledger head's issuance time must not precede the final rotation's
+effective time. This prevents a valid signature from an incoming key from
+being presented as a ledger-head statement issued before that key's declared
+activation. The helper also accepts an authorization-time bound, which callers
+may use when their environment has a trusted time policy.
+
+This is composition of signed evidence, not a new trust root. The initial
+rotation key, expected rotation sequence/digest, external rotation-head
+checkpoint, receipt authority keyring, and restore-ledger expectations must
+still be supplied through independently controlled channels. Issuance and
+effective timestamps are signed policy data, not trusted timestamps; this
+helper does not provide consensus, trusted time, or immutable storage.
