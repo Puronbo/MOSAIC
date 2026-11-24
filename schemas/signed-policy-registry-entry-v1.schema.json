@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/signed-policy-registry-entry-v1.schema.json",
+  "title": "MOSAIC Signed Policy Registry Entry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sequence",
+    "previous_entry_sha256",
+    "policy_record",
+    "published_at_utc",
+    "publisher_key_id",
+    "signature_b64"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mosaic.signed-policy-registry-entry.v1"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "previous_entry_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "policy_record": {
+      "$ref": "historical-trust-policy-record-v1.schema.json"
+    },
+    "published_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "publisher_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "signature_b64": {
+      "type": "string",
+      "minLength": 88,
+      "maxLength": 88
+    }
+  }
+}
