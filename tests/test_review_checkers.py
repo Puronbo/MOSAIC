@@ -1,5 +1,3 @@
-import hashlib
-
 from mosaic.core.orchestration import (
     ReviewFinding, ReviewFindingKind, ReviewObligation,
 )
