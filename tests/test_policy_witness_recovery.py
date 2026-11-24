@@ -311,6 +311,15 @@ def test_recovery_can_require_registry_policy_and_trusted_checkpoint(tmp_path):
         entry=policy_entry, issued_at_utc="2026-11-24T05:31:00Z",
         signer_key_id="log-signer", private_key=LOG_PRIVATE,
     )
+    from mosaic.verification.recovery_policy_checkpoint_state import RecoveryPolicyCheckpointStore
+    policy_checkpoint_store = RecoveryPolicyCheckpointStore(
+        tmp_path / "recovery-policy-checkpoints.sqlite3"
+    )
+    assert policy_checkpoint_store.pin_checkpoint(
+        [policy_entry], checkpoint=policy_checkpoint,
+        publisher_keyring={"entry-publisher": SIGNERS["entry-publisher"]},
+        checkpoint_keyring={"log-signer": SIGNERS["log-signer"]},
+    )
     common = {
         "witness_keyring": {"witness-1": WITNESS_KEY},
         "signer_keyring": SIGNERS, "operator_keyring": operators,
@@ -319,6 +328,7 @@ def test_recovery_can_require_registry_policy_and_trusted_checkpoint(tmp_path):
         "recovery_policy_registry_entries": [policy_entry],
         "recovery_policy_publisher_keyring": {"entry-publisher": SIGNERS["entry-publisher"]},
         "recovery_policy_checkpoint_keyring": {"log-signer": SIGNERS["log-signer"]},
+        "recovery_policy_checkpoint_store": policy_checkpoint_store,
     }
 
     assert not target.recover_from_signed_snapshot(
