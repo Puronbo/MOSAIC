@@ -4,7 +4,7 @@ from mosaic.core.orchestration import ReviewFinding, ReviewFindingKind, ReviewOb
 from mosaic.core.requests import MathRequest
 from mosaic.core.types import Operation
 from mosaic.verification.obligations import obligations_for_request, request_fingerprint
-from mosaic.verification.review_checkers import ReviewCheckerReceipt
+from mosaic.verification.review_checkers import ReviewCheckerReceipt, check_review_obligation_with_lean
 from mosaic.verification.lean_obligations import LeanIdentityVerification
 from mosaic.verification.receipts import (
     ReceiptStore, VerificationReceipt, load_receipt, serialize_receipt,
@@ -168,3 +168,34 @@ def test_file_store_rejects_path_injection_identifier(tmp_path):
     store = ReceiptStore(tmp_path / "receipts")
     with pytest.raises(ValueError, match="identifier"):
         store.load("../outside", _request())
+
+
+def test_end_to_end_request_checker_receipt_persist_and_replay(tmp_path, monkeypatch):
+    from mosaic.verification.lean_obligations import LeanIdentityVerification
+
+    request = _request()
+    obligation = _obligation(request)
+
+    def fake_lean(actual_request):
+        assert actual_request == request
+        return LeanIdentityVerification(
+            status="FORMALLY_VERIFIED",
+            explanation="Test kernel accepted the request-bound identity.",
+        )
+
+    monkeypatch.setattr(
+        "mosaic.verification.review_checkers.verify_request_identity_with_lean",
+        fake_lean,
+    )
+    checker_result = check_review_obligation_with_lean(obligation, request)
+    receipt = VerificationReceipt.issue(obligation, checker_result)
+    store = ReceiptStore(tmp_path / "receipts")
+    store.save(receipt)
+
+    replayed = ReceiptStore(tmp_path / "receipts").load(
+        receipt.receipt_sha256, request
+    )
+    assert replayed.status == "FORMALLY_VERIFIED"
+    assert replayed.request_sha256 == request_fingerprint(request)
+    assert replayed.source_task_id == obligation.source_task_id
+    assert replayed.finding_id == obligation.finding.finding_id
