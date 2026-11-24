@@ -20,6 +20,7 @@ from mosaic.verification.lean_runner_signature import (
     SignedLeanAttestation,
     replay_attested_proof_source,
     verify_lean_proof_receipt_bundle,
+    _strict_json_loads,
 )
 from mosaic.verification.obligations import request_fingerprint
 
@@ -35,9 +36,9 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        receipt = json.loads(args.receipt.read_text(encoding="utf-8"))
+        receipt = _strict_json_loads(args.receipt.read_text(encoding="utf-8"))
         manifest = args.manifest.read_bytes()
-        request = MathRequest.model_validate_json(args.request.read_text(encoding="utf-8"))
+        request = MathRequest.model_validate(_strict_json_loads(args.request.read_text(encoding="utf-8")))
         candidate = args.candidate.read_bytes()
         public_key = base64.b64decode(args.public_key_b64.read_text(encoding="ascii").strip(), validate=True)
         if len(public_key) != 32:
