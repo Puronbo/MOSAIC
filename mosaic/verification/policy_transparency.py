@@ -148,21 +148,18 @@ def verify_policy_checkpoint(
     The registry prefix is verified by exact entry digests, not a Merkle proof.
     The caller remains responsible for persisting and distributing trusted heads.
     """
-    from mosaic.verification.policy_registry import verify_policy_registry
+    from mosaic.verification.policy_governance import verify_policy_registry_with_keyring
     if (not isinstance(checkpoint, PolicyRegistryCheckpoint)
             or not isinstance(entries, list) or not entries
+            or not isinstance(signer_keyring, dict)
             or minimum_witnesses < 0):
         return False
     if checkpoint.sequence != len(entries) - 1:
         return False
     if entries[-1].entry_sha256() != checkpoint.head_entry_sha256:
         return False
-    if not verify_policy_registry(
-        entries, publisher_public_keys={
-            key_id: record.public_key()
-            for key_id, record in signer_keyring.items()
-            if isinstance(record, PolicyPublisherKey) and record.public_key() is not None
-        },
+    if not verify_policy_registry_with_keyring(
+        entries, publisher_keyring=signer_keyring,
     ):
         return False
     if not checkpoint.verify_signature(signer_keyring):
@@ -183,13 +180,9 @@ def verify_policy_checkpoint(
         # Re-check the old checkpoint's signature and its exact registry prefix.
         if not previous_checkpoint.verify_signature(signer_keyring):
             return False
-        if not verify_policy_registry(
+        if not verify_policy_registry_with_keyring(
             entries[:previous_checkpoint.sequence + 1],
-            publisher_public_keys={
-                key_id: record.public_key()
-                for key_id, record in signer_keyring.items()
-                if isinstance(record, PolicyPublisherKey) and record.public_key() is not None
-            },
+            publisher_keyring=signer_keyring,
         ):
             return False
 
