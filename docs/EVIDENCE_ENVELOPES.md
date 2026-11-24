@@ -968,3 +968,36 @@ must resolve competing evidence and authorize a single intended selection
 before enabling simultaneous submissions where deterministic priority is
 required. The test covers one shared SQLite database, not competing copies,
 distributed consensus, or independent human judgment.
+
+
+
+### Recovery proposal attribution and execution-time key lifecycle (G-EP107)
+
+The recovery API accepts an optional `authorization_time_utc`. When supplied,
+the implementation checks every proposing and approving operator key against
+its activation and revocation interval at that authorization time, and rejects
+future-dated approvals. Thus a signature can remain historically verifiable
+while no longer being eligible to authorize a new recovery transition after
+the signer's key is revoked. The check occurs before the transactional state
+change. Deployments should supply a trusted, canonical UTC time; omission
+retains backward compatibility by evaluating lifecycle status at the latest
+approval timestamp, which does not detect revocation occurring after signing.
+
+Historical audit verification intentionally continues to validate signatures
+at their signed times. Later revocation does not retroactively erase the
+cryptographic fact that an approval was signed; it does prevent that key from
+authorizing a later transaction when execution-time checking is enabled.
+
+`report_rebootstrap_proposal_conflicts` compares submitted intent digests
+with retained v1 audit records. It attributes a submitted proposal as the
+winner only when its exact digest appears in the audit, and reports unmatched
+proposals as unattributed. If multiple submitted proposals appear across
+multiple retained epochs, the latest matching audit record determines the
+reported winner; audit order, not caller order, timestamps, or digest sorting,
+provides attribution. This report does not validate evidence quality, select
+a winner, or prove that the selected policy is mathematically correct.
+
+The execution-time check depends on the caller's keyring being a current and
+authoritative lifecycle snapshot and on a trustworthy authorization clock.
+A stale or attacker-controlled keyring/time can defeat the check; key
+revocation distribution and clock trust remain deployment responsibilities.
