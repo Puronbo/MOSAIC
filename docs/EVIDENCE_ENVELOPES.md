@@ -146,10 +146,12 @@ separators, and Unicode scalar values emitted directly (`ensure_ascii=False`).
 JSON object keys and string values must be valid Unicode scalar sequences;
 duplicate keys, non-standard constants such as NaN/Infinity, and malformed
 UTF-8 are rejected. The current signed fields contain no JSON numbers, which
-avoids cross-language numeric formatting differences. The conformance vector in
-`tests/fixtures/lean_receipt_v1_vector.json` fixes the canonical payload hash,
-raw key pair, and deterministic Ed25519 signature so independent
-implementations can test byte-for-byte compatibility.
+avoids cross-language numeric formatting differences. The conformance vectors in
+`tests/fixtures/lean_receipt_v1_vector.json` and
+`tests/fixtures/lean_receipt_v1_unicode_vector.json` fix canonical payload
+hashes and deterministic Ed25519 signatures, including non-ASCII text and a
+supplementary Unicode character, so independent implementations can test
+byte-for-byte compatibility.
 
 Consumers can maintain a `LeanTrustedKey` registry and call
 `verify_with_keyring`. Keys marked `active` can verify current receipts;
