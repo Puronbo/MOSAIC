@@ -10,7 +10,6 @@ import hashlib
 import json
 import os
 import platform
-import sys
 from importlib import metadata
 from pathlib import Path
 from typing import Any
@@ -79,6 +78,12 @@ def main() -> int:
     parser.add_argument("--authorization-time-utc",
                         help="Optional canonical UTC policy bound, supplied independently")
     args = parser.parse_args()
+
+    if args.provenance:
+        print(json.dumps(_execution_provenance(), sort_keys=True, indent=2))
+        return 0
+    if args.envelope is None or args.trust is None:
+        parser.error("--envelope and --trust are required unless --provenance is used")
 
     try:
         envelope = OperatorLifecycleRecoveryEvidenceEnvelope.model_validate(
