@@ -270,6 +270,73 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         except self._sqlite3.Error:
             return None
 
+    def export_receipt(self, *, checkpoint: SignedOperatorLifecycleCheckpoint,
+                       issued_at_utc: str, private_key: bytes) -> "SignedOperatorLifecycleTrustAnchorReceipt | None":
+        """Sign a portable receipt only when the checkpoint is the retained store head."""
+        if not isinstance(checkpoint, SignedOperatorLifecycleCheckpoint):
+            return None
+        try:
+            head = self.read(checkpoint.registry_id)
+            if (head is None or head["sequence"] != checkpoint.sequence
+                    or head["checkpoint_sha256"] != checkpoint.digest()):
+                return None
+            return SignedOperatorLifecycleTrustAnchorReceipt.sign(
+                checkpoint=checkpoint, issued_at_utc=issued_at_utc,
+                private_key=private_key)
+        except (ValueError, TypeError):
+            return None
+
+    def restore_receipt(self, receipt: "SignedOperatorLifecycleTrustAnchorReceipt",
+                        checkpoint: SignedOperatorLifecycleCheckpoint, *,
+                        authority_keyring: dict[str, PolicyPublisherKey],
+                        expected_registry_id: str,
+                        expected_checkpoint_sha256: str,
+                        expected_sequence: int,
+                        authorization_time_utc: str | None = None,
+                        allow_initial: bool = False) -> bool:
+        """Restore an externally pinned receipt into an empty store, or accept an exact replay.
+
+        This deliberately does not advance an existing head. Advancing requires the
+        complete predecessor checkpoint and the ordinary contiguous-advance verifier.
+        """
+        if not verify_operator_lifecycle_trust_anchor_receipt(
+            receipt, checkpoint, authority_keyring=authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_checkpoint_sha256=expected_checkpoint_sha256,
+            expected_sequence=expected_sequence,
+            authorization_time_utc=authorization_time_utc):
+            return False
+        try:
+            with self._connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT sequence, checkpoint_sha256 FROM lifecycle_trust_anchor WHERE registry_id=?",
+                    (expected_registry_id,)
+                ).fetchone()
+                if row is not None:
+                    accepted = (row[0] == expected_sequence
+                                and row[1] == expected_checkpoint_sha256)
+                    if accepted:
+                        connection.commit()
+                    else:
+                        connection.rollback()
+                    return accepted
+                if not allow_initial:
+                    connection.rollback()
+                    return False
+                cursor = connection.execute(
+                    "INSERT INTO lifecycle_trust_anchor "
+                    "(registry_id, sequence, checkpoint_sha256, updated_at_utc) VALUES (?, ?, ?, ?)",
+                    (expected_registry_id, expected_sequence,
+                     expected_checkpoint_sha256, receipt.issued_at_utc))
+                if cursor.rowcount != 1:
+                    connection.rollback()
+                    return False
+                connection.commit()
+                return True
+        except (ValueError, TypeError, self._sqlite3.Error):
+            return False
+
     def advance(self, previous: SignedOperatorLifecycleCheckpoint,
                 candidate: SignedOperatorLifecycleCheckpoint, *,
                 authority_keyring: dict[str, PolicyPublisherKey],
