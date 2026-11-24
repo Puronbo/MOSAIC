@@ -506,3 +506,39 @@ A compromised publisher can still sign false statements before its revocation
 is recorded, and a quorum is only as independent as the people and systems
 controlling its keys. No automatic publisher-key rotation, hardware-backed
 signing, transparency-log publication, or anti-equivocation gossip is claimed.
+
+
+## Policy-registry transparency checkpoints and equivocation
+
+G-EP92 adds `mosaic.verification.policy_transparency`. A
+`PolicyRegistryCheckpoint` signs a named log ID, sequence, exact signed-entry
+head digest, previous-checkpoint digest, issuance time, and signer key ID.
+The checkpoint signer is checked against the independently provisioned
+publisher-key lifecycle keyring. Its normative schema is
+`schemas/policy-registry-checkpoint-v1.schema.json`.
+
+A checkpoint can carry independent `PolicyCheckpointWitness` signatures over
+the exact checkpoint digest. Witness keys have their own independently
+provisioned lifecycle records; duplicate witness IDs, unknown keys, invalid
+signatures, pre-checkpoint witness times, and revoked/not-yet-active keys are
+rejected. The witness record is specified by
+`schemas/policy-checkpoint-witness-v1.schema.json`. Consumers can require a
+minimum distinct-witness quorum.
+
+When a previously trusted checkpoint is supplied, verification requires the
+same log ID, a strictly increasing sequence, an exact link to the prior
+checkpoint digest, and the old head digest at its sequence in the supplied
+new registry prefix. The complete entry chain is signature- and hash-link
+verified. This is an explicit prefix check over supplied entries, not a
+cryptographic Merkle consistency proof. A caller must retain the old trusted
+checkpoint and obtain the new one through an authenticated channel.
+
+`find_checkpoint_equivocations` reports different head digests presented for
+the same log ID and sequence. This provides a deterministic local detector
+when a consumer has collected multiple views; it does not discover split
+views by itself. The repository does not yet operate a distributed witness
+network, publish checkpoints to a public transparency service, exchange
+gossip, or guarantee freshness. Witness quorum independence depends on
+separate key custody, and a signed checkpoint timestamp is still a signer
+claim rather than trusted timestamp evidence. Consumers must persist trusted
+checkpoints outside the registry and compare independently obtained views.
