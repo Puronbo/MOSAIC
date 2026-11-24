@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/historical-trust-policy-v1.schema.json",
+  "title": "MOSAIC Historical Trust Policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policy_id", "policy_version", "allowed_kernel_ids", "allowed_checker_ids", "require_external_timestamp", "allow_retired_key_history", "allow_revoked_key_history", "max_timestamp_lag_seconds"],
+  "properties": {
+    "schema_version": { "const": "mosaic.historical-trust-policy.v1" },
+    "policy_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "policy_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "allowed_kernel_ids": { "type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "allowed_checker_ids": { "type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "require_external_timestamp": { "const": true },
+    "allow_retired_key_history": { "type": "boolean" },
+    "allow_revoked_key_history": { "type": "boolean" },
+    "max_timestamp_lag_seconds": { "type": "integer", "minimum": 0, "maximum": 2592000 }
+  }
+}
