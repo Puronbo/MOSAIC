@@ -39,6 +39,7 @@ class EvidenceEvent(BaseModel):
     kernel_id: str | None = Field(default=None, max_length=160)
     kernel_version: str | None = Field(default=None, max_length=80)
     proof_artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runner_proof_source: str | None = Field(default=None, max_length=10000)
     runner_id: str | None = Field(default=None, max_length=160)
     runner_receipt_id: str | None = Field(default=None, max_length=120)
     runner_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -86,6 +87,12 @@ class EvidenceEvent(BaseModel):
                 value is not None for value in runner_identity
             ):
                 raise ValueError("signed runner metadata requires receipt identity and request hash")
+            if self.runner_signature_algorithm == "Ed25519" and not self.runner_proof_source:
+                raise ValueError("Ed25519 runner events must retain the exact signed proof source")
+            if self.runner_proof_source is not None and hashlib.sha256(
+                self.runner_proof_source.encode("utf-8")
+            ).hexdigest() != self.proof_artifact_sha256:
+                raise ValueError("retained runner proof source does not match its digest")
             if any(value is not None for value in runner_identity) and (
                 self.runner_mac_sha256 is None and not all(
                     value is not None for value in signature_fields
@@ -97,6 +104,7 @@ class EvidenceEvent(BaseModel):
             self.runner_id, self.runner_receipt_id, self.runner_request_sha256,
             self.runner_mac_sha256, self.runner_signature_b64,
             self.runner_signature_algorithm, self.runner_key_id,
+            self.runner_proof_source,
         )):
             raise ValueError("kernel metadata is only valid for FORMAL_KERNEL_CHECK")
         return self
