@@ -196,7 +196,7 @@ a formal proof.
 The polynomial project pins Lean 4.36.0 and Mathlib commit
 `fc4f59e577feb1a4956671bc04ac18aaaf8cd842`. Its real-kernel CI workflow
 tests accepted identities, a rejected identity, unsupported syntax, and a
-request-bound proof. See [the polynomial backend contract](docs/LEAN_POLYNOMIAL_BACKEND.md),
+request-bound proof. After successful Lean checks, CI records the observed Lean/Mathlib pins, Lake manifest digest, source digests, commit, and workflow identity in `lean-provenance.json` and signs that manifest with a GitHub artifact attestation. Verify a downloaded manifest with `gh attestation verify lean-provenance.json -R Puronbo/MOSAIC`. This attests the environment manifest, not each temporary proof source or the integrity of the runner host. See [the polynomial backend contract](docs/LEAN_POLYNOMIAL_BACKEND.md),
 [the architecture](docs/ARCHITECTURE.md), and [security limitations](SECURITY.md).
 
 A polynomial proof over `Int` does not establish rational-function domain
