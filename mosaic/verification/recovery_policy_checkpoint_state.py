@@ -31,7 +31,8 @@ class RecoveryPolicyCheckpointStore:
                     registry_id TEXT PRIMARY KEY,
                     checkpoint_json TEXT NOT NULL,
                     checkpoint_sha256 TEXT NOT NULL,
-                    quarantined INTEGER NOT NULL DEFAULT 0
+                    quarantined INTEGER NOT NULL DEFAULT 0,
+                    epoch INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE TABLE IF NOT EXISTS recovery_policy_history (
                     registry_id TEXT NOT NULL,
@@ -39,6 +40,18 @@ class RecoveryPolicyCheckpointStore:
                     checkpoint_sha256 TEXT NOT NULL,
                     checkpoint_json TEXT NOT NULL,
                     PRIMARY KEY (registry_id, sequence)
+                );
+                CREATE TABLE IF NOT EXISTS recovery_policy_epoch_entries (
+                    registry_id TEXT NOT NULL, epoch INTEGER NOT NULL,
+                    sequence INTEGER NOT NULL, entry_sha256 TEXT NOT NULL,
+                    entry_json TEXT NOT NULL,
+                    PRIMARY KEY (registry_id, epoch, sequence)
+                );
+                CREATE TABLE IF NOT EXISTS recovery_policy_rebootstrap_audit (
+                    intent_sha256 TEXT PRIMARY KEY, registry_id TEXT NOT NULL,
+                    epoch INTEGER NOT NULL, audit_json TEXT NOT NULL,
+                    recorded_at_utc TEXT NOT NULL DEFAULT
+                      (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
                 );
                 CREATE TABLE IF NOT EXISTS recovery_policy_incidents (
                     incident_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,6 +62,16 @@ class RecoveryPolicyCheckpointStore:
                     observed_at_utc TEXT NOT NULL DEFAULT
                       (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
                 );
+            """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(recovery_policy_heads)")}
+            if "epoch" not in columns:
+                db.execute("ALTER TABLE recovery_policy_heads ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0")
+            db.execute("""
+                INSERT OR IGNORE INTO recovery_policy_epoch_entries
+                    (registry_id, epoch, sequence, entry_sha256, entry_json)
+                SELECT h.registry_id, 0, h.sequence,
+                       json_extract(h.checkpoint_json, '$.entry_sha256'), h.checkpoint_json
+                FROM recovery_policy_history h
             """)
 
     @contextmanager
@@ -84,12 +107,12 @@ class RecoveryPolicyCheckpointStore:
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
-                "SELECT checkpoint_json, checkpoint_sha256, quarantined FROM recovery_policy_heads WHERE registry_id=?",
+                "SELECT checkpoint_json, checkpoint_sha256, quarantined, epoch FROM recovery_policy_heads WHERE registry_id=?",
                 (checkpoint.registry_id,),
             ).fetchone()
             if row is None:
                 db.execute(
-                    "INSERT INTO recovery_policy_heads VALUES (?, ?, ?, 0)",
+                    "INSERT INTO recovery_policy_heads (registry_id, checkpoint_json, checkpoint_sha256, quarantined, epoch) VALUES (?, ?, ?, 0, 0)",
                     (checkpoint.registry_id, digest, checkpoint_hash),
                 )
                 db.execute(
@@ -126,12 +149,12 @@ class RecoveryPolicyCheckpointStore:
             # A higher signed sequence is accepted only if every retained
             # sequence remains an exact prefix of the newly verified registry.
             retained_rows = db.execute(
-                "SELECT sequence, checkpoint_json FROM recovery_policy_history WHERE registry_id=? ORDER BY sequence",
-                (checkpoint.registry_id,),
+                "SELECT sequence, entry_sha256 FROM recovery_policy_epoch_entries WHERE registry_id=? AND epoch=? ORDER BY sequence",
+                (checkpoint.registry_id, row["epoch"]),
             ).fetchall()
             for history_row in retained_rows:
                 seq = history_row["sequence"]
-                if seq >= len(entries) or entries[seq].digest() != SignedPolicyWitnessRecoveryPolicyCheckpoint.model_validate_json(history_row["checkpoint_json"]).entry_sha256:
+                if seq >= len(entries) or entries[seq].digest() != history_row["entry_sha256"]:
                     db.execute(
                         "UPDATE recovery_policy_heads SET quarantined=1 WHERE registry_id=?",
                         (checkpoint.registry_id,),
@@ -149,6 +172,11 @@ class RecoveryPolicyCheckpointStore:
             db.execute(
                 "INSERT OR REPLACE INTO recovery_policy_history VALUES (?, ?, ?, ?)",
                 (checkpoint.registry_id, checkpoint.sequence, checkpoint_hash, digest),
+            )
+            db.execute(
+                "INSERT OR REPLACE INTO recovery_policy_epoch_entries VALUES (?, ?, ?, ?, ?)",
+                (checkpoint.registry_id, row["epoch"], checkpoint.sequence,
+                 checkpoint.entry_sha256, entries[-1].model_dump_json()),
             )
             db.commit()
             return True
