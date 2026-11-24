@@ -237,7 +237,7 @@ jobs:
               "replay": {"exact_signed_source_replayed": True},
           }
           Path("lean-proof-attestation.json").write_text(
-              json.dumps(receipt, sort_keys=True, indent=2) + "\\n",
+              json.dumps(receipt, sort_keys=True, indent=2) + "\n",
               encoding="utf-8",
           )
           print("Exact signed proof source replayed and proof receipt artifact written.")
