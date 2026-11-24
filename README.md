@@ -55,7 +55,7 @@ The current Python prototype includes:
 - provenance envelopes that distinguish computation, independent checker findings, reported formal-kernel checks, and artifact integrity;\n- an in-process adapter that invokes the request-bound Lean transformation verifier and creates kernel evidence events only for completed pass/rejection outcomes with proof-source and version metadata;\n- optional HMAC-authenticated Lean runner receipts and Ed25519-signed attestations for deployments that separate proof execution from evidence-envelope consumption;
 - regression tests for supported operations, rejected syntax, orchestration invariants, and adapter boundaries.
 
-Run `python -m pytest` to execute the suite. GitHub Actions runs the tests on pushes and pull requests.
+The project commits `uv.lock` to pin the resolved transitive dependencies. CI uses uv 0.9.11 and refuses lock drift with `uv sync --locked --extra dev`; run the suite locally with `uv run --locked python -m pytest`. GitHub Actions runs the same locked installation and tests on pushes and pull requests.
 
 See [the temporal model](docs/TEMPORAL_MODEL.md) for event partial orders, uncertainty-aware clock measurements, explicit monotonic/civil/proper/coordinate clock semantics, bounded clock-calibration transforms, Allen-style temporal interval relations, duration bounds, state transitions, separate event-occurrence, observation, recording, and knowledge timestamps, and provenance-bound causal hypotheses that retain supporting and challenging evidence. See [absence and vacuum modeling](docs/ABSENCE_AND_VACUUM.md) for scoped absence claims, model-relative vacuum states, and particle-like excitations. See [physical state transitions](docs/PHYSICAL_STATE_TRANSITIONS.md) for model-bound state changes and explicit energy accounting, and [vacuum stability and transition evidence](docs/VACUUM_STABILITY.md) for model-relative stability labels and evidence provenance, and [particle production](docs/PARTICLE_PRODUCTION.md) for vacuum-referenced excitation records, and [scalar potentials](docs/SCALAR_POTENTIALS.md) for bounded polynomial field-potential evaluation, and [finite 1D field configurations](docs/FIELD_CONFIGURATIONS_1D.md) for sampled lattice fields and discrete gradient diagnostics, and [discrete scalar-field energy](docs/SCALAR_FIELD_ENERGY.md) for boundary-aware lattice energy functionals, and [field relaxation](docs/FIELD_RELAXATION.md) for algorithmic energy-descent steps, and [field dynamics](docs/FIELD_DYNAMICS.md) for an explicit inertial finite-lattice update, and [field stability](docs/FIELD_STABILITY.md) for a conservative sufficient timestep bound, plus [field trajectories](docs/FIELD_TRAJECTORY.md) for reproducible multi-step runs and [field refinement](docs/FIELD_REFINEMENT.md) for fixed-horizon numerical comparisons, with [portable refinement certificates](docs/FIELD_REFINEMENT_CERTIFICATES.md) for explicit acceptance decisions. See [evidence envelopes](docs/EVIDENCE_ENVELOPES.md) for the separate meanings of computation, independent checking, integrity digests, and formal-kernel records, including the request-bound Lean-to-envelope adapter, authenticated runner receipts, Ed25519 public-key verification, and their trust/key-management limitations.
 
@@ -80,16 +80,14 @@ License selection is pending. Until a license is added, standard copyright restr
 
 ## Run the prototype
 
-Create a virtual environment, install the package and development dependencies, then start the API:
+Install [uv](https://docs.astral.sh/uv/), then sync the committed dependency lock and start the API:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
-uvicorn mosaic.api:app --reload
+uv sync --locked --extra dev
+uv run --locked uvicorn mosaic.api:app --reload
 ```
 
-On Windows PowerShell, activate with `.venv\\Scripts\\Activate.ps1`.
+The lock resolver and CI currently pin uv 0.9.11 and target Python 3.11. If you intentionally change dependencies in `pyproject.toml`, regenerate and review the lock with `uv lock --python 3.11`, then verify it with `uv lock --check`.
 
 The health endpoint is `GET /health`. Mathematical requests use `POST /v1/math`. For example:
 
@@ -101,7 +99,7 @@ The health endpoint is `GET /health`. Mathematical requests use `POST /v1/math`.
 }
 ```
 
-Run the test suite with `python -m pytest`. The Python client is available as `mosaic.client.MosaicClient`.
+Run the test suite with `uv run --locked python -m pytest`. The Python client is available as `mosaic.client.MosaicClient`.
 
 The current implementation is intentionally small. The HTTP service is a prototype and should not be exposed to untrusted public traffic without the additional isolation and resource controls described in [SECURITY.md](SECURITY.md).
 
