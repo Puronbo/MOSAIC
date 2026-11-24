@@ -41,14 +41,14 @@ def _max_difference(left: tuple[Decimal, ...], right: tuple[Decimal, ...]) -> De
     return max((abs(a - b) for a, b in zip(left, right)), default=Decimal("0"))
 
 
-def _observed_order(coarse_error: Decimal | None, fine_error: Decimal | None) -> Decimal | None:
+def _observed_order(coarse_error: Decimal | None, fine_error: Decimal | None, refinement_ratio: int) -> Decimal | None:
     if coarse_error is None or fine_error is None or coarse_error <= 0 or fine_error <= 0:
         return None
     if coarse_error <= fine_error:
         return None
     with localcontext() as context:
         context.prec += 8
-        return (coarse_error / fine_error).ln() / Decimal(2).ln()
+        return (coarse_error / fine_error).ln() / Decimal(refinement_ratio).ln()
 
 
 def assess_field_timestep_refinement(
@@ -124,8 +124,8 @@ def assess_field_timestep_refinement(
             velocity_order = None
             if index > 0:
                 previous = reports[index - 1]
-                field_order = _observed_order(previous.maximum_field_difference_from_finer, field_error)
-                velocity_order = _observed_order(previous.maximum_velocity_difference_from_finer, velocity_error)
+                field_order = _observed_order(previous.maximum_field_difference_from_finer, field_error, refinement_ratio)
+                velocity_order = _observed_order(previous.maximum_velocity_difference_from_finer, velocity_error, refinement_ratio)
         reports.append(FieldRefinementLevel(
             time_step=dt,
             step_count=count,
