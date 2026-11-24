@@ -11,7 +11,7 @@ from mosaic.core.orchestration import (
 )
 from mosaic.core.scheduler_persistence import (
     SchedulerSnapshot,
-    SchedulerSnapshotStore,
+    SchedulerSnapshotStore,\n    quarantine_interrupted_tasks,
     load_scheduler_snapshot,
     serialize_scheduler_snapshot,
 )
@@ -89,3 +89,36 @@ def test_snapshot_rejects_missing_records_and_path_injection(tmp_path):
 def test_snapshot_loader_enforces_size_limit():
     with pytest.raises(ValueError, match="maximum serialized size"):
         load_scheduler_snapshot(b"x" * 262_145)
+
+
+def test_recovery_quarantines_running_tasks_instead_of_redispatching():
+    task = AgentTask(
+        task_id="remote-call-1",
+        role=AgentRole.SOLVER,
+        goal="Call an external solver",
+    )
+    records = initialize_task_records([task])
+    running = dispatch_ready_tasks([task], records, now=10.0, max_concurrency=1)
+    snapshot = SchedulerSnapshot.capture([task], running)
+
+    recovered = quarantine_interrupted_tasks(snapshot)
+    assert recovered.records[0].status == TaskStatus.FAILED
+    assert "outcome is unknown" in recovered.records[0].error
+    assert recovered.records[0].proposal is None
+
+    # Failed is not a dispatchable state: recovery cannot duplicate an unknown
+    # remote call merely because the local process restarted.
+    from mosaic.core.orchestration import dispatch_ready_tasks
+    after_restart = dispatch_ready_tasks(
+        [task], recovered.records, now=11.0, max_concurrency=1
+    )
+    assert after_restart[0].status == TaskStatus.FAILED
+
+
+def test_recovery_refuses_tampered_snapshot():
+    tasks, records = _completed_state()
+    snapshot = SchedulerSnapshot.capture(tasks, records)
+    tampered = snapshot.model_copy(update={"snapshot_sha256": "0" * 64})
+    from mosaic.core.scheduler_persistence import quarantine_interrupted_tasks
+    with pytest.raises(ValueError, match="integrity"):
+        quarantine_interrupted_tasks(tampered)
