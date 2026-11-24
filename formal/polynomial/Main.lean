@@ -37,4 +37,32 @@ theorem rapid_series_power_comparison (n : Nat) (hn : 2 ≤ n) :
     2^(n - 1) ≤ n^(n - 1) :=
   nat_pow_mono hn
 
+/-- Powers of two are at least four from exponent two onward. -/
+theorem four_le_two_pow (k : Nat) (hk : 2 ≤ k) : 4 ≤ 2^k := by
+  have hbound : ∀ m : Nat, 2 ≤ m → 4 ≤ 2^m := by
+    intro m hm
+    induction m with
+    | zero =>
+        omega
+    | succ m ih =>
+        by_cases hm2 : 2 ≤ m
+        · have hprev := ih hm2
+          rw [Nat.pow_succ]
+          nlinarith
+        · have hm1 : m = 1 := by omega
+          subst m
+          norm_num
+  exact hbound k hk
+
+/-- The natural-number equation n^n = 3 has no solution.
+This is the discrete counterpart of n^n - 1 = 2. -/
+theorem no_nat_solution_n_pow_eq_three (n : Nat) : n^n ≠ 3 := by
+  intro h
+  by_cases hn : n < 2
+  · interval_cases n <;> norm_num at h
+  · have hn2 : 2 ≤ n := by omega
+    have hpow2 : 4 ≤ 2^n := four_le_two_pow n hn2
+    have hpow : 2^n ≤ n^n := nat_pow_mono hn2
+    omega
+
 end MosaicPolynomial
