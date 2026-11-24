@@ -1125,6 +1125,7 @@ def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
         SignedOperatorLifecycleLedgerAuthorityRotationHead,
         SignedOperatorLifecycleRestoreLedgerHead,
         verify_operator_lifecycle_recovery_evidence_envelope,
+        verify_operator_lifecycle_recovery_evidence_envelope_report,
     )
     root_sk, root = identity("envelope-root")
     active_sk, active = identity("envelope-active")
@@ -1183,6 +1184,15 @@ def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
         authorization_time_utc="2026-11-24T08:03:00.000000Z")
     assert verify_operator_lifecycle_recovery_evidence_envelope(envelope, **kwargs)
     assert len(envelope.digest()) == 64
+    report = verify_operator_lifecycle_recovery_evidence_envelope_report(envelope, **kwargs)
+    assert report.accepted
+    assert report.envelope_sha256 == envelope.digest()
+    assert report.rotation_count == 1
+    assert report.restore_event_count == 1
+    assert "envelope:all_external_pins_and_signatures_valid" in report.checks
+    assert len(report.digest()) == 64
+    repeated_report = verify_operator_lifecycle_recovery_evidence_envelope_report(envelope, **kwargs)
+    assert repeated_report.digest() == report.digest()
 
     wrong_external_pin = dict(kwargs, expected_rotation_head_sha256="e" * 64)
     assert not verify_operator_lifecycle_recovery_evidence_envelope(
@@ -1200,3 +1210,7 @@ def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
     assert not verify_operator_lifecycle_recovery_evidence_envelope(reordered, **kwargs)
     wrong_head_pin = dict(kwargs, expected_restore_ledger_head_sha256="f" * 64)
     assert not verify_operator_lifecycle_recovery_evidence_envelope(envelope, **wrong_head_pin)
+    rejected_report = verify_operator_lifecycle_recovery_evidence_envelope_report(
+        envelope, **wrong_head_pin)
+    assert not rejected_report.accepted
+    assert "restore:external_head_pin_mismatch" in rejected_report.errors
