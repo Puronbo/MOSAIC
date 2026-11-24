@@ -69,13 +69,18 @@ jobs:
       - name: Check polynomial identities with real Lean kernel
         working-directory: formal/polynomial
         run: lake env lean Main.lean
-      - name: Install MOSAIC
-        run: python -m pip install -e ".[dev]"
-      - name: Record pinned environment manifest for proof binding
-        run: python scripts/create_lean_provenance.py lean-provenance.json
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install MOSAIC from locked dependencies
+        run: uv sync --locked --extra dev
+      - name: Record and verify observed Lean/Mathlib environment
+        run: uv run --locked python scripts/create_lean_provenance.py lean-provenance.json
       - name: Exercise bounded polynomial and derivative proofs with real Lean kernel
         run: |
-          python - <<'PY'
+          uv run --locked python - <<'PY'
           from mosaic.core.requests import MathRequest
           from mosaic.core.types import Operation
           from mosaic.verification.lean_polynomial import verify_polynomial_int_identity
