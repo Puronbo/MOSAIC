@@ -4,7 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from mosaic.verification.evidence_envelope import EvidenceEventOutcome
-from mosaic.verification.lean_runner_receipt import LeanRunnerReceipt
+from mosaic.verification.lean_runner_receipt import (
+    LeanRunnerReceipt, verify_evidence_event_receipt,
+)
 
 
 KEY = b"mosaic-test-runner-secret-material-32-bytes!"
@@ -35,6 +37,11 @@ def test_signed_receipt_authenticates_and_maps_to_kernel_event():
     assert event.artifact_sha256 == signed.artifact_sha256
     assert event.proof_artifact_sha256 == signed.proof_artifact_sha256
     assert event.kernel_id == "Lean"
+    assert event.runner_id == signed.runner_id
+    assert event.runner_mac_sha256 == signed.mac_sha256
+    assert verify_evidence_event_receipt(event, KEY)
+    tampered_event = event.model_copy(update={"artifact_sha256": hashlib.sha256(b"other").hexdigest()})
+    assert not verify_evidence_event_receipt(tampered_event, KEY)
 
 
 def test_wrong_key_cannot_authenticate_or_emit_event():
