@@ -119,3 +119,19 @@ def test_invalid_fork_cannot_quarantine_and_wrong_private_key_cannot_endorse(tmp
         witness_key=wrong, witness_private_key=WITNESS_PRIVATE,
         witnessed_at_utc="2026-11-24T03:00:00Z",
     ) is None
+
+def test_same_head_checkpoint_refresh_is_not_misclassified_as_fork(tmp_path):
+    first_entry = entry(0)
+    first = checkpoint([first_entry])
+    refreshed = PolicyRegistryCheckpoint.sign(
+        log_id=first.log_id, sequence=first.sequence,
+        head_entry_sha256=first.head_entry_sha256,
+        previous_checkpoint_sha256=None,
+        issued_at_utc="2026-11-24T04:00:00Z",
+        signer_key_id="log-signer", private_key=LOG_PRIVATE,
+    )
+    store = PolicyWitnessStateStore(tmp_path / "witness.sqlite3")
+    assert endorse(store, first, [first_entry]) is not None
+    assert endorse(store, refreshed, [first_entry]) is None
+    assert not store.is_quarantined(first.log_id)
+    assert store.get_head(first.log_id) == first
