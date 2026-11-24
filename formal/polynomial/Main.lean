@@ -386,4 +386,34 @@ theorem derivative_sign (x t : ℝ) (hx : 0 < x) :
   · intro hlog
     exact mul_neg_of_pos_of_neg hvalue hlog
 
+
+/-- The secant slope based at t with nonzero real step h. -/
+def secantSlope (x t h : ℝ) : ℝ :=
+  h⁻¹ • (value x (t + h) - value x t)
+
+/-- As the nonzero step tends to zero, the secant slope converges to the
+tangent slope. This is the explicit difference-quotient limit behind the
+derivative theorem. -/
+theorem secant_slope_limit (x t : ℝ) (hx : 0 < x) :
+    Filter.Tendsto (fun h : ℝ => secantSlope x t h)
+      (nhdsWithin 0 ({0}ᶜ))
+      (nhds (value x t * Real.log x)) := by
+  simpa [secantSlope] using (derivative x t hx).tendsto_slope_zero
+
+/-- The same limiting slope is obtained from positive steps (approaching
+from the right). -/
+theorem secant_slope_limit_right (x t : ℝ) (hx : 0 < x) :
+    Filter.Tendsto (fun h : ℝ => secantSlope x t h)
+      (nhdsWithin 0 (Set.Ioi 0))
+      (nhds (value x t * Real.log x)) := by
+  simpa [secantSlope] using (derivative x t hx).tendsto_slope_zero_right
+
+/-- The same limiting slope is obtained from negative steps (approaching
+from the left). -/
+theorem secant_slope_limit_left (x t : ℝ) (hx : 0 < x) :
+    Filter.Tendsto (fun h : ℝ => secantSlope x t h)
+      (nhdsWithin 0 (Set.Iio 0))
+      (nhds (value x t * Real.log x)) := by
+  simpa [secantSlope] using (derivative x t hx).tendsto_slope_zero_left
+
 end MosaicRealExponentShift
