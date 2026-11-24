@@ -5,16 +5,85 @@
   "description": "Portable container for a signed authority-rotation history, its signed external head, and a signed restoration-ledger head. Trust expectations must be supplied independently.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "registry_id", "initial_authority_key_id", "rotations", "rotation_head", "restore_ledger_head"],
+  "required": [
+    "schema_version",
+    "registry_id",
+    "initial_authority_key_id",
+    "rotations",
+    "rotation_head",
+    "restore_ledger_head",
+    "restore_ledger"
+  ],
   "properties": {
-    "schema_version": {"const": "1.0"},
-    "registry_id": {"type": "string", "minLength": 1, "maxLength": 200},
-    "initial_authority_key_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "schema_version": {
+      "const": "1.0"
+    },
+    "registry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "initial_authority_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
     "rotations": {
       "type": "array",
-      "items": {"$ref": "operator-lifecycle-restore-ledger-authority-rotation-v1.schema.json"}
+      "items": {
+        "$ref": "operator-lifecycle-restore-ledger-authority-rotation-v1.schema.json"
+      }
     },
-    "rotation_head": {"$ref": "operator-lifecycle-restore-ledger-authority-rotation-head-v1.schema.json"},
-    "restore_ledger_head": {"$ref": "operator-lifecycle-restore-ledger-head-v1.schema.json"}
+    "rotation_head": {
+      "$ref": "operator-lifecycle-restore-ledger-authority-rotation-head-v1.schema.json"
+    },
+    "restore_ledger_head": {
+      "$ref": "operator-lifecycle-restore-ledger-head-v1.schema.json"
+    },
+    "restore_ledger": {
+      "type": "array",
+      "description": "Complete ordered hash-linked restoration receipt history, independently verified against restore_ledger_head.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "registry_id",
+          "event_sequence",
+          "previous_receipt_sha256",
+          "receipt_sha256",
+          "ledger_entry_sha256",
+          "receipt"
+        ],
+        "properties": {
+          "registry_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "event_sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "previous_receipt_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "receipt_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "ledger_entry_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "receipt": {
+            "$ref": "operator-lifecycle-checkpoint-chain-restore-receipt-v1.schema.json"
+          }
+        }
+      }
+    }
   }
 }
