@@ -1,4 +1,5 @@
 import copy
+import pytest
 
 from mosaic.verification.recovery_operator_lifecycle import (
     SignedOperatorLifecycleCheckpoint, verify_operator_lifecycle_checkpoint,
