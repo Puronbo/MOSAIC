@@ -187,6 +187,7 @@ jobs:
       - name: Record observed pinned Lean and Mathlib environment
         run: python scripts/create_lean_provenance.py lean-provenance.json
       - name: Attest Lean environment provenance
+        if: github.event_name == 'push'
         uses: actions/attest@v4
         with:
           subject-path: lean-provenance.json
