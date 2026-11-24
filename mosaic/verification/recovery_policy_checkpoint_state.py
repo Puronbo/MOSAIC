@@ -66,6 +66,11 @@ class RecoveryPolicyCheckpointStore:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(recovery_policy_heads)")}
             if "epoch" not in columns:
                 db.execute("ALTER TABLE recovery_policy_heads ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0")
+            audit_columns = {row["name"] for row in db.execute("PRAGMA table_info(recovery_policy_rebootstrap_audit)")}
+            if "previous_audit_sha256" not in audit_columns:
+                db.execute("ALTER TABLE recovery_policy_rebootstrap_audit ADD COLUMN previous_audit_sha256 TEXT")
+            if "audit_sha256" not in audit_columns:
+                db.execute("ALTER TABLE recovery_policy_rebootstrap_audit ADD COLUMN audit_sha256 TEXT")
             if db.execute("SELECT COUNT(*) FROM recovery_policy_epoch_entries").fetchone()[0] == 0:
                 db.execute("""
                     INSERT OR IGNORE INTO recovery_policy_epoch_entries
