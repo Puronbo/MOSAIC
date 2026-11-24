@@ -1,0 +1,24 @@
+{
+  "canonical_sha256": "13aee79561b45ce911a1f7e8b26c193d2b88a53d3ae38fd59d77a3b862280615",
+  "public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "attestation": {
+    "schema_version": "1.0",
+    "receipt_id": "vector-unicode-001",
+    "runner_id": "cross-language-runner",
+    "key_id": "vector-key",
+    "request_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "artifact_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "proof_artifact_sha256": "c899546becb040c5f539dfd18223ce99d1c1d86339e60868b12a3eac1dc0b78a",
+    "proof_source": "unicode: café 🧩\n",
+    "environment_manifest_sha256": null,
+    "source_commit": null,
+    "workflow_run_id": null,
+    "lean_toolchain": null,
+    "mathlib_revision": null,
+    "checker_id": "lean-polynomial",
+    "kernel_id": "Lean",
+    "kernel_version": "Lean 4.36.0",
+    "outcome": "PASSED",
+    "signature_b64": "h/P0k27VD60QI2xWa4UpFwtQnP8rVRh9DRJ34r0M2q2DlaGoV5Efzkb4350Wk32nMoJuwXoFNResQq4Fz7CwCA=="
+  }
+}
