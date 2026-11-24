@@ -603,4 +603,6 @@ def verify_rebootstrap_audit_export(
     return verify_rebootstrap_audit_export_report(
         export, operator_keyring=operator_keyring, publisher_keyring=publisher_keyring,
         checkpoint_keyring=checkpoint_keyring, expected_head_sha256=expected_head_sha256,
+        lifecycle_authority_keyring=lifecycle_authority_keyring,
+        expected_lifecycle_checkpoint_sha256=expected_lifecycle_checkpoint_sha256,
     ).is_verified
