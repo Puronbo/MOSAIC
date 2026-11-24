@@ -242,4 +242,35 @@ theorem iterated_difference_by (n m k r : Nat) :
 
 
 
+
+/-- Shift an arbitrary natural-indexed sequence forward by m places. -/
+def shiftOperator (f : Nat → ℝ) (m k : Nat) : ℝ :=
+  f (k + m)
+
+/-- Zero shift is the identity operator. -/
+theorem shift_zero (f : Nat → ℝ) (k : Nat) :
+    shiftOperator f 0 k = f k := by
+  simp [shiftOperator]
+
+/-- Forward shifts compose by adding their offsets. -/
+theorem shift_compose (f : Nat → ℝ) (a b k : Nat) :
+    shiftOperator (fun j => shiftOperator f b j) a k =
+      shiftOperator f (a + b) k := by
+  simp [shiftOperator, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
+
+/-- The shift operator acts on the exponent-increment sequence by
+multiplication with the corresponding base power. -/
+theorem shift_value (n m k : Nat) :
+    shiftOperator (value n) m k =
+      (n : ℝ) ^ m * value n k := by
+  exact arbitrary_shift n k m
+
+/-- A forward difference commutes with a forward shift. -/
+theorem difference_shift_commute (f : Nat → ℝ) (m k : Nat) :
+    forwardDifference (fun j => shiftOperator f m j) k =
+      shiftOperator (fun j => forwardDifference f j) m k := by
+  simp [forwardDifference, shiftOperator, Nat.add_assoc,
+    Nat.add_left_comm, Nat.add_comm]
+
+
 end MosaicExponentShift
