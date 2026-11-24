@@ -33,6 +33,13 @@ class PolicyWitnessStateStore:
                     checkpoint_sha256 TEXT NOT NULL,
                     quarantined INTEGER NOT NULL DEFAULT 0
                 );
+                CREATE TABLE IF NOT EXISTS witness_checkpoint_history (
+                    log_id TEXT NOT NULL,
+                    checkpoint_sha256 TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    checkpoint_json TEXT NOT NULL,
+                    PRIMARY KEY (log_id, checkpoint_sha256)
+                );
                 CREATE TABLE IF NOT EXISTS witness_incidents (
                     incident_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     log_id TEXT NOT NULL,
@@ -167,6 +174,14 @@ class PolicyWitnessStateStore:
                 db.rollback()
                 return None
             encoded = self._encode(checkpoint)
+            for historical in snapshot.checkpoint_history:
+                db.execute(
+                    """INSERT OR IGNORE INTO witness_checkpoint_history
+                    (log_id, checkpoint_sha256, sequence, checkpoint_json)
+                    VALUES (?, ?, ?, ?)""",
+                    (snapshot.log_id, historical.digest(), historical.sequence,
+                     self._encode(historical)),
+                )
             db.execute(
                 """INSERT INTO witness_heads
                 (log_id, checkpoint_json, checkpoint_sha256, quarantined)
@@ -175,6 +190,12 @@ class PolicyWitnessStateStore:
                   checkpoint_json=excluded.checkpoint_json,
                   checkpoint_sha256=excluded.checkpoint_sha256""",
                 (checkpoint.log_id, encoded, checkpoint.digest()),
+            )
+            db.execute(
+                """INSERT OR IGNORE INTO witness_checkpoint_history
+                (log_id, checkpoint_sha256, sequence, checkpoint_json)
+                VALUES (?, ?, ?, ?)""",
+                (checkpoint.log_id, checkpoint.digest(), checkpoint.sequence, encoded),
             )
             db.commit()
             return endorsement
@@ -188,8 +209,17 @@ class PolicyWitnessStateStore:
         head = self.get_head(log_id)
         if head is None:
             return None
+        with self._connection() as db:
+            rows = db.execute(
+                """SELECT checkpoint_json FROM witness_checkpoint_history
+                   WHERE log_id=? ORDER BY sequence""", (log_id,)
+            ).fetchall()
+        history = [self._decode(row["checkpoint_json"]) for row in rows]
+        if not history or history[-1].digest() != head.digest():
+            history = [head]
         return SignedPolicyWitnessSnapshot.sign(
-            log_id=log_id, checkpoint=head, quarantined=self.is_quarantined(log_id),
+            log_id=log_id, checkpoint=head, checkpoint_history=history,
+            quarantined=self.is_quarantined(log_id),
             incidents=self.incidents(log_id), witness_key_id=witness_key_id,
             exported_at_utc=exported_at_utc, private_key=witness_private_key,
         )
@@ -211,11 +241,17 @@ class PolicyWitnessStateStore:
         if (not isinstance(snapshot, SignedPolicyWitnessSnapshot)
                 or not snapshot.verify(witness_keyring)
                 or snapshot.log_id != snapshot.checkpoint.log_id
-                or not verify_policy_checkpoint(
-                    snapshot.checkpoint, entries=entries,
-                    signer_keyring=signer_keyring,
-                )):
+                or not snapshot.checkpoint_history
+                or snapshot.checkpoint_history[-1].digest() != snapshot.checkpoint.digest()):
             return False
+        prior = None
+        for historical in snapshot.checkpoint_history:
+            if not verify_policy_checkpoint(
+                historical, entries=entries[:historical.sequence + 1],
+                signer_keyring=signer_keyring, previous_checkpoint=prior,
+            ):
+                return False
+            prior = historical
         with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
@@ -246,10 +282,9 @@ class PolicyWitnessStateStore:
                     if snapshot.checkpoint.digest() != previous.digest():
                         db.rollback()
                         return False
-                elif not verify_policy_checkpoint(
-                    snapshot.checkpoint, entries=entries,
-                    signer_keyring=signer_keyring, previous_checkpoint=previous,
-                ):
+                elif (not any(item.digest() == previous.digest()
+                               for item in snapshot.checkpoint_history)
+                      or snapshot.checkpoint.sequence <= previous.sequence):
                     db.rollback()
                     return False
             encoded = self._encode(snapshot.checkpoint)
