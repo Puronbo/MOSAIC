@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "lean-toolchain"
       - "formal/polynomial/**"
       - "scripts/create_lean_provenance.py"
       - "tests/test_lean_environment_pins.py"
