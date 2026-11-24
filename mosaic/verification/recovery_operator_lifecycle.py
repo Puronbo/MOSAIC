@@ -1141,6 +1141,160 @@ def verify_operator_lifecycle_restore_ledger_head(
         return False
 
 
+class SignedOperatorLifecycleLedgerAuthorityRotation(BaseModel):
+    """Dual-signed transition between independently provisioned ledger-head authorities."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    registry_id: str = Field(min_length=1, max_length=200)
+    rotation_sequence: int = Field(ge=1)
+    previous_rotation_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    previous_key_id: str = Field(min_length=1, max_length=160)
+    new_key_id: str = Field(min_length=1, max_length=160)
+    previous_public_key_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    new_public_key_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    effective_at_utc: str = Field(min_length=20, max_length=40)
+    previous_authority_signature_b64: str = Field(min_length=1, max_length=128)
+    new_authority_signature_b64: str = Field(min_length=1, max_length=128)
+
+    @classmethod
+    def sign(cls, *, registry_id: str, rotation_sequence: int,
+             previous_rotation_sha256: str | None, previous_key_id: str,
+             new_key_id: str, previous_private_key: bytes, new_private_key: bytes,
+             previous_public_key: bytes, new_public_key: bytes,
+             effective_at_utc: str) -> "SignedOperatorLifecycleLedgerAuthorityRotation":
+        if any(not isinstance(key, bytes) or len(key) != 32 for key in
+               (previous_private_key, new_private_key, previous_public_key, new_public_key)):
+            raise ValueError("Ed25519 keys must be exactly 32 raw bytes")
+        if previous_key_id == new_key_id:
+            raise ValueError("ledger authority key IDs must change during rotation")
+        payload = {
+            "schema_version": "1.0", "registry_id": registry_id,
+            "rotation_sequence": rotation_sequence,
+            "previous_rotation_sha256": previous_rotation_sha256,
+            "previous_key_id": previous_key_id, "new_key_id": new_key_id,
+            "previous_public_key_sha256": hashlib.sha256(previous_public_key).hexdigest(),
+            "new_public_key_sha256": hashlib.sha256(new_public_key).hexdigest(),
+            "effective_at_utc": _canonical_timestamp(effective_at_utc),
+        }
+        message = _canonical(payload)
+        old_sig = Ed25519PrivateKey.from_private_bytes(previous_private_key).sign(message)
+        new_sig = Ed25519PrivateKey.from_private_bytes(new_private_key).sign(message)
+        return cls(**payload,
+                   previous_authority_signature_b64=base64.b64encode(old_sig).decode("ascii"),
+                   new_authority_signature_b64=base64.b64encode(new_sig).decode("ascii"))
+
+    def digest(self) -> str:
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+class OperatorLifecycleLedgerAuthorityRotationReport(BaseModel):
+    """Result of checking a complete dual-signed ledger-authority rotation chain."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    accepted: bool
+    registry_id: str
+    rotation_count: int = Field(ge=0)
+    active_key_id: str
+    ending_rotation_sha256: str | None = None
+    errors: tuple[str, ...] = ()
+
+
+def verify_operator_lifecycle_ledger_authority_rotation_chain(
+    rotations: tuple[SignedOperatorLifecycleLedgerAuthorityRotation, ...] | list[SignedOperatorLifecycleLedgerAuthorityRotation], *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str,
+    expected_initial_key_id: str,
+    authorization_time_utc: str | None = None,
+) -> OperatorLifecycleLedgerAuthorityRotationReport:
+    """Verify contiguous, dual-signed authority changes against a pinned initial key."""
+    errors: list[str] = []
+    active_key_id = expected_initial_key_id
+    previous_digest = None
+    previous_time = None
+    for index, rotation in enumerate(rotations):
+        try:
+            if not isinstance(rotation, SignedOperatorLifecycleLedgerAuthorityRotation):
+                raise ValueError("rotation record has wrong type")
+            if rotation.registry_id != expected_registry_id:
+                errors.append(f"rotation_{index}:registry_mismatch")
+            if rotation.rotation_sequence != index + 1:
+                errors.append(f"rotation_{index}:sequence_mismatch")
+            if rotation.previous_rotation_sha256 != previous_digest:
+                errors.append(f"rotation_{index}:predecessor_digest_mismatch")
+            if rotation.previous_key_id != active_key_id:
+                errors.append(f"rotation_{index}:previous_key_id_mismatch")
+            if rotation.new_key_id == active_key_id:
+                errors.append(f"rotation_{index}:key_id_not_changed")
+            if _canonical_timestamp(rotation.effective_at_utc) != rotation.effective_at_utc:
+                errors.append(f"rotation_{index}:timestamp_not_canonical")
+            if previous_time is not None and rotation.effective_at_utc <= previous_time:
+                errors.append(f"rotation_{index}:timestamp_not_monotonic")
+            old_record = authority_keyring.get(rotation.previous_key_id)
+            new_record = authority_keyring.get(rotation.new_key_id)
+            if (old_record is None or new_record is None
+                    or not old_record.permits(rotation.previous_key_id, rotation.effective_at_utc)
+                    or not new_record.permits(rotation.new_key_id, rotation.effective_at_utc)):
+                errors.append(f"rotation_{index}:authority_key_not_permitted")
+            else:
+                old_public = old_record.public_key()
+                new_public = new_record.public_key()
+                if (old_public is None or new_public is None
+                        or hashlib.sha256(old_public).hexdigest() != rotation.previous_public_key_sha256
+                        or hashlib.sha256(new_public).hexdigest() != rotation.new_public_key_sha256):
+                    errors.append(f"rotation_{index}:public_key_fingerprint_mismatch")
+                else:
+                    payload = rotation.model_dump(mode="json", exclude={
+                        "previous_authority_signature_b64", "new_authority_signature_b64"})
+                    message = _canonical(payload)
+                    old_sig = base64.b64decode(rotation.previous_authority_signature_b64, validate=True)
+                    new_sig = base64.b64decode(rotation.new_authority_signature_b64, validate=True)
+                    if len(old_sig) != 64 or len(new_sig) != 64:
+                        errors.append(f"rotation_{index}:signature_length_invalid")
+                    else:
+                        Ed25519PublicKey.from_public_bytes(old_public).verify(old_sig, message)
+                        Ed25519PublicKey.from_public_bytes(new_public).verify(new_sig, message)
+            if authorization_time_utc is not None:
+                if (_canonical_timestamp(authorization_time_utc) != authorization_time_utc
+                        or authorization_time_utc < rotation.effective_at_utc):
+                    errors.append(f"rotation_{index}:not_yet_effective")
+            active_key_id = rotation.new_key_id
+            previous_digest = rotation.digest()
+            previous_time = rotation.effective_at_utc
+        except (KeyError, TypeError, ValueError, InvalidSignature):
+            errors.append(f"rotation_{index}:malformed_or_invalid_signature")
+            break
+    return OperatorLifecycleLedgerAuthorityRotationReport(
+        accepted=not errors, registry_id=expected_registry_id,
+        rotation_count=len(rotations), active_key_id=active_key_id,
+        ending_rotation_sha256=previous_digest, errors=tuple(dict.fromkeys(errors)))
+
+
+def verify_operator_lifecycle_restore_ledger_head_with_rotation_chain(
+    head: SignedOperatorLifecycleRestoreLedgerHead, *,
+    rotations: tuple[SignedOperatorLifecycleLedgerAuthorityRotation, ...] | list[SignedOperatorLifecycleLedgerAuthorityRotation],
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str, expected_event_sequence: int,
+    expected_ledger_entry_sha256: str,
+    expected_initial_key_id: str,
+    expected_receipt_sha256: str | None = None,
+    authorization_time_utc: str | None = None,
+) -> bool:
+    """Verify a ledger head only under the active key established by a valid rotation chain."""
+    report = verify_operator_lifecycle_ledger_authority_rotation_chain(
+        rotations, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_initial_key_id=expected_initial_key_id,
+        authorization_time_utc=authorization_time_utc)
+    return (report.accepted and isinstance(head, SignedOperatorLifecycleRestoreLedgerHead)
+            and head.ledger_authority_key_id == report.active_key_id
+            and verify_operator_lifecycle_restore_ledger_head(
+                head, authority_keyring=authority_keyring,
+                expected_registry_id=expected_registry_id,
+                expected_event_sequence=expected_event_sequence,
+                expected_ledger_entry_sha256=expected_ledger_entry_sha256,
+                expected_receipt_sha256=expected_receipt_sha256,
+                authorization_time_utc=authorization_time_utc))
+
+
 class OperatorLifecycleRestoreLedgerReport(BaseModel):
     """Verification result for an externally anchored restoration receipt ledger."""
     model_config = ConfigDict(extra="forbid", frozen=True)
