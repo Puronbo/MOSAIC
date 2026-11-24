@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/policy-checkpoint-witness-v1.schema.json",
+  "title": "MOSAIC Policy Checkpoint Witness v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "checkpoint_sha256",
+    "witness_key_id",
+    "witnessed_at_utc",
+    "signature_b64"
+  ],
+  "properties": {
+    "checkpoint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "witness_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "witnessed_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signature_b64": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}
