@@ -1421,3 +1421,30 @@ checkpoint, receipt authority keyring, and restore-ledger expectations must
 still be supplied through independently controlled channels. Issuance and
 effective timestamps are signed policy data, not trusted timestamps; this
 helper does not provide consensus, trusted time, or immutable storage.
+
+
+### G-EP127: portable composed lifecycle recovery evidence envelope
+
+`OperatorLifecycleRecoveryEvidenceEnvelope` packages the registry identity,
+independently provisioned initial authority key ID, complete supplied rotation
+history, signed external rotation head, and signed restoration-ledger head into
+one canonical portable JSON artifact. Its `digest()` identifies the exact
+serialized evidence bundle.
+
+`verify_operator_lifecycle_recovery_evidence_envelope(...)` checks the
+envelope against caller-supplied independent expectations for the registry,
+initial authority key, rotation-head digest and terminal rotation sequence /
+digest, plus the restore-ledger event sequence, ledger-entry digest, and
+receipt digest. It delegates cryptographic and activation checks to the
+composed G-EP126 verifier. Any mismatch in either evidence layer rejects the
+whole envelope. The JSON Schema is
+`schemas/operator-lifecycle-recovery-evidence-envelope-v1.schema.json`.
+
+The envelope is a transport format, not a self-authenticating trust root.
+Expected pins and authority public keys must come from outside the artifact
+and outside mutable storage controlled by the same threat domain. Its digest
+provides stable content identification, not truth or immutability. The
+envelope does not include the full restore receipt ledger; consumers that
+need to independently audit the ledger history must also obtain and verify
+that history against the signed ledger head. Signed timestamps remain policy
+data, not trusted time.
