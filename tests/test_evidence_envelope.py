@@ -10,6 +10,7 @@ from mosaic.verification.evidence_envelope import (
     create_evidence_envelope,
     profile_evidence_envelope,
     verify_evidence_envelope,
+    evidence_bundle_to_envelope,
 )
 
 
