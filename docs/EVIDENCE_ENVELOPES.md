@@ -105,3 +105,34 @@ Receipt tests exercise MAC generation, tamper detection, wrong-key rejection,
 and event conversion. These tests use a fixture key and mocked runner inputs;
 they do not claim that CI executed the Lean kernel.
 
+## Ed25519 runner attestations
+
+For consumers that must not hold a signing secret, the optional
+`mosaic.verification.lean_runner_signature` module provides Ed25519-signed
+attestations. The runner calls `sign_transformation_result` after the
+request-bound Lean invocation using its private key. Consumers receive only
+the signed attestation and a trusted public-key registry; they can convert it
+to an evidence event and verify it with
+`verify_evidence_event_signature`.
+
+The signed payload includes the request fingerprint, exact candidate digest,
+proof-source digest, checker ID, Lean/Mathlib version, runner ID, receipt ID,
+and key ID. Signature metadata is retained in the event and therefore in the
+envelope's canonical integrity digest. A changed payload or unknown key ID
+fails verification.
+
+Ed25519 support uses the `cryptography` package. Private keys are raw
+32-byte values at the API boundary; use a secrets manager or hardware-backed
+key store in production rather than committing or embedding them. Public
+keys can be distributed to envelope consumers. Key ID selection must be
+controlled by a trusted registry, with explicit rotation and revocation
+policies. The library's `generate_ed25519_keypair` helper is for key
+provisioning/testing; it does not persist or protect keys.
+
+This is an asymmetric signature protocol, not remote attestation of the
+runner's machine. It proves that the holder of the configured private key
+signed the bound statement. It does not independently prove that the machine
+was uncompromised or that the claimed Lean executable was genuine. The
+deployment must isolate the runner, protect the private key, and control
+which runner software is authorized to sign.
+
