@@ -178,3 +178,113 @@ class PolicyWitnessStateStore:
             )
             db.commit()
             return endorsement
+
+    def export_signed_snapshot(
+        self, log_id: str, *, witness_key_id: str,
+        witness_private_key: bytes, exported_at_utc: str,
+    ) -> "SignedPolicyWitnessSnapshot | None":
+        """Create a portable, signed snapshot of one log's retained state."""
+        from mosaic.verification.policy_witness_snapshot import SignedPolicyWitnessSnapshot
+        head = self.get_head(log_id)
+        if head is None:
+            return None
+        return SignedPolicyWitnessSnapshot.sign(
+            log_id=log_id, checkpoint=head, quarantined=self.is_quarantined(log_id),
+            incidents=self.incidents(log_id), witness_key_id=witness_key_id,
+            exported_at_utc=exported_at_utc, private_key=witness_private_key,
+        )
+
+    def import_signed_snapshot(
+        self, snapshot: "SignedPolicyWitnessSnapshot", *,
+        witness_keyring: dict[str, PolicyPublisherKey],
+        entries: list[SignedPolicyRegistryEntry],
+        signer_keyring: dict[str, PolicyPublisherKey],
+    ) -> bool:
+        """Import only authenticated, non-rollback state.
+
+        An empty store may be bootstrapped from a snapshot whose signing key is
+        independently trusted. Existing state accepts only an identical head
+        with non-regressing incident history, or a strict verified extension.
+        Quarantine is monotonic under import: a snapshot cannot clear it.
+        """
+        from mosaic.verification.policy_witness_snapshot import SignedPolicyWitnessSnapshot
+        if (not isinstance(snapshot, SignedPolicyWitnessSnapshot)
+                or not snapshot.verify(witness_keyring)
+                or snapshot.log_id != snapshot.checkpoint.log_id
+                or not verify_policy_checkpoint(
+                    snapshot.checkpoint, entries=entries,
+                    signer_keyring=signer_keyring,
+                )):
+            return False
+        with self._connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT * FROM witness_heads WHERE log_id=?", (snapshot.log_id,)
+            ).fetchone()
+            previous = self._decode(row["checkpoint_json"]) if row else None
+            if row and row["quarantined"] and not snapshot.quarantined:
+                db.rollback()
+                return False
+            if previous:
+                if snapshot.checkpoint.sequence == previous.sequence:
+                    if snapshot.checkpoint.head_entry_sha256 != previous.head_entry_sha256:
+                        db.execute(
+                            "UPDATE witness_heads SET quarantined=1 WHERE log_id=?",
+                            (snapshot.log_id,),
+                        )
+                        db.execute(
+                            """INSERT INTO witness_incidents
+                            (log_id, sequence, retained_checkpoint_sha256,
+                             conflicting_checkpoint_sha256, reason)
+                            VALUES (?, ?, ?, ?, ?)""",
+                            (snapshot.log_id, snapshot.checkpoint.sequence,
+                             previous.digest(), snapshot.checkpoint.digest(),
+                             "conflicting signed witness snapshot"),
+                        )
+                        db.commit()
+                        return False
+                    if snapshot.checkpoint.digest() != previous.digest():
+                        db.rollback()
+                        return False
+                elif not verify_policy_checkpoint(
+                    snapshot.checkpoint, entries=entries,
+                    signer_keyring=signer_keyring, previous_checkpoint=previous,
+                ):
+                    db.rollback()
+                    return False
+            encoded = self._encode(snapshot.checkpoint)
+            db.execute(
+                """INSERT INTO witness_heads
+                (log_id, checkpoint_json, checkpoint_sha256, quarantined)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(log_id) DO UPDATE SET
+                  checkpoint_json=excluded.checkpoint_json,
+                  checkpoint_sha256=excluded.checkpoint_sha256,
+                  quarantined=MAX(witness_heads.quarantined, excluded.quarantined)""",
+                (snapshot.log_id, encoded, snapshot.checkpoint.digest(),
+                 int(snapshot.quarantined)),
+            )
+            existing = {
+                (x["sequence"], x["retained_checkpoint_sha256"],
+                 x["conflicting_checkpoint_sha256"], x["reason"], x["observed_at_utc"])
+                for x in db.execute(
+                    """SELECT sequence, retained_checkpoint_sha256,
+                       conflicting_checkpoint_sha256, reason, observed_at_utc
+                       FROM witness_incidents WHERE log_id=?""", (snapshot.log_id,)
+                ).fetchall()
+            }
+            for incident in snapshot.incidents:
+                identity = (incident.sequence, incident.retained_checkpoint_sha256,
+                            incident.conflicting_checkpoint_sha256, incident.reason,
+                            incident.observed_at_utc)
+                if identity not in existing:
+                    db.execute(
+                        """INSERT INTO witness_incidents
+                        (log_id, sequence, retained_checkpoint_sha256,
+                         conflicting_checkpoint_sha256, reason, observed_at_utc)
+                        VALUES (?, ?, ?, ?, ?, ?)""",
+                        (snapshot.log_id, *identity),
+                    )
+                    existing.add(identity)
+            db.commit()
+            return True
