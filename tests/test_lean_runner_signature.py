@@ -482,3 +482,68 @@ def test_portable_bundle_conformance_vector_verifies_and_binds_all_inputs():
     assert not verify_lean_proof_receipt_bundle(vector["receipt"], **{**arguments, "request_sha256": "0" * 64})
     changed = {**vector["receipt"], "replay": {"exact_signed_source_replayed": False}}
     assert not verify_lean_proof_receipt_bundle(changed, **arguments)
+
+
+
+def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp_path):
+    import json
+    import shutil
+    import subprocess
+    from pathlib import Path
+    from mosaic.verification import lean_runner_signature as module
+
+    root = tmp_path
+    project = root / "formal" / "polynomial"
+    mathlib = project / ".lake" / "packages" / "mathlib"
+    mathlib.mkdir(parents=True)
+    (root / "lean-toolchain").write_text("leanprover/lean4:v4.36.0\\n")
+    (project / "lean-toolchain").write_text("leanprover/lean4:v4.36.0\\n")
+    for name, content in (
+        ("lake-manifest.json", json.dumps({"packages": [{"name": "mathlib", "rev": "c" * 40}]})),
+        ("lakefile.lean", "package mosaic"),
+        ("Main.lean", "theorem demo : True := by trivial"),
+    ):
+        (project / name).write_text(content)
+    binary_paths = {}
+    for name in ("lean", "lake", "elan"):
+        binary = root / name
+        binary.write_bytes((name + " executable").encode())
+        binary_paths[name] = str(binary)
+
+    def fake_run(command, **kwargs):
+        if command[:2] == ["git", "rev-parse"]:
+            output = "c" * 40
+        elif command == ["lake", "env", "lean", "--version"]:
+            output = "Lean version 4.36.0"
+        elif command == ["lake", "--version"]:
+            output = "Lake version 5.0"
+        else:
+            output = "elan 4.1"
+        return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(shutil, "which", lambda name: binary_paths.get(name))
+    environment = {
+        "lean_toolchain": "leanprover/lean4:v4.36.0",
+        "lean_version_output": "Lean version 4.36.0",
+        "lake_version_output": "Lake version 5.0",
+        "elan_version_output": "elan 4.1",
+        "mathlib_revision": "c" * 40,
+        "observed_mathlib_revision": "c" * 40,
+    }
+    for name, binary in binary_paths.items():
+        environment[f"{name}_binary_sha256"] = hashlib.sha256(Path(binary).read_bytes()).hexdigest()
+    for key, file_path in {
+        "root_lean_toolchain_sha256": root / "lean-toolchain",
+        "formal_lean_toolchain_sha256": project / "lean-toolchain",
+        "lake_manifest_sha256": project / "lake-manifest.json",
+        "lakefile_sha256": project / "lakefile.lean",
+        "lean_entrypoint_sha256": project / "Main.lean",
+    }.items():
+        environment[key] = hashlib.sha256(file_path.read_bytes()).hexdigest()
+    manifest = json.dumps({"environment": environment}).encode()
+    assert module.verify_local_lean_environment_manifest(manifest, project_dir=project)
+    altered = dict(environment, lake_binary_sha256="0" * 64)
+    assert not module.verify_local_lean_environment_manifest(
+        json.dumps({"environment": altered}).encode(), project_dir=project
+    )
