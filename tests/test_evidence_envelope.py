@@ -235,13 +235,14 @@ def test_request_bound_lean_rejection_generates_failed_not_pass(monkeypatch):
     from mosaic.verification.lean_transformations import (
         LeanTransformationObligation, LeanTransformationVerification,
     )
+    from mosaic.verification.obligations import request_fingerprint
     from mosaic.verification.evidence_envelope import verify_transformation_with_evidence
 
     request = MathRequest(operation=Operation.EXPAND, expression="x + 1")
     result = "x + 2"
     check = LeanLinearCheck(
         status="REJECTED",
-        lhs_sha256=hashlib.sha256(b"x + 1").hexdigest(),
+        lhs_sha256=hashlib.sha256(request.expression.encode()).hexdigest(),
         rhs_sha256=hashlib.sha256(result.encode()).hexdigest(),
         lean_version="Lean version 4.test",
         proof_source_sha256=hashlib.sha256(b"rejected proof source").hexdigest(),
