@@ -63,7 +63,7 @@ export function parseJsonNoDuplicateKeys(source) {
     for (const [literal, parsed] of [["true", true], ["false", false], ["null", null]]) {
       if (source.startsWith(literal, index)) { index += literal.length; return parsed; }
     }
-    const number = source.slice(index).match(/^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?/);
+    const number = source.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
     if (number) { index += number[0].length; return Number(number[0]); }
     throw new Error("invalid JSON value");
   };
