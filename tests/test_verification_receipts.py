@@ -6,7 +6,10 @@ from mosaic.core.types import Operation
 from mosaic.verification.obligations import obligations_for_request, request_fingerprint
 from mosaic.verification.review_checkers import ReviewCheckerReceipt
 from mosaic.verification.lean_obligations import LeanIdentityVerification
-from mosaic.verification.receipts import (\n    VerificationReceipt, load_receipt, serialize_receipt,\n    validate_receipt_for_replay,\n)
+from mosaic.verification.receipts import (
+    VerificationReceipt, load_receipt, serialize_receipt,
+    validate_receipt_for_replay,
+)
 
 
 def _request():
