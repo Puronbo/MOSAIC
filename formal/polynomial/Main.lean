@@ -484,7 +484,7 @@ theorem along_base_path_derivative
       (u' * (u t + t) * u t ^ (u t + t - 1) +
         (u' + 1) * alongBasePath u t * Real.log (u t)) t := by
   have hexponent : HasDerivAt (fun s : ℝ => u s + s) (u' + 1) t := by
-    simpa using hu.add (hasDerivAt_id t)
+    convert hu.add (hasDerivAt_id t) using 1 <;> funext s <;> simp
   simpa [alongBasePath, mul_assoc] using hu.rpow hexponent hx
 
 end MosaicRealExponentShift
