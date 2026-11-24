@@ -430,6 +430,7 @@ def _verify_rebootstrap_audit_export_v1(
     expected_head_sha256: str | None = None,
     lifecycle_authority_keyring: dict | None = None,
     expected_lifecycle_checkpoint_sha256: str | None = None,
+    lifecycle_trust_policy=None,
 ) -> bool:
     """Verify audit chain, signatures, registry proof, and optional lifecycle proof."""
     if not isinstance(export, dict) or set(export) != {
@@ -513,6 +514,7 @@ def _verify_rebootstrap_audit_export_v1(
                 lifecycle_digest = audit["operator_lifecycle_checkpoint_sha256"]
                 if (lifecycle_digest != lifecycle.digest()
                         or (expected_lifecycle_checkpoint_sha256 is not None and lifecycle_digest != expected_lifecycle_checkpoint_sha256)
+                        or (lifecycle_trust_policy is not None and not lifecycle_trust_policy.accepts(lifecycle))
                         or not verify_operator_lifecycle_checkpoint(
                             lifecycle, authority_keyring=lifecycle_authority_keyring or {},
                             expected_registry_id=lifecycle.registry_id, expected_sequence=lifecycle.sequence,
@@ -526,7 +528,7 @@ def _verify_rebootstrap_audit_export_v1(
                         return False
             except (ValueError, TypeError, KeyError):
                 return False
-        elif expected_lifecycle_checkpoint_sha256 is not None:
+        elif expected_lifecycle_checkpoint_sha256 is not None or lifecycle_trust_policy is not None:
             return False
         if "operator_lifecycle_evidence" in audit:
             try:
@@ -578,6 +580,7 @@ def verify_rebootstrap_audit_export_report(
     checkpoint_keyring: dict | None, expected_head_sha256: str | None = None,
     lifecycle_authority_keyring: dict | None = None,
     expected_lifecycle_checkpoint_sha256: str | None = None,
+    lifecycle_trust_policy=None,
 ) -> RecoveryPolicyCheckpointAuditVerificationReport:
     """Return diagnostics without treating retained legacy rows as verified."""
     registry_id = export.get("registry_id", "") if isinstance(export, dict) else ""
@@ -592,6 +595,7 @@ def verify_rebootstrap_audit_export_report(
         checkpoint_keyring=checkpoint_keyring, expected_head_sha256=expected_head_sha256,
         lifecycle_authority_keyring=lifecycle_authority_keyring,
         expected_lifecycle_checkpoint_sha256=expected_lifecycle_checkpoint_sha256,
+        lifecycle_trust_policy=lifecycle_trust_policy,
     )
     verified = sum(1 for item in records if isinstance(item, dict) and item.get("record_version") == "v1") if valid else 0
     status = "invalid" if not valid else "legacy_unverifiable" if legacy else "empty" if not records else "verified"
@@ -608,6 +612,7 @@ def verify_rebootstrap_audit_export(
     checkpoint_keyring: dict | None, expected_head_sha256: str | None = None,
     lifecycle_authority_keyring: dict | None = None,
     expected_lifecycle_checkpoint_sha256: str | None = None,
+    lifecycle_trust_policy=None,
 ) -> bool:
     """Strict boolean wrapper; legacy records are deliberately not accepted."""
     return verify_rebootstrap_audit_export_report(
@@ -615,4 +620,5 @@ def verify_rebootstrap_audit_export(
         checkpoint_keyring=checkpoint_keyring, expected_head_sha256=expected_head_sha256,
         lifecycle_authority_keyring=lifecycle_authority_keyring,
         expected_lifecycle_checkpoint_sha256=expected_lifecycle_checkpoint_sha256,
+        lifecycle_trust_policy=lifecycle_trust_policy,
     ).is_verified
