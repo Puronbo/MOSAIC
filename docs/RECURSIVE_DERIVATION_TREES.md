@@ -32,3 +32,23 @@ the leaf obligations, or establish that the registry contains every useful
 mathematical method. Tree validation is not a proof kernel. Any downstream
 evaluation retains the statuses and limitations of its own checkers, and
 must not promote `EXPERIMENTAL` to `PROVED`.
+
+## Recursive execution
+
+`mosaic.verification.recursive_execution.execute_recursive_derivation`
+provides a bounded end-to-end action for this structure. It builds and
+validates the complete tree, replays each registered rule's verifier and
+deterministic executor at every internal node (including nested applications),
+compiles the terminal requests into the dependency-aware obligation graph,
+and creates strict request-bound candidate records for supported terminal
+operations. The ordinary graph evaluator then checks those candidates in
+dependency order and retains every rule precondition.
+
+The convenience executor accepts the same `max_depth` and `max_nodes`
+budgets as tree construction. Unsupported leaf operations fail closed. Its
+result includes the tree, the path and ID of each executed rule, and the
+complete obligation-graph result. It does not call external models or trust
+model-generated code. A successful result remains `EXPERIMENTAL`; recursive
+execution is not a formal proof and does not discharge unsupported domain
+preconditions.
+
