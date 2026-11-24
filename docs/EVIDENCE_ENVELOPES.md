@@ -1219,3 +1219,24 @@ the restoring process. It is not a trusted timestamp, proof of durable storage
 outside the store's stated SQLite guarantees, proof that the authority's
 snapshot is substantively correct, or protection against later privileged
 database rollback. Retain the receipt and expected final digest independently.
+
+
+
+### G-EP119: durable checkpoint-chain restoration receipt ledger
+
+The lifecycle trust-anchor store now retains each signed checkpoint-chain
+restoration receipt in an append-only SQLite event table. The receipt is
+recorded in the same `BEGIN IMMEDIATE` transaction as the trust-head insert
+or compare-and-swap update. A successful restoration therefore cannot commit
+the new head while omitting its corresponding local receipt record; a failed
+head transition cannot leave behind a success receipt.
+
+`read_checkpoint_chain_restore_receipts(registry_id)` returns the retained
+receipt payloads in insertion order. Each payload remains an independently
+verifiable Ed25519-signed receipt; local storage does not itself confer trust.
+Exact restoration replays may add another event when they carry a distinct
+valid receipt, while re-inserting the identical receipt digest is idempotent.
+The ledger is append-only through this API, but it shares the SQLite file's
+privileged rollback and deletion limitations. Export or replicate receipts to
+an independently protected system when tamper evidence across database
+restoration is required.
