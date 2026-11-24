@@ -170,7 +170,7 @@ from mosaic.verification.policy_witness_recovery_governance import (
 )
 
 
-def test_recovery_governance_requires_distinct_operator_quorum():
+def test_recovery_governance_requires_distinct_operator_quorum(tmp_path):
     _, second_public = generate_ed25519_keypair()
     second_private, second_public = generate_ed25519_keypair()
     _, third_public = generate_ed25519_keypair()
@@ -181,7 +181,7 @@ def test_recovery_governance_requires_distinct_operator_quorum():
         "operator-3": key("operator-3", third_public),
     }
     item = entry(1)
-    snapshot = snapshot_for("unused-source.sqlite3", item)
+    snapshot = snapshot_for(tmp_path / "quorum-source.sqlite3", item)
     authorization = make_authorization(snapshot, [])
     policy = PolicyWitnessRecoveryPolicy(
         minimum_approvals=3, required_operator_key_ids=("operator-3",),
@@ -215,10 +215,10 @@ def test_recovery_governance_requires_distinct_operator_quorum():
     )
 
 
-def test_recovery_governance_rejects_revoked_and_reused_keys():
+def test_recovery_governance_rejects_revoked_and_reused_keys(tmp_path):
     second_private, second_public = generate_ed25519_keypair()
     item = entry(1)
-    snapshot = snapshot_for("unused-source-2.sqlite3", item)
+    snapshot = snapshot_for(tmp_path / "revoked-source.sqlite3", item)
     authorization = make_authorization(snapshot, [])
     approval = SignedPolicyWitnessRecoveryApproval.sign(
         authorization=authorization, operator_key_id="operator-2",
