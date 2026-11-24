@@ -293,3 +293,81 @@ individual theorem invocation, preserve each generated temporary proof source,
 or prove that the runner host was uncompromised. The affine and polynomial transformation checkers now retain the exact generated Lean source alongside its SHA-256 digest. Ed25519 runner attestations include those exact source bytes in the signed payload, and signed evidence events preserve the source so a consumer can inspect it and verify its digest. `replay_attested_proof_source(...)` verifies the signature and re-runs the retained source through `lake env lean` in the pinned polynomial Lake project. It returns `None` when the replay environment is unavailable or times out; a replay is a fresh check in the current environment, not proof that the original runner host was uncompromised. CI creates the pinned environment manifest after dependency installation, binds its digest and identifying fields into the Ed25519 proof receipt, and independently replays the exact signed source. GitHub publishes the manifest attestation only after the proof and replay steps succeed. This makes each CI proof receipt point to the exact manifest artifact that the workflow later attests. The source is preserved in the signed attestation and event, while theorem invocation logs and complete machine-level execution traces remain future work. GitHub's hosted
 runner image is identified at a broad platform level, not pinned to an
 immutable machine image. Reproducibility is therefore improved, not absolute.
+
+
+## Enforcing GitHub producer identity
+
+A valid Ed25519 receipt signature is not sufficient to establish who produced
+the receipt. For CI artifacts, consumers must first run GitHub's cryptographic
+artifact-attestation verifier, then apply MOSAIC's stricter producer policy
+to the verifier's JSON result. The policy is stored in
+`policies/github-lean-attestation-v1.json` and pins:
+
+- Repository name and immutable GitHub repository ID
+  (`Puronbo/MOSAIC`, ID `1468522236`).
+- The only authorized signer/build workflow:
+  `.github/workflows/lean-polynomial.yml`.
+- Protected source ref `refs/heads/main`.
+- GitHub Actions OIDC issuer and SLSA provenance predicate type.
+- GitHub-hosted runner environment and verified timestamp evidence.
+
+The repository ID is important: repository names can be reused after a
+rename or deletion, while the numeric ID is immutable. Obtain the current ID
+from the GitHub API rather than relying only on a repository name.
+
+For each downloaded artifact, use GitHub CLI to verify cryptographic
+authenticity and enforce repository, signer workflow, and source ref before
+saving the JSON result:
+
+```sh
+gh attestation verify lean-provenance.json \
+  --repo Puronbo/MOSAIC \
+  --signer-workflow Puronbo/MOSAIC/.github/workflows/lean-polynomial.yml \
+  --source-ref refs/heads/main \
+  --deny-self-hosted-runners \
+  --format json > manifest-attestation-verified.json
+
+gh attestation verify lean-proof-attestation.json \
+  --repo Puronbo/MOSAIC \
+  --signer-workflow Puronbo/MOSAIC/.github/workflows/lean-polynomial.yml \
+  --source-ref refs/heads/main \
+  --deny-self-hosted-runners \
+  --format json > receipt-attestation-verified.json
+```
+
+Then apply the MOSAIC policy to each verified result. The expected commit,
+run ID, and subject digest must come from the independently selected workflow
+run and the exact local artifact bytes, not from the attestation predicate:
+
+```sh
+COMMIT=<expected-40-character-commit>
+RUN_ID=<expected-github-actions-run-id>
+
+python scripts/verify_github_attestation_policy.py \
+  --verification-json manifest-attestation-verified.json \
+  --commit "$COMMIT" --run-id "$RUN_ID" \
+  --subject-sha256 "$(sha256sum lean-provenance.json | cut -d' ' -f1)"
+
+python scripts/verify_github_attestation_policy.py \
+  --verification-json receipt-attestation-verified.json \
+  --commit "$COMMIT" --run-id "$RUN_ID" \
+  --subject-sha256 "$(sha256sum lean-proof-attestation.json | cut -d' ' -f1)"
+```
+
+The policy checker rejects mismatched repository IDs, commit/ref, signer or
+build-config URI, run invocation, runner environment, predicate type, subject
+digest, missing timestamp evidence, and unexpected policy fields. Every
+verified attestation returned by GitHub CLI must satisfy policy. It does not
+implement Sigstore verification itself: the input must be the JSON output of
+a successful `gh attestation verify` invocation. Do not pass arbitrary JSON
+or an unverified bundle to this policy checker.
+
+Only after both artifact attestations pass this policy should the consumer
+extract the receipt's Ed25519 public key and pass it as the explicit trusted
+key to the complete bundle verifier. This ordering prevents a self-supplied
+key inside an otherwise valid receipt from bootstrapping its own trust.
+
+GitHub's CLI documentation describes the verified JSON certificate and
+timestamp fields and the importance of checking immutable repository IDs:
+https://cli.github.com/manual/gh_attestation_verify and
+https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline.
