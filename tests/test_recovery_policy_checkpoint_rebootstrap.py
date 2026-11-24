@@ -108,6 +108,14 @@ def test_threshold_rebootstrap_preserves_incidents_and_starts_new_epoch(tmp_path
     assert store.incidents("registry") == incidents_before
     audit_export = export_rebootstrap_audit(store, registry_id="registry")
     audit_head = audit_export["head_sha256"]
+    saved_audit = audit_export["records"][0]["audit"]
+    assert saved_audit["authorization_time_utc"] == "2026-11-24T07:01:00.000000Z"
+    lifecycle = saved_audit["operator_lifecycle_evidence"]
+    assert {item["operator_key_id"] for item in lifecycle} == {"operator-1", "operator-2"}
+    assert all(item["authorized_at_signature"] and item["authorized_at_execution"]
+               for item in lifecycle)
+    assert all(item["key_record_sha256"] == hashlib.sha256(
+        _canonical(item["key_record"])).hexdigest() for item in lifecycle)
     audit_kwargs = {
         "operator_keyring": {"operator-1": op1, "operator-2": op2},
         "publisher_keyring": {"publisher": pub},
@@ -124,6 +132,10 @@ def test_threshold_rebootstrap_preserves_incidents_and_starts_new_epoch(tmp_path
     altered = copy.deepcopy(audit_export)
     altered["records"][0]["audit"]["intent"]["reason"] = "forged reason"
     assert not verify_rebootstrap_audit_export(altered, **audit_kwargs)
+    lifecycle_altered = copy.deepcopy(audit_export)
+    lifecycle_altered["records"][0]["audit"]["operator_lifecycle_evidence"][0][
+        "authorized_at_execution"] = False
+    assert not verify_rebootstrap_audit_export(lifecycle_altered, **audit_kwargs)
     truncated = copy.deepcopy(audit_export)
     truncated["records"] = []
     truncated["record_count"] = 0
