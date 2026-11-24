@@ -67,15 +67,37 @@ class ProposalAssessment(BaseModel):
     conflict_detected: bool
     disposition: str
     mathematical_status: str = "EXPERIMENTAL"
+    # Preserve the complete immutable inputs and their original ordering.
+    preserved_proposals: tuple[AgentProposal, ...] = ()
+    # Each group contains indexes into preserved_proposals for one normalized claim.
+    claim_groups: tuple[tuple[int, ...], ...] = ()
+    conflicting_proposal_indices: tuple[int, ...] = ()
+
+
+def _claim_key(claim: str) -> str:
+    """Normalize presentation whitespace only; never rewrite mathematical syntax."""
+    return " ".join(claim.split())
 
 
 def assess_proposals(task: AgentTask, proposals: list[AgentProposal]) -> ProposalAssessment:
-    """Record agreement/conflict without treating agreement as verification."""
+    """Detect incompatible claims while preserving every proposal and its provenance.
+
+    Whitespace-only differences are grouped together. Case, symbols, and mathematical
+    structure are preserved because changing them could change the meaning of a claim.
+    """
     for proposal in proposals:
         if proposal.task_id != task.task_id:
             raise ValueError("proposal task_id does not match task")
-    claims = {p.claim.strip() for p in proposals}
-    conflict = len(claims) > 1
+
+    grouped: dict[str, list[int]] = {}
+    for index, proposal in enumerate(proposals):
+        grouped.setdefault(_claim_key(proposal.claim), []).append(index)
+    groups = tuple(tuple(indices) for indices in grouped.values())
+    conflict = len(groups) > 1
+    conflicting_indices = tuple(
+        index for group in groups for index in group
+    ) if conflict else ()
+
     if not proposals:
         disposition = "no-proposals"
     elif conflict:
@@ -85,10 +107,13 @@ def assess_proposals(task: AgentTask, proposals: list[AgentProposal]) -> Proposa
     return ProposalAssessment(
         task_id=task.task_id,
         proposal_count=len(proposals),
-        distinct_claim_count=len(claims),
+        distinct_claim_count=len(groups),
         conflict_detected=conflict,
         disposition=disposition,
         mathematical_status="EXPERIMENTAL",
+        preserved_proposals=tuple(proposals),
+        claim_groups=groups,
+        conflicting_proposal_indices=conflicting_indices,
     )
 
 
