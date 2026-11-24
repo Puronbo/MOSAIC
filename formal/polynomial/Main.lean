@@ -240,27 +240,6 @@ theorem iterated_difference_by (n m k r : Nat) :
       rw [ih (k + m), ih k, arbitrary_shift]
       ring
 
-/-- A positive step preserves strict positivity of every iterated
-m-step difference when the base is at least two. -/
-theorem iterated_difference_by_pos (n m k r : Nat)
-    (hn : 2 ≤ n) (hm : 1 ≤ m) :
-    0 < iteratedDifferenceBy n m r k := by
-  rw [iterated_difference_by]
-  have hn' : 1 < (n : ℝ) := by
-    exact_mod_cast (show 1 < n by omega)
-  have hpow : 1 < (n : ℝ) ^ m := by
-    have hpos : 0 < (n : ℝ) := by positivity
-    have hmpos : 0 < m := by omega
-    have hpowpos : 1 < (n : ℝ) ^ m := by
-      calc
-        1 < (n : ℝ) := hn'
-        _ ≤ (n : ℝ) ^ m := by
-          exact le_self_pow₀ (by positivity) (by omega)
-    exact hpowpos
-  have hvalue : 0 < value n k := by
-    unfold value
-    exact pow_pos (by positivity) _
-  exact mul_pos (pow_pos (by linarith) _) hvalue
 
 
 end MosaicExponentShift
