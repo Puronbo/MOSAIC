@@ -41,6 +41,10 @@
         "lean_toolchain",
         "lean_version_output",
         "lake_version_output",
+        "elan_version_output",
+        "lean_binary_sha256",
+        "lake_binary_sha256",
+        "elan_binary_sha256",
         "root_lean_toolchain_sha256",
         "formal_lean_toolchain_sha256",
         "mathlib_revision",
@@ -98,6 +102,22 @@
         "platform": {
           "type": "string",
           "minLength": 1
+        },
+        "elan_version_output": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lean_binary_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "lake_binary_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "elan_binary_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       }
     },
