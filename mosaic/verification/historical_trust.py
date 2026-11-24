@@ -166,3 +166,47 @@ def verify_historical_with_keyring(
         return False
     except (ValueError, TypeError):
         return False
+
+
+def verify_historical_with_policy_registry(
+    attestation: HistoricalSignedLeanAttestation,
+    keyring: dict[str, HistoricalLeanTrustedKey],
+    *,
+    verified_timestamp_utc: str | datetime,
+    timestamp_evidence_verified: bool,
+    registry_entries,
+    publisher_public_keys: dict[str, bytes],
+    expected_registry_head_sequence: int,
+    expected_registry_head_sha256: str,
+) -> bool:
+    """Verify through an authenticated registry pinned to a trusted checkpoint.
+
+    Publisher keys and the expected head checkpoint must be provisioned through
+    an independent trust channel. This function does not discover the latest
+    registry head or prove freshness without that checkpoint.
+    """
+    from mosaic.verification.policy_registry import (
+        SignedPolicyRegistryEntry,
+        verify_policy_registry,
+    )
+
+    if not verify_policy_registry(
+        registry_entries,
+        publisher_public_keys=publisher_public_keys,
+        expected_head_sequence=expected_registry_head_sequence,
+        expected_head_sha256=expected_registry_head_sha256,
+    ):
+        return False
+    if not all(isinstance(item, SignedPolicyRegistryEntry) for item in registry_entries):
+        return False
+    records = {
+        item.policy_record.policy_sha256: item.policy_record
+        for item in registry_entries
+    }
+    return verify_historical_with_keyring(
+        attestation,
+        keyring,
+        verified_timestamp_utc=verified_timestamp_utc,
+        timestamp_evidence_verified=timestamp_evidence_verified,
+        trusted_policies=records,
+    )
