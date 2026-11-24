@@ -168,3 +168,21 @@ test("published bundle JSON Schema exactly describes the portable receipt wrappe
   assert.deepEqual(Object.keys(schema.properties).sort(), Object.keys(bundleVector.receipt).sort());
   assert.equal(schema.properties.replay.additionalProperties, false);
 });
+
+
+test("Node bundle verifier rejects lone surrogates in request and signed fields", () => {
+  const manifestBytes = Buffer.from(bundleVector.manifest_b64, "base64");
+  const candidateBytes = Buffer.from(bundleVector.candidate_b64, "base64");
+  const valid = {
+    manifestBytes,
+    trustedPublicKeyB64: bundleVector.public_key_b64,
+    request: bundleVector.request,
+    candidateBytes,
+  };
+  assert.equal(verifyReceiptBundle(bundleVector.receipt, {
+    ...valid,
+    request: { ...bundleVector.request, expression: "\ud800" },
+  }), false);
+  const attestation = { ...bundleVector.receipt.attestation, lean_toolchain: "\ud800" };
+  assert.equal(verifyReceiptBundle({ ...bundleVector.receipt, attestation }, valid), false);
+});
