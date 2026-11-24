@@ -79,3 +79,12 @@ transformation's algebraic correctness or a formal proof of domain equality.
 The `mosaic.verification.derivation_bundle` module can package a validated recursive derivation tree, its compiled obligation graph, bounded candidate payloads, and the deterministic graph result into one request-bound bundle. The canonical SHA-256 digest detects content changes. Validation rebuilds the graph from registered decomposition rules and re-evaluates the exact stored candidates; a stored result is not accepted merely because it was serialized.
 
 Bundles are bounded by candidate count, candidate payload size, and total serialized size. Unknown obligation IDs are rejected. A bundle tied to a different request is stale. The bundle is a replayable computation record, **not** a formal proof of the root claim: current graph outcomes remain `EXPERIMENTAL`, and unresolved rule side conditions continue to cap the result.
+
+
+## Lean root-derivative bridge (bounded polynomial subset)
+
+`mosaic.verification.lean_derivation.verify_derivation_root_derivative_with_lean` adds a request-bound formal-checking entry point for differentiation requests over the variable `x` whose root expression and candidate derivative fit the bounded univariate real-polynomial grammar supported by the pinned Mathlib backend.
+
+The adapter requires a complete registered derivation tree for the exact request, hashes that tree, and binds the receipt to both the request fingerprint and tree digest. The Lean calculus checker independently parses the original expression, computes its polynomial derivative, rejects a mismatching candidate, and asks the Lean kernel to check a `HasDerivAt` theorem over `ℝ`. A successful receipt therefore establishes the root derivative theorem for the exact expression and candidate, subject to the pinned Lean/Mathlib environment.
+
+**Important scope boundary:** the current proof is generated directly for the root expression. The tree digest preserves provenance and prevents a receipt from being casually transferred to a different derivation, but the tree's individual chain-rule edges are not themselves the proof term and are not yet formally composed. This is a real root-level formal result, not yet a formal proof of the recursive decomposition procedure. Non-polynomial expressions, variables other than `x`, unsupported domain conditions, and general chain-rule composition remain outside this bridge. A kernel-unavailable or rejected result is preserved as such; it is never upgraded to formal verification.
