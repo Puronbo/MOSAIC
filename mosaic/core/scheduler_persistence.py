@@ -161,3 +161,29 @@ class SchedulerSnapshotStore:
         if not hmac.compare_digest(snapshot.snapshot_sha256, snapshot_sha256):
             raise ValueError("stored snapshot identifier does not match its content")
         return validate_scheduler_snapshot(snapshot)
+
+
+def quarantine_interrupted_tasks(
+    snapshot: SchedulerSnapshot,
+) -> SchedulerSnapshot:
+    """Mark persisted RUNNING tasks FAILED after restart; never blindly rerun them.
+
+    A process restart cannot establish whether an external provider completed.
+    Such tasks are quarantined as FAILED for explicit reconciliation rather than
+    being automatically dispatched a second time.
+    """
+    validate_scheduler_snapshot(snapshot)
+    recovered_records = tuple(
+        record.model_copy(
+            update={
+                "status": TaskStatus.FAILED,
+                "error": (
+                    "process restarted while task was RUNNING; external provider "
+                    "outcome is unknown and requires reconciliation"
+                ),
+            }
+        )
+        if record.status == TaskStatus.RUNNING else record
+        for record in snapshot.records
+    )
+    return SchedulerSnapshot.capture(snapshot.tasks, recovered_records)
