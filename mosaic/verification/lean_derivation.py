@@ -88,6 +88,14 @@ def verify_derivation_root_derivative_with_lean(
         timeout_seconds=timeout_seconds,
         lake_executable=lake_executable,
     )
+    explanation = (
+        "Lean kernel accepted the root HasDerivAt theorem for the exact request expression and candidate derivative. The validated derivation tree is bound as provenance, not claimed as the proof term."
+        if check.status == "FORMALLY_VERIFIED"
+        else check.explanation
+    )
+    if check.status == "REJECTED" and check.diagnostics:
+        explanation = f"{explanation} Lean diagnostics: {check.diagnostics}"[:2000]
+
     return LeanDerivationReceipt(
         status=check.status,
         request_sha256=request_fingerprint(request),
@@ -97,13 +105,8 @@ def verify_derivation_root_derivative_with_lean(
         proof_source_sha256=check.proof_source_sha256,
         lean_version=check.lean_version,
         mathlib_revision=check.mathlib_revision,
-        explanation=(
-            "Lean kernel accepted the root HasDerivAt theorem for the exact request expression and candidate derivative. The validated derivation tree is bound as provenance, not claimed as the proof term."
-            if check.status == "FORMALLY_VERIFIED"
-            else check.explanation
-        ),
+        explanation=explanation,
     )
-
 
 
 def validate_lean_derivation_receipt(
