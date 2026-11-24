@@ -1541,6 +1541,106 @@ class OperatorLifecycleRecoveryEvidenceEnvelope(BaseModel):
         return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
 
 
+class OperatorLifecycleRecoveryEvidenceVerificationReport(BaseModel):
+    """Stable, machine-readable result for independent portable-envelope verification."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    schema_version: Literal["1.0"] = "1.0"
+    accepted: bool
+    registry_id: str
+    envelope_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    rotation_count: int = Field(ge=0)
+    restore_event_count: int = Field(ge=0)
+    checks: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+
+    def digest(self) -> str:
+        """Hash the canonical report payload for reproducible report comparison."""
+        return hashlib.sha256(_canonical(self.model_dump(mode="json"))).hexdigest()
+
+
+def verify_operator_lifecycle_recovery_evidence_envelope_report(
+    envelope: OperatorLifecycleRecoveryEvidenceEnvelope, *,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_registry_id: str,
+    expected_initial_key_id: str,
+    expected_rotation_head_sha256: str,
+    expected_rotation_sequence: int,
+    expected_rotation_sha256: str | None,
+    expected_restore_event_sequence: int,
+    expected_restore_ledger_entry_sha256: str,
+    expected_restore_receipt_sha256: str,
+    expected_restore_ledger_head_sha256: str,
+    authorization_time_utc: str | None = None,
+) -> OperatorLifecycleRecoveryEvidenceVerificationReport:
+    """Return deterministic check identifiers and errors for an anchored envelope."""
+    errors: list[str] = []
+    checks: list[str] = []
+    valid_type = isinstance(envelope, OperatorLifecycleRecoveryEvidenceEnvelope)
+    if not valid_type:
+        errors.append("envelope:type_invalid")
+        return OperatorLifecycleRecoveryEvidenceVerificationReport(
+            accepted=False, registry_id=expected_registry_id, envelope_sha256=None,
+            rotation_count=0, restore_event_count=0, checks=(), errors=tuple(errors))
+    try:
+        envelope_digest = envelope.digest()
+    except (TypeError, ValueError):
+        envelope_digest = None
+        errors.append("envelope:canonical_digest_invalid")
+    if envelope.registry_id != expected_registry_id:
+        errors.append("envelope:registry_mismatch")
+    else:
+        checks.append("envelope:registry_match")
+    if envelope.initial_authority_key_id != expected_initial_key_id:
+        errors.append("rotation:initial_authority_mismatch")
+    rotation_report = verify_operator_lifecycle_ledger_authority_rotation_chain(
+        envelope.rotations, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_initial_key_id=expected_initial_key_id,
+        authorization_time_utc=authorization_time_utc)
+    if not rotation_report.accepted:
+        errors.extend(rotation_report.errors)
+    else:
+        checks.append("rotation:dual_signed_chain_valid")
+    if envelope.rotation_head.digest() != expected_rotation_head_sha256:
+        errors.append("rotation:external_head_pin_mismatch")
+    else:
+        checks.append("rotation:external_head_pin_match")
+    if envelope.restore_ledger_head.digest() != expected_restore_ledger_head_sha256:
+        errors.append("restore:external_head_pin_mismatch")
+    else:
+        checks.append("restore:external_head_pin_match")
+    ledger_report = verify_operator_lifecycle_restore_ledger(
+        envelope.restore_ledger, expected_registry_id=expected_registry_id,
+        expected_event_sequence=expected_restore_event_sequence,
+        expected_ledger_entry_sha256=expected_restore_ledger_entry_sha256,
+        authority_keyring=authority_keyring)
+    if not ledger_report.accepted:
+        errors.extend(ledger_report.errors)
+    else:
+        checks.append("restore:complete_hash_linked_ledger_valid")
+    accepted = verify_operator_lifecycle_recovery_evidence_envelope(
+        envelope, authority_keyring=authority_keyring,
+        expected_registry_id=expected_registry_id,
+        expected_initial_key_id=expected_initial_key_id,
+        expected_rotation_head_sha256=expected_rotation_head_sha256,
+        expected_rotation_sequence=expected_rotation_sequence,
+        expected_rotation_sha256=expected_rotation_sha256,
+        expected_restore_event_sequence=expected_restore_event_sequence,
+        expected_restore_ledger_entry_sha256=expected_restore_ledger_entry_sha256,
+        expected_restore_receipt_sha256=expected_restore_receipt_sha256,
+        expected_restore_ledger_head_sha256=expected_restore_ledger_head_sha256,
+        authorization_time_utc=authorization_time_utc)
+    if not accepted and not errors:
+        errors.append("envelope:composed_verification_failed")
+    if accepted:
+        checks.append("envelope:all_external_pins_and_signatures_valid")
+    return OperatorLifecycleRecoveryEvidenceVerificationReport(
+        accepted=accepted, registry_id=expected_registry_id,
+        envelope_sha256=envelope_digest, rotation_count=len(envelope.rotations),
+        restore_event_count=ledger_report.event_count,
+        checks=tuple(dict.fromkeys(checks)), errors=tuple(dict.fromkeys(errors)))
+
+
 def verify_operator_lifecycle_recovery_evidence_envelope(
     envelope: OperatorLifecycleRecoveryEvidenceEnvelope, *,
     authority_keyring: dict[str, PolicyPublisherKey],
