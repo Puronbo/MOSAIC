@@ -1,0 +1,40 @@
+{
+  "public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+  "manifest_b64": "eyJlbnZpcm9ubWVudCI6eyJsZWFuX3Rvb2xjaGFpbiI6ImxlYW5wcm92ZXIvbGVhbjQ6djQuMzYuMCIsIm1hdGhsaWJfcmV2aXNpb24iOiJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiIn0sImV4ZWN1dGlvbiI6eyJydW5faWQiOiIxMjM0NTY3ODkifSwic2NoZW1hX3ZlcnNpb24iOiJtb3NhaWMubGVhbi1idWlsZC1wcm92ZW5hbmNlLnYxIiwic291cmNlIjp7ImNvbW1pdCI6ImFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWEifX0=",
+  "request": {
+    "schema_version": "1.0",
+    "operation": "verify_identity",
+    "expression": "x + 1",
+    "variable": "x",
+    "rhs": "x + 1"
+  },
+  "candidate_b64": "eCArIDE=",
+  "receipt": {
+    "schema_version": "mosaic.signed-lean-proof-receipt.v1",
+    "attestation": {
+      "schema_version": "1.0",
+      "receipt_id": "portable-bundle-001",
+      "runner_id": "conformance-runner",
+      "key_id": "vector-key",
+      "request_sha256": "b47aaa98692e836d57a4d8bd8994a02409dc7db48be943e288d051906da55459",
+      "artifact_sha256": "ab69983b9cb072f83b9bb4e98239895a69c0a006f556bcf0ff786588eadc4360",
+      "proof_artifact_sha256": "918f10384daf5523dd49fbd07071c061ab86151d99a2085af506068b62071217",
+      "proof_source": "by\n",
+      "environment_manifest_sha256": "266aeeb85192a2a3234c6ea46858cd206705cc99c4f7e2349a7f4dfcd559158c",
+      "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "workflow_run_id": "123456789",
+      "lean_toolchain": "leanprover/lean4:v4.36.0",
+      "mathlib_revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "checker_id": "lean-polynomial",
+      "kernel_id": "Lean",
+      "kernel_version": "Lean 4.36.0",
+      "outcome": "PASSED",
+      "signature_b64": "41PGVwufT50ibhrkdMdUlPyIqeJ5MSxcQkZlG8vKGIM0PgBCFQDXtzNv5DlrQepEiLmz4hTD2tm6pHI0yM+hCA=="
+    },
+    "public_key_b64": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+    "environment_manifest_sha256": "266aeeb85192a2a3234c6ea46858cd206705cc99c4f7e2349a7f4dfcd559158c",
+    "replay": {
+      "exact_signed_source_replayed": true
+    }
+  }
+}
