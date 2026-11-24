@@ -62,6 +62,50 @@ a local extremum is REFUTED by the Hessian test.
 - NOT IMPLIED: a local saddle classification does not by itself describe
   global level sets, behavior at the boundary x→0+, or asymptotics as x→∞.
 
+
+## A parameter-robust saddle theorem (analytic)
+
+The same calculation extends beyond the original example. Let
+
+\[
+F_{a,b,c}(x,t)=x^{ax+bt+c},\qquad x>0,
+\]
+
+where \(a,b,c\in\mathbb R\) and \(b\ne0\). Set
+\(\ell=\ln F=(ax+bt+c)\ln x\). Since \(F>0\), the stationary
+points of \(F\) and \(\ell\) coincide. The equations are
+
+\[
+\ell_t=b\ln x=0,\qquad
+\ell_x=a\ln x+\frac{ax+bt+c}{x}=0.
+\]
+
+Because \(b\ne0\), the first equation forces \(x=1\), and the second
+then forces \(t=-(a+c)/b\). This stationary point is unique. At it,
+
+\[
+H_{\ell}=\begin{pmatrix}2a&b\\b&0\end{pmatrix},
+\qquad \det H_{\ell}=-b^2<0.
+\]
+
+At a stationary point, \(H_F=F H_{\ell}\), so
+\(\det H_F=F^2(-b^2)<0\). Therefore:
+
+**Theorem (analytic):** for every real \(a,c\) and every nonzero real
+\(b\), the positive-base surface \(F_{a,b,c}\) has exactly one
+stationary point, and that point is a nondegenerate saddle.
+
+This is a parameter-robust result: the saddle cannot turn into a local
+extremum by changing \(a\) or \(c\), as long as the exponent depends
+nontrivially on \(t\) (that is, \(b\ne0\)). The case \(b=0\) is
+structurally different because the function is independent of \(t\);
+stationary points, if any, occur along entire horizontal lines and are
+not isolated in the two-dimensional domain.
+
+**Status:** ANALYTIC / NOT YET FORMALLY VERIFIED. The proof is short and
+complete on the stated domain, but its parameterized stationary-point and
+Hessian claims have not yet been added to the Lean kernel development.
+
 ## A reusable conjecture workflow
 
 For each proposed identity, inequality, monotonicity claim, or optimization
