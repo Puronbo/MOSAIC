@@ -431,7 +431,7 @@ theorem iterated_derivative (x t : ℝ) (r : Nat) (hx : 0 < x) :
   | zero =>
       simpa [iteratedDerivative] using derivative x t hx
   | succ r ih =>
-      have h := (ih t).mul_const (Real.log x)
+      have h := ih.mul_const (Real.log x)
       simpa [iteratedDerivative, mul_assoc] using h
 
 /-- Closed form for every iterated derivative:
