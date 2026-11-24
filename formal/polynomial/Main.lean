@@ -116,3 +116,54 @@ theorem eq_of_pos_rpow_eq_three {x y : ℝ}
     (Set.mem_Ioi.mpr hxgt) (Set.mem_Ioi.mpr hygt) (hxlog.trans hylog.symm)
 
 end MosaicPolynomial
+
+
+/-! ## Exponent-increment system
+
+The exponent shift is represented with a natural-number index.  Keeping the
+base as a natural number makes the exponent unambiguous, while the value is
+embedded in the reals so that differences and strict growth are ordinary
+ordered-real statements.  This theorem family deliberately excludes zero and
+negative bases from the real-valued monotonicity claim.
+-/
+
+namespace MosaicExponentShift
+
+/-- The k-th unit increment of n^n. -/
+def value (n k : Nat) : ℝ := (n : ℝ) ^ (n + k)
+
+/-- One unit of exponent increment multiplies the value by the base. -/
+theorem successor (n k : Nat) :
+    value n (k + 1) = (n : ℝ) * value n k := by
+  simp [value, Nat.add_assoc, pow_succ, mul_comm]
+
+/-- The first forward difference is (n - 1) times the current value. -/
+theorem first_difference (n k : Nat) :
+    value n (k + 1) - value n k =
+      ((n : ℝ) - 1) * value n k := by
+  rw [successor]
+  ring
+
+/-- For natural bases at least two, every unit increment is strictly positive. -/
+theorem strictly_increasing (n k : Nat) (hn : 2 ≤ n) :
+    value n k < value n (k + 1) := by
+  rw [successor]
+  have hn' : 1 < (n : ℝ) := by exact_mod_cast (show 1 < n by omega)
+  have hvalue : 0 < value n k := by
+    unfold value
+    exact pow_pos (by exact_mod_cast (show 0 < n by omega)) _
+  nlinarith
+
+/-- At base one, every exponent shift is stationary. -/
+theorem one_is_fixed (k : Nat) : value 1 k = 1 := by
+  simp [value]
+
+/-- At base zero, the initial term uses 0^0 and is intentionally not given
+a blanket real-valued recurrence theorem. -/
+theorem zero_base_after_first_step (k : Nat) (hk : 1 ≤ k) :
+    value 0 k = 0 := by
+  unfold value
+  have hexp : 0 < 0 + k := by omega
+  simp [hexp]
+
+end MosaicExponentShift
