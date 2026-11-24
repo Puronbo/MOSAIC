@@ -353,10 +353,9 @@ def report_rebootstrap_proposal_conflicts(
                 audit["intent"]).digest())
         except (ValueError, TypeError):
             continue
-    winners = sorted(set(submitted) & set(audited))
     # The retained audit order is authoritative; do not infer priority from
     # proposal order, timestamps, or digest sorting.
-    winning = winners[-1] if len(winners) == 1 else None
+    winning = next((item for item in reversed(audited) if item in submitted), None)
     losing = tuple(item for item in submitted if item in audited and item != winning)
     unattributed = tuple(item for item in submitted if item not in audited)
     return RecoveryProposalConflictReport(
