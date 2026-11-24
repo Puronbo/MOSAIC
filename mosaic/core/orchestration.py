@@ -475,6 +475,8 @@ def obligation_verification_tasks(
         raise ValueError("review assessment belongs to another original task")
     if assessment.completed_review_count != len(assessment.review_task_ids):
         raise ValueError("review assessment is incomplete")
+    if len(set(assessment.review_task_ids)) != len(assessment.review_task_ids):
+        raise ValueError("review assessment contains duplicate task IDs")
     if max_obligations < 1 or len(assessment.obligations) > max_obligations:
         raise ValueError("verification obligation budget exceeded")
 
@@ -484,6 +486,15 @@ def obligation_verification_tasks(
         if obligation.obligation_id in seen_ids:
             raise ValueError("duplicate obligation ID")
         seen_ids.add(obligation.obligation_id)
+        if obligation.source_task_id not in assessment.review_task_ids:
+            raise ValueError("obligation source is not in the completed review set")
+        if not obligation.finding.requires_independent_check:
+            raise ValueError("non-actionable finding cannot become a verifier task")
+        expected_digest = hashlib.sha256(
+            f"{obligation.source_task_id}:{obligation.finding.finding_id}".encode("utf-8")
+        ).hexdigest()[:12]
+        if obligation.obligation_id != f"obligation-{expected_digest}":
+            raise ValueError("obligation ID does not match its source finding")
         payload = json.dumps(
             {
                 "obligation_id": obligation.obligation_id,
