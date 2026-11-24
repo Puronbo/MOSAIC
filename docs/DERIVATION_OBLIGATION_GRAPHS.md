@@ -206,3 +206,18 @@ They make the limit characterization explicit, rather than independently
 proving the exponential limit from first principles. The claims are
 kernel-checked only when the pinned polynomial-kernel workflow passes.
 
+### Higher continuous derivatives
+
+The namespace also defines `iteratedDerivative x r t` recursively and states
+`iterated_derivative`, proving that each successive derivative exists for
+every fixed positive base. The closed-form theorem
+`iterated_derivative_formula` gives
+
+\[
+F_x^{(r)}(t)=(\log x)^rF_x(t).
+\]
+
+This is a fixed-base result for all natural derivative orders. The proof
+repeatedly applies the constant-multiple derivative rule to the preceding
+order. It does not yet cover variable-base derivatives or complex branches.
+
