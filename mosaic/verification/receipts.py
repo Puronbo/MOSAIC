@@ -7,6 +7,10 @@ for re-running a trusted proof kernel when policy requires fresh verification.
 import hashlib
 import hmac
 import json
+import os
+import re
+import tempfile
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -132,3 +136,56 @@ def validate_receipt_for_replay(
     if receipt.checker_id not in _ALLOWED_CHECKERS:
         raise ValueError("receipt checker is not allow-listed")
     return receipt
+
+
+class ReceiptStore:
+    """Small local append-only receipt store using atomic, no-overwrite creation.
+
+    The directory is deployment-owned. Restrict its permissions and protect its
+    backups; the receipt digest detects edits but does not authenticate writers.
+    """
+
+    def __init__(self, root: str | Path):
+        self.root = Path(root)
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def save(self, receipt: VerificationReceipt) -> Path:
+        expected = _receipt_digest(receipt)
+        if not hmac.compare_digest(receipt.receipt_sha256, expected):
+            raise ValueError("refusing to persist a receipt with an invalid digest")
+        encoded = serialize_receipt(receipt)
+        target = self.root / f"{receipt.receipt_sha256}.json"
+        if target.exists():
+            if target.read_bytes() != encoded:
+                raise ValueError("receipt ID already exists with different content")
+            return target
+
+        temporary_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=self.root, prefix=".receipt-", delete=False
+            ) as temporary:
+                temporary_path = Path(temporary.name)
+                temporary.write(encoded)
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            try:
+                # Hard-link creation is atomic and fails rather than replacing an
+                # existing receipt, preventing concurrent writers from clobbering it.
+                os.link(temporary_path, target)
+            except FileExistsError:
+                if target.read_bytes() != encoded:
+                    raise ValueError("receipt ID collision with different content")
+            return target
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+
+    def load(self, receipt_sha256: str, request: MathRequest) -> VerificationReceipt:
+        if not re.fullmatch(r"[0-9a-f]{64}", receipt_sha256):
+            raise ValueError("invalid receipt identifier")
+        path = self.root / f"{receipt_sha256}.json"
+        receipt = load_receipt(path.read_bytes())
+        if not hmac.compare_digest(receipt.receipt_sha256, receipt_sha256):
+            raise ValueError("stored receipt identifier does not match its content")
+        return validate_receipt_for_replay(receipt, request)
