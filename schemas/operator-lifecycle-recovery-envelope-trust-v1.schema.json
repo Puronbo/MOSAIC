@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-recovery-envelope-trust-v1.schema.json",
+  "title": "MOSAIC Operator Lifecycle Recovery Envelope Trust Configuration v1",
+  "description": "Deployment-provisioned trust inputs. Store and distribute independently from the evidence envelope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "expected_registry_id",
+    "expected_initial_key_id",
+    "expected_rotation_head_sha256",
+    "expected_rotation_sequence",
+    "expected_rotation_sha256",
+    "expected_restore_event_sequence",
+    "expected_restore_ledger_entry_sha256",
+    "expected_restore_receipt_sha256",
+    "expected_restore_ledger_head_sha256",
+    "authority_keyring"
+  ],
+  "properties": {
+    "expected_registry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "expected_initial_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "expected_rotation_head_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expected_rotation_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expected_rotation_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expected_restore_event_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expected_restore_ledger_entry_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expected_restore_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expected_restore_ledger_head_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "authority_keyring": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "policy-publisher-key-v1.schema.json"
+      }
+    }
+  }
+}
