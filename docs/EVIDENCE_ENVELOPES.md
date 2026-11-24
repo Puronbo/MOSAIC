@@ -1366,3 +1366,33 @@ storage. Dual signatures prove authorization by the previous key and
 possession by the new key, not that either authority is uncompromised or that
 the rotation was approved by an external governance process. Effective times
 are policy timestamps, not trusted timestamps.
+
+
+
+### G-EP125: externally pinned ledger-authority rotation heads
+
+`SignedOperatorLifecycleLedgerAuthorityRotationHead` provides a portable,
+signed checkpoint for the authority-rotation chain itself. It binds the
+registry, terminal rotation sequence and digest, active key ID, and issuance
+time. The genesis checkpoint uses sequence zero and a null rotation digest;
+subsequent checkpoints are signed by the active authority established by the
+rotation chain.
+
+`verify_operator_lifecycle_ledger_authority_rotation_head(...)` verifies
+the complete supplied rotation history from the independently pinned initial
+key, checks the exact expected sequence and digest, confirms the active key,
+and verifies the head signature. The
+`verify_operator_lifecycle_ledger_authority_rotation_head_advance(...)`
+helper verifies both the previous and candidate external checkpoints against
+their respective prefixes/full history and requires a strictly newer sequence
+and non-regressing issuance time. This detects a truncated, forked, replayed,
+or replaced rotation history when the consumer supplies its latest external
+head and retains that new head outside the mutable repository or database.
+
+The JSON Schema is
+`schemas/operator-lifecycle-restore-ledger-authority-rotation-head-v1.schema.json`.
+The initial authority key ID remains a separately provisioned root. Consumers
+must atomically persist each accepted new rotation-head checkpoint in an
+independent control plane; the helper does not provide distributed consensus,
+trusted timestamping, or immutable storage. A rotation chain without an
+independent latest-head pin remains susceptible to wholesale rollback.
