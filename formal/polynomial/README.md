@@ -85,3 +85,26 @@ run attempt, and a recognized runner OS (`Linux`, `Windows`, or `macOS`). It
 also checks that the source revision is a full lowercase commit ID. This avoids
 producing a superficially successful but schema-invalid manifest outside a
 fully identified CI execution.
+
+
+## Current proof entrypoint
+
+`Main.lean` contains kernel-checked examples for integer polynomial
+identities, monotonicity of natural-number powers, and the comparison
+`2^(n - 1) ≤ n^(n - 1)` for `n ≥ 2`. It also proves
+`n^n ≠ 3` for every natural number `n`, via the auxiliary lower bound
+`4 ≤ 2^n` for `n ≥ 2`. This is the discrete statement corresponding to
+the real equation `x^x = 3`: it rules out natural-number solutions but does
+not rule out positive real solutions.
+
+The real-valued polynomial derivative checker is a separate bounded
+integration path exercised by the same CI workflow. It verifies derivatives
+of supported univariate polynomials using Mathlib's `HasDerivAt` API; it
+does not establish a general theorem about `x^x`, logarithms, or Lambert
+`W`. The real solution and its uniqueness remain an analytic argument
+documented in the worked example, not a theorem in this Lean entrypoint.
+
+The workflow also exercises request-bound verification and replays a signed
+proof source against the recorded pinned environment. A successful CI run
+is evidence for those exact checked sources and execution steps; it is not
+a proof that arbitrary mathematical expressions are supported.
