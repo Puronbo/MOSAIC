@@ -5,9 +5,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { verifyAttestation, parseJsonNoDuplicateKeys } from "../scripts/verify_lean_receipt.mjs";
+import { verifyAttestation, verifyReceiptBundle, parseJsonNoDuplicateKeys } from "../scripts/verify_lean_receipt.mjs";
 
-const vector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_vector.json", import.meta.url), "utf8"));
+const vector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_vector.json", import.meta.url), "utf8"));\nconst bundleVector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_bundle_vector.json", import.meta.url), "utf8"));
 
 test("Node independently verifies the Python Ed25519 conformance vector", () => {
   assert.equal(verifyAttestation(vector.attestation, vector.public_key_b64), true);
@@ -108,4 +108,22 @@ test("Node CLI rejects duplicate-key receipt JSON before verification", () => {
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test("Node independently verifies the complete signed proof bundle", () => {
+  const manifestBytes = Buffer.from(bundleVector.manifest_b64, "base64");
+  const candidateBytes = Buffer.from(bundleVector.candidate_b64, "base64");
+  const valid = {
+    manifestBytes,
+    trustedPublicKeyB64: bundleVector.public_key_b64,
+    request: bundleVector.request,
+    candidateBytes,
+  };
+  assert.equal(verifyReceiptBundle(bundleVector.receipt, valid), true);
+  assert.equal(verifyReceiptBundle(bundleVector.receipt, { ...valid, candidateBytes: Buffer.concat([candidateBytes, Buffer.from(" ")]) }), false);
+  assert.equal(verifyReceiptBundle(bundleVector.receipt, { ...valid, manifestBytes: Buffer.concat([manifestBytes, Buffer.from(" ")]) }), false);
+  assert.equal(verifyReceiptBundle(bundleVector.receipt, { ...valid, request: { ...valid.request, expression: "x + 2" } }), false);
+  const tampered = { ...bundleVector.receipt, replay: { exact_signed_source_replayed: false } };
+  assert.equal(verifyReceiptBundle(tampered, valid), false);
 });
