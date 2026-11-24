@@ -1116,3 +1116,58 @@ def test_restore_ledger_head_requires_exact_external_rotation_pin_and_effective_
         issued_at_utc="2026-11-24T08:00:30.000000Z", private_key=old_sk)
     assert not verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
         wrong_signer, rotation_head=rotation_head, **kwargs)
+
+
+def test_portable_recovery_evidence_envelope_requires_independent_exact_pins():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleRecoveryEvidenceEnvelope,
+        SignedOperatorLifecycleLedgerAuthorityRotation,
+        SignedOperatorLifecycleLedgerAuthorityRotationHead,
+        SignedOperatorLifecycleRestoreLedgerHead,
+        verify_operator_lifecycle_recovery_evidence_envelope,
+    )
+    root_sk, root = identity("envelope-root")
+    active_sk, active = identity("envelope-active")
+    ring = {root.key_id: root, active.key_id: active}
+    rotation = SignedOperatorLifecycleLedgerAuthorityRotation.sign(
+        registry_id="envelope-registry", rotation_sequence=1,
+        previous_rotation_sha256=None, previous_key_id=root.key_id,
+        new_key_id=active.key_id, previous_private_key=root_sk,
+        new_private_key=active_sk, previous_public_key=root.public_key(),
+        new_public_key=active.public_key(),
+        effective_at_utc="2026-11-24T08:00:00.000000Z")
+    rotation_head = SignedOperatorLifecycleLedgerAuthorityRotationHead.sign(
+        registry_id="envelope-registry", rotation_sequence=1,
+        rotation_sha256=rotation.digest(), active_key_id=active.key_id,
+        issued_at_utc="2026-11-24T08:01:00.000000Z", private_key=active_sk)
+    restore_head = SignedOperatorLifecycleRestoreLedgerHead.sign(
+        registry_id="envelope-registry", event_sequence=9,
+        ledger_entry_sha256="c" * 64, receipt_sha256="d" * 64,
+        ledger_authority_key_id=active.key_id,
+        issued_at_utc="2026-11-24T08:02:00.000000Z", private_key=active_sk)
+    envelope = OperatorLifecycleRecoveryEvidenceEnvelope(
+        registry_id="envelope-registry", initial_authority_key_id=root.key_id,
+        rotations=(rotation,), rotation_head=rotation_head,
+        restore_ledger_head=restore_head)
+    kwargs = dict(
+        authority_keyring=ring, expected_registry_id="envelope-registry",
+        expected_initial_key_id=root.key_id,
+        expected_rotation_head_sha256=rotation_head.digest(),
+        expected_rotation_sequence=1, expected_rotation_sha256=rotation.digest(),
+        expected_restore_event_sequence=9,
+        expected_restore_ledger_entry_sha256="c" * 64,
+        expected_restore_receipt_sha256="d" * 64,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+    assert verify_operator_lifecycle_recovery_evidence_envelope(envelope, **kwargs)
+    assert len(envelope.digest()) == 64
+
+    wrong_external_pin = dict(kwargs, expected_rotation_head_sha256="e" * 64)
+    assert not verify_operator_lifecycle_recovery_evidence_envelope(
+        envelope, **wrong_external_pin)
+    wrong_restore_pin = dict(kwargs, expected_restore_ledger_entry_sha256="f" * 64)
+    assert not verify_operator_lifecycle_recovery_evidence_envelope(
+        envelope, **wrong_restore_pin)
+
+    forked = envelope.model_copy(update={
+        "rotation_head": rotation_head.model_copy(update={"rotation_sha256": "a" * 64})})
+    assert not verify_operator_lifecycle_recovery_evidence_envelope(forked, **kwargs)
