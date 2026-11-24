@@ -211,15 +211,47 @@ def test_published_policy_schema_matches_canonical_policy_document():
 
     root = Path(__file__).parents[1]
     schema = json.loads((root / "schemas/historical-trust-policy-v1.schema.json").read_text())
+    record_schema = json.loads((root / "schemas/historical-trust-policy-record-v1.schema.json").read_text())
     policy = POLICY.model_dump(mode="json")
     assert schema["additionalProperties"] is False
     assert set(schema["required"]) == set(policy)
     assert set(schema["properties"]) == set(policy)
     assert schema["properties"]["schema_version"]["const"] == policy["schema_version"]
     assert schema["properties"]["require_external_timestamp"]["const"] is True
+    assert record_schema["additionalProperties"] is False
+    assert set(record_schema["required"]) == {"policy_sha256", "policy", "activated_at_utc", "retired_at_utc"}
 
 
 def test_policy_canonical_digest_is_stable_and_sensitive_to_every_policy_field():
     assert HistoricalTrustPolicy.model_validate_json(POLICY.model_dump_json()).digest() == POLICY.digest()
     altered = POLICY.model_copy(update={"max_timestamp_lag_seconds": 3600})
     assert altered.digest() != POLICY.digest()
+
+
+def test_revoked_history_is_disabled_unless_policy_explicitly_allows_it():
+    restrictive = HistoricalTrustPolicy(
+        policy_id="strict",
+        policy_version="1.0.0",
+        allowed_kernel_ids=("Lean",),
+        allowed_checker_ids=("lean",),
+        allow_revoked_key_history=False,
+    )
+    policy_record = HistoricalTrustPolicyRecord(
+        policy_sha256=restrictive.digest(), policy=restrictive,
+        activated_at_utc="2026-11-01T00:00:00Z",
+    )
+    receipt = HistoricalSignedLeanAttestation.sign_v2(
+        issued_at_utc=ISSUED,
+        trust_policy_sha256=restrictive.digest(),
+        receipt_id="historical-test", runner_id="runner", key_id="key-1",
+        request_sha256="1" * 64, artifact_sha256="2" * 64,
+        proof_artifact_sha256=__import__("hashlib").sha256(b"theorem receipt_test : True := by trivial").hexdigest(),
+        proof_source="theorem receipt_test : True := by trivial",
+        checker_id="lean", kernel_version="4.36.0",
+        outcome=EvidenceEventOutcome.PASSED, private_key=PRIVATE,
+    )
+    assert not verify_historical_with_keyring(
+        receipt, {"key-1": key("revoked", revoked_at_utc="2026-11-24T01:02:00Z")},
+        verified_timestamp_utc=WITNESSED, timestamp_evidence_verified=True,
+        trusted_policies={restrictive.digest(): policy_record},
+    )
