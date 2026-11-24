@@ -160,7 +160,7 @@ def verify_historical_with_keyring(
                 return False
             if revoked is None or witnessed > revoked:
                 return False
-            if compromised is not None and issued >= compromised:
+            if compromised is not None and (issued >= compromised or witnessed >= compromised):
                 return False
             return issued < revoked
         return False
