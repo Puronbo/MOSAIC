@@ -25,3 +25,11 @@ jobs:
         run: uv run --locked python -m pytest -q
       - name: Run independent Node receipt tests
         run: node --test tests/test_verify_lean_receipt.mjs
+      - name: Set up pinned Lean and Mathlib
+        uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: formal/polynomial
+          build: true
+          use-mathlib-cache: true
+      - name: Run real Lean derivation integration test
+        run: uv run --locked python -m pytest -q tests/test_lean_derivation_integration.py
