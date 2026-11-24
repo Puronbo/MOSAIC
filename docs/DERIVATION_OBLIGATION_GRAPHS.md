@@ -242,6 +242,16 @@ The theorem `exponent_partial_derivative` differentiates with respect to `t` whi
 
 These are one-variable `HasDerivAt` statements for the two coordinate slices. The positive-base hypothesis is essential to the real-power derivative rule used here.
 
+The second exponent-coordinate derivative is also kernel checked by
+`exponent_second_derivative`:
+\[
+\frac{\partial^2 G}{\partial t^2}
+=G(x,t)(\log x)^2.
+\]
+Its pinned Lean/Mathlib integration passed on commit `31c02d9`.
+This verifies the pure exponent-direction second derivative; it does not
+by itself verify the base-base or mixed second partials.
+
 
 The theorem `along_base_path_derivative` goes one step further: for any differentiable path `u(t)` that remains positive at the evaluation point, it differentiates `u(t)^(u(t)+t)`. Its formula is
 
