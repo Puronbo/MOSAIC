@@ -202,6 +202,7 @@ def rebootstrap_recovery_policy_checkpoint_store(
     authorization_time_utc: str | None = None,
     operator_lifecycle_checkpoint=None, lifecycle_authority_keyring: dict | None = None,
     expected_lifecycle_checkpoint_sha256: str | None = None,
+    lifecycle_trust_policy=None,
 ) -> bool:
     """Atomically start a new retained epoch; old histories and incidents remain intact.
 
@@ -244,6 +245,15 @@ def rebootstrap_recovery_policy_checkpoint_store(
         return False
     lifecycle_checkpoint_data = None
     lifecycle_checkpoint_digest = None
+    if lifecycle_trust_policy is not None:
+        from mosaic.verification.recovery_operator_lifecycle import RecoveryOperatorLifecycleTrustPolicy
+        if (not isinstance(lifecycle_trust_policy, RecoveryOperatorLifecycleTrustPolicy)
+                or operator_lifecycle_checkpoint is None
+                or not lifecycle_trust_policy.accepts(operator_lifecycle_checkpoint)
+                or expected_lifecycle_checkpoint_sha256 != lifecycle_trust_policy.expected_checkpoint_sha256
+                or lifecycle_authority_keyring is None
+                or lifecycle_trust_policy.authority_key_id not in lifecycle_authority_keyring):
+            return False
     if operator_lifecycle_checkpoint is not None:
         from mosaic.verification.recovery_operator_lifecycle import verify_operator_lifecycle_checkpoint
         if (not isinstance(expected_lifecycle_checkpoint_sha256, str)
@@ -261,7 +271,7 @@ def rebootstrap_recovery_policy_checkpoint_store(
                 return False
         lifecycle_checkpoint_data = operator_lifecycle_checkpoint.model_dump(mode="json")
         lifecycle_checkpoint_digest = operator_lifecycle_checkpoint.digest()
-    elif expected_lifecycle_checkpoint_sha256 is not None or lifecycle_authority_keyring is not None:
+    elif expected_lifecycle_checkpoint_sha256 is not None or lifecycle_authority_keyring is not None or lifecycle_trust_policy is not None:
         return False
     lifecycle_evidence = []
     for key_id, signed_at_utc in signed_operators:
