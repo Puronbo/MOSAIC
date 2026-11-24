@@ -71,7 +71,7 @@ export function parseJsonNoDuplicateKeys(source) {
   if (index !== source.length) throw new Error("trailing data after JSON value");
   return parsed;
 }
-function sha256(value) {
+function isWellFormedUnicode(value) {\n  for (const character of value) {\n    const code = character.charCodeAt(0);\n    if (code >= 0xd800 && code <= 0xdfff) return false;\n  }\n  return true;\n}\n\nfunction sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
@@ -122,7 +122,7 @@ if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
     process.exit(2);
   }
   try {
-    const document = parseJsonNoDuplicateKeys(readFileSync(receiptPath, "utf8"));
+    const receiptBytes = readFileSync(receiptPath);\n    const receiptText = new TextDecoder("utf-8", { fatal: true }).decode(receiptBytes);\n    const document = parseJsonNoDuplicateKeys(receiptText);
     const attestation = document.attestation ?? document;
     if (!verifyAttestation(attestation, trustedPublicKeyB64)) {
       process.stderr.write("Invalid or untrusted Lean attestation\\n");
