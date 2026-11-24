@@ -62,6 +62,10 @@ def test_threshold_rebootstrap_preserves_incidents_and_starts_new_epoch(tmp_path
                                     checkpoint_keyring={"checkpoint": cp_key})
     incidents_before = store.incidents("registry")
     assert store.is_quarantined("registry")
+    # Preserve an independently restorable pre-rebootstrap database image.
+    rollback_image = tmp_path / "pre-rebootstrap-backup.sqlite3"
+    with sqlite3.connect(db_path) as source, sqlite3.connect(rollback_image) as backup:
+        source.backup(backup)
 
     def cp_hash(value):
         return hashlib.sha256(value.model_dump_json().encode()).hexdigest()
@@ -121,6 +125,17 @@ def test_threshold_rebootstrap_preserves_incidents_and_starts_new_epoch(tmp_path
         assert db.execute("SELECT COUNT(*) FROM recovery_policy_rebootstrap_audit").fetchone()[0] == 1
         assert db.execute("SELECT COUNT(*) FROM recovery_policy_epoch_entries WHERE registry_id='registry' AND epoch=0").fetchone()[0] == 1
         assert db.execute("SELECT COUNT(*) FROM recovery_policy_epoch_entries WHERE registry_id='registry' AND epoch=1").fetchone()[0] == 2
+
+    # A rollback to the independently retained old DB image must fail the
+    # external audit-head comparison, even though that old image is self-consistent.
+    with sqlite3.connect(db_path) as restored, sqlite3.connect(rollback_image) as backup:
+        backup.backup(restored)
+    rolled_back_export = export_rebootstrap_audit(
+        RecoveryPolicyCheckpointStore(db_path), registry_id="registry")
+    rollback_report = verify_rebootstrap_audit_export_report(
+        rolled_back_export, **audit_kwargs, expected_head_sha256=audit_head)
+    assert rollback_report.status == "invalid"
+    assert not rollback_report.is_verified
 
 
 def test_rebootstrap_rejects_insufficient_approvals_and_stale_incident_digest(tmp_path):
