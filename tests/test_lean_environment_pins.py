@@ -60,7 +60,6 @@ def test_lean_provenance_schema_requires_nonempty_ci_execution_identity():
     }
     properties = execution["properties"]
     assert properties["workflow"] == {"type": "string", "minLength": 1}
-    assert properties["runner_os"] == {"type": "string", "minLength": 1}
     assert properties["runner_os"] == {"type": "string", "enum": ["Linux", "Windows", "macOS"]}
     source = schema["properties"]["source"]["properties"]
     assert source["repository"]["pattern"] == "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
