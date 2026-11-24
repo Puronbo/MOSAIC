@@ -1263,3 +1263,33 @@ the database can recompute an unanchored suffix. Retain the terminal ledger
 sequence and digest outside the SQLite database (for example, in a separately
 controlled deployment record or transparency service). The ledger's receipt
 history and the checkpoint authority signature remain separate trust layers.
+
+
+### G-EP121: portable signed restoration-ledger head checkpoints
+
+The lifecycle trust-anchor store can export a
+`SignedOperatorLifecycleRestoreLedgerHead` after independently verifying
+the complete locally retained restoration-receipt ledger. The portable head
+binds the registry, terminal event sequence, terminal ledger-entry digest,
+terminal signed-receipt digest, a separate ledger-authority key ID, and
+canonical issuance time. Its Ed25519 signature is verified by
+`verify_operator_lifecycle_restore_ledger_head(...)` against a separately
+provisioned authority keyring and caller-supplied expected registry, sequence,
+and terminal digest (with an optional exact receipt-digest pin).
+
+The ledger-head signer is intentionally distinct from the authority that
+signed the underlying restoration receipts. This separates the role of
+attesting to a verified ledger snapshot from the role of authorizing the
+checkpoint-chain restoration itself. The store refuses to export a head for
+an empty or locally unverifiable ledger. The JSON Schema is
+`schemas/operator-lifecycle-restore-ledger-head-v1.schema.json`.
+
+A signed head is a portable external checkpoint, not an automatically
+independent trust anchor: deployments must retain and distribute it outside
+the SQLite file (for example, through a separately controlled transparency
+service or deployment control plane). Verification proves that the named
+ledger authority signed these exact head values; it does not prove that the
+signer performed a correct independent audit, provide trusted time, or
+prevent rollback unless the consumer compares against its latest independently
+retained head. The receipt-signing authority and ledger-head authority remain
+separate trust decisions.
