@@ -50,7 +50,7 @@ comes from the Lean kernel checking the generated theorem.
 
 When `scripts/verify_lean_proof_receipt.py --replay` is used, the verifier
 now compares the local replay host against the exact signed provenance
-manifest before invoking Lean. It checks Lean, Lake, and Elan version output;
+manifest before invoking Lean. It checks the recorded Python version and platform against the local runtime, plus Lean, Lake, and Elan version output;
 the SHA-256 of each resolved executable; both toolchain-file hashes; the
 declared and observed Mathlib revision; the Lake manifest and lakefile hashes;
 and the proof entrypoint hash. Any missing input or mismatch fails closed and
