@@ -1534,6 +1534,7 @@ class OperatorLifecycleRecoveryEvidenceEnvelope(BaseModel):
     rotations: tuple[SignedOperatorLifecycleLedgerAuthorityRotation, ...] = ()
     rotation_head: SignedOperatorLifecycleLedgerAuthorityRotationHead
     restore_ledger_head: SignedOperatorLifecycleRestoreLedgerHead
+    restore_ledger: tuple[dict, ...] = ()
 
     def digest(self) -> str:
         """Return the canonical SHA-256 digest of the complete portable envelope."""
@@ -1551,9 +1552,10 @@ def verify_operator_lifecycle_recovery_evidence_envelope(
     expected_restore_event_sequence: int,
     expected_restore_ledger_entry_sha256: str,
     expected_restore_receipt_sha256: str,
+    expected_restore_ledger_head_sha256: str,
     authorization_time_utc: str | None = None,
 ) -> bool:
-    """Verify the envelope against independent pins for both authority and ledger state.
+    """Verify the envelope, complete receipt history, and independent ledger-head pin.
 
     The envelope is a transport/container format, not its own trust anchor.
     Callers must retain the expected head digest and terminal values outside
@@ -1564,10 +1566,11 @@ def verify_operator_lifecycle_recovery_evidence_envelope(
     if (envelope.registry_id != expected_registry_id
             or envelope.initial_authority_key_id != expected_initial_key_id
             or envelope.rotation_head.digest() != expected_rotation_head_sha256
+            or envelope.restore_ledger_head.digest() != expected_restore_ledger_head_sha256
             or envelope.rotation_head.registry_id != expected_registry_id
             or envelope.restore_ledger_head.registry_id != expected_registry_id):
         return False
-    return verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
+    if not verify_operator_lifecycle_restore_ledger_head_with_external_rotation_head(
         envelope.restore_ledger_head,
         rotation_head=envelope.rotation_head,
         rotations=envelope.rotations,
@@ -1580,4 +1583,23 @@ def verify_operator_lifecycle_recovery_evidence_envelope(
         expected_rotation_sha256=expected_rotation_sha256,
         expected_receipt_sha256=expected_restore_receipt_sha256,
         authorization_time_utc=authorization_time_utc,
+    ):
+        return False
+    if not envelope.restore_ledger:
+        return False
+    ledger_report = verify_operator_lifecycle_restore_ledger(
+        envelope.restore_ledger,
+        expected_registry_id=expected_registry_id,
+        expected_event_sequence=expected_restore_event_sequence,
+        expected_ledger_entry_sha256=expected_restore_ledger_entry_sha256,
+        authority_keyring=authority_keyring,
     )
+    if not ledger_report.accepted:
+        return False
+    try:
+        terminal_receipt = SignedOperatorLifecycleCheckpointChainRestoreReceipt.model_validate(
+            envelope.restore_ledger[-1]["receipt"])
+        return (terminal_receipt.digest() == expected_restore_receipt_sha256
+                and envelope.restore_ledger[-1]["receipt_sha256"] == expected_restore_receipt_sha256)
+    except (KeyError, TypeError, ValueError):
+        return False
