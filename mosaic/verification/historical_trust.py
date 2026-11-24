@@ -45,12 +45,14 @@ class HistoricalSignedLeanAttestation(SignedLeanAttestation):
 
     schema_version: Literal["2.0"] = "2.0"
     issued_at_utc: str = Field(min_length=20, max_length=40)
+    trust_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @classmethod
     def sign_v2(
         cls,
         *,
         issued_at_utc: str | datetime,
+        trust_policy_sha256: str,
         private_key: bytes,
         **attestation_fields,
     ) -> "HistoricalSignedLeanAttestation":
@@ -61,6 +63,7 @@ class HistoricalSignedLeanAttestation(SignedLeanAttestation):
         payload = base.model_dump(mode="json", exclude={"signature_b64"})
         payload["schema_version"] = "2.0"
         payload["issued_at_utc"] = issued
+        payload["trust_policy_sha256"] = trust_policy_sha256
         signature = Ed25519PrivateKey.from_private_bytes(private_key).sign(_canonical(payload))
         return cls(**payload, signature_b64=base64.b64encode(signature).decode("ascii"))
 
@@ -98,6 +101,7 @@ def verify_historical_with_keyring(
     *,
     verified_timestamp_utc: str | datetime,
     timestamp_evidence_verified: bool,
+    trusted_policies: dict[str, object],
 ) -> bool:
     """Verify v2 receipt against lifecycle and independent timestamp evidence.
 
@@ -107,6 +111,19 @@ def verify_historical_with_keyring(
     """
     if timestamp_evidence_verified is not True:
         return False
+    from mosaic.verification.trust_policy import (
+        HistoricalTrustPolicyRecord, policy_timestamp_is_current, verify_policy_record,
+    )
+    policy_record = trusted_policies.get(attestation.trust_policy_sha256)
+    if not isinstance(policy_record, HistoricalTrustPolicyRecord):
+        return False
+    if (
+        not verify_policy_record(policy_record)
+        or policy_record.policy_sha256 != attestation.trust_policy_sha256
+        or not policy_timestamp_is_current(policy_record, _format_utc(verified_timestamp_utc, field="verified_timestamp_utc"))
+        or not policy_record.policy.require_external_timestamp
+    ):
+        return False
     record = keyring.get(attestation.key_id)
     if record is None or record.key_id != attestation.key_id:
         return False
@@ -115,7 +132,13 @@ def verify_historical_with_keyring(
         issued = _utc(attestation.issued_at_utc, field="issued_at_utc")
         witnessed = _utc(verified_timestamp_utc, field="verified_timestamp_utc")
         activated = _utc(record.activated_at_utc, field="activated_at_utc")
-        if not attestation.verify(public_key) or issued < activated or witnessed < issued:
+        if (
+            not attestation.verify(public_key)
+            or issued < activated or witnessed < issued
+            or attestation.kernel_id not in policy_record.policy.allowed_kernel_ids
+            or attestation.checker_id not in policy_record.policy.allowed_checker_ids
+            or (witnessed - issued).total_seconds() > policy_record.policy.max_timestamp_lag_seconds
+        ):
             return False
         retired = _utc(record.retired_at_utc, field="retired_at_utc") if record.retired_at_utc else None
         revoked = _utc(record.revoked_at_utc, field="revoked_at_utc") if record.revoked_at_utc else None
@@ -126,11 +149,15 @@ def verify_historical_with_keyring(
         if record.status == "active":
             return retired is None and revoked is None and compromised is None
         if record.status == "retired":
+            if not policy_record.policy.allow_retired_key_history:
+                return False
             return (
                 retired is not None and issued < retired and witnessed <= retired
                 and revoked is None and compromised is None
             )
         if record.status == "revoked":
+            if not policy_record.policy.allow_revoked_key_history:
+                return False
             if revoked is None or witnessed > revoked:
                 return False
             if compromised is not None and issued >= compromised:
