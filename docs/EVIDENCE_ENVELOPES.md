@@ -1332,3 +1332,37 @@ the supplied history is rejected. Consumers should persist the accepted
 candidate head outside the SQLite store before treating it as the next
 rollback-detection anchor. This verifier does not provide a distributed
 consensus protocol or trusted timestamping; those remain deployment concerns.
+
+
+
+### G-EP124: dual-signed ledger-head authority rotation
+
+`SignedOperatorLifecycleLedgerAuthorityRotation` records a transition
+between restoration-ledger head-signing authorities. Each statement binds the
+registry, contiguous rotation sequence, predecessor rotation digest, previous
+and new key IDs, SHA-256 fingerprints of both public keys, and canonical
+effective time. The previous authority signs to authorize the change; the new
+authority signs the same payload to prove possession and acceptance of its
+private key.
+
+`verify_operator_lifecycle_ledger_authority_rotation_chain(...)` starts
+from a caller-pinned initial key ID and verifies every rotation in order. It
+rejects gaps, reordered or forked records, registry/key-identity changes,
+fingerprint mismatches, invalid dual signatures, keys outside their activation
+or revocation windows, non-monotonic effective times, and rotations not yet
+effective at the supplied authorization time. The chain's terminal key ID
+becomes the active ledger-head authority.
+
+`verify_operator_lifecycle_restore_ledger_head_with_rotation_chain(...)`
+requires a head to be signed by that terminal active key, then applies the
+existing exact external head-pin and signature checks. The versioned record
+shape is defined by
+`schemas/operator-lifecycle-restore-ledger-authority-rotation-v1.schema.json`.
+
+The initial key ID and its public key remain independently provisioned trust
+anchors; the rotation records do not bootstrap their own root of trust. Keep
+the full rotation chain and key lifecycle records in independently retained
+storage. Dual signatures prove authorization by the previous key and
+possession by the new key, not that either authority is uncompromised or that
+the rotation was approved by an external governance process. Effective times
+are policy timestamps, not trusted timestamps.
