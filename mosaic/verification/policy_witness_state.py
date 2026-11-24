@@ -58,10 +58,20 @@ class PolicyWitnessStateStore:
                     selected_checkpoint_sha256 TEXT NOT NULL,
                     authorization_sha256 TEXT NOT NULL UNIQUE,
                     authorization_json TEXT NOT NULL,
+                    approvals_json TEXT NOT NULL DEFAULT '[]',
                     recovered_at_utc TEXT NOT NULL DEFAULT
                       (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
                 );
             """)
+            recovery_columns = {
+                row["name"] for row in db.execute(
+                    "PRAGMA table_info(witness_recoveries)"
+                ).fetchall()
+            }
+            if "approvals_json" not in recovery_columns:
+                db.execute(
+                    "ALTER TABLE witness_recoveries ADD COLUMN approvals_json TEXT NOT NULL DEFAULT '[]'"
+                )
 
     @contextmanager
     def _connection(self):
@@ -345,7 +355,8 @@ class PolicyWitnessStateStore:
         with self._connection() as db:
             rows = db.execute(
                 """SELECT log_id, selected_checkpoint_sha256,
-                   authorization_sha256, authorization_json, recovered_at_utc
+                   authorization_sha256, authorization_json, approvals_json,
+                   recovered_at_utc
                    FROM witness_recoveries WHERE log_id=? ORDER BY recovery_id""",
                 (log_id,),
             ).fetchall()
@@ -442,10 +453,11 @@ class PolicyWitnessStateStore:
             db.execute(
                 """INSERT INTO witness_recoveries
                 (log_id, selected_checkpoint_sha256, authorization_sha256,
-                 authorization_json)
-                VALUES (?, ?, ?, ?)""",
+                 authorization_json, approvals_json)
+                VALUES (?, ?, ?, ?, ?)""",
                 (snapshot.log_id, snapshot.checkpoint.digest(),
-                 authorization.digest(), authorization.model_dump_json()),
+                 authorization.digest(), authorization.model_dump_json(),
+                 _canonical([item.model_dump(mode="json") for item in effective_approvals]).decode("utf-8")),
             )
             db.commit()
             return True
