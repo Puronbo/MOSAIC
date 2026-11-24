@@ -287,3 +287,41 @@ scalar multiplication and addition are operations on continuous linear maps.
 This formulation works on arbitrary real normed domains, not only on a
 one-dimensional path. The pinned Lean kernel workflow remains the acceptance
 gate; the theorem is not described as verified until that workflow succeeds.
+
+
+### Differential geometry of the joint exponent surface
+
+For the positive-base map `G(x,t) = x^(x+t)`, put
+`L(x,t) = (x+t)/x + log(x)`. Its first differential is
+
+\[
+dG = G L\,dx + G\log(x)\,dt.
+\]
+
+The second partial derivatives are
+
+\[
+G_{xx}=G\left(L^2+\frac{x-t}{x^2}\right),\qquad
+G_{xt}=G_{tx}=G\left(L\log(x)+\frac1x\right),\qquad
+G_{tt}=G(\log x)^2.
+\]
+
+The mixed-partial identity follows by differentiating either first partial
+in the other coordinate; it is also the expected symmetry of the Hessian
+for this smooth map on the open half-plane x > 0.
+
+The only stationary point is (x,t) = (1,-1): since G is positive,
+G_t = 0 forces log(x) = 0 and hence x = 1; then G_x = 0 forces t = -1.
+At that point G = 1 and the Hessian is
+
+\[
+\begin{pmatrix}2&1\\1&0\end{pmatrix},
+\]
+
+whose determinant is -1. Thus the stationary point is a nondegenerate
+saddle, not a local maximum or minimum.
+
+These formulas are analytic consequences of the real-variable derivative
+rules. They are documented as mathematical targets here; they must not be
+described as Lean-kernel verified until corresponding formal theorems and
+successful pinned proof-source replay exist.
