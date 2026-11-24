@@ -573,6 +573,25 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
     assert not module.verify_local_lean_environment_manifest(
         json.dumps(malformed_execution).encode(), project_dir=project
     )
+    for invalid_execution in (
+        {"run_id": "0"},
+        {"run_attempt": "0"},
+        {"runner_os": "Plan9"},
+    ):
+        rejected = {
+            **manifest_payload,
+            "execution": {**manifest_payload["execution"], **invalid_execution},
+        }
+        assert not module.verify_local_lean_environment_manifest(
+            json.dumps(rejected).encode(), project_dir=project
+        )
+    invalid_repository = {
+        **manifest_payload,
+        "source": {**manifest_payload["source"], "repository": "../MOSAIC"},
+    }
+    assert not module.verify_local_lean_environment_manifest(
+        json.dumps(invalid_repository).encode(), project_dir=project
+    )
     malformed_revision = {
         **manifest_payload,
         "environment": {**environment, "mathlib_revision": "not-a-commit"},
