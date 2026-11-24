@@ -349,7 +349,7 @@ def test_fixed_v1_signature_conformance_vector():
     assert attestation.verify(public_key)
     assert hashlib.sha256(_canonical(attestation.model_dump(mode="json", exclude={"signature_b64"}))).hexdigest() == vector["canonical_sha256"]
     regenerated = SignedLeanAttestation.sign(
-        **attestation.model_dump(mode="python", exclude={"signature_b64"}),
+        **attestation.model_dump(mode="python", exclude={"signature_b64", "schema_version", "kernel_id"}),
         private_key=private_key,
     )
     assert regenerated.signature_b64 == attestation.signature_b64
