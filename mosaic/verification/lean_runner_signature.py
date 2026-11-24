@@ -393,6 +393,80 @@ def verify_lean_proof_receipt_bundle(
         return False
 
 
+
+def verify_local_lean_environment_manifest(
+    manifest: bytes,
+    *,
+    project_dir: Path | None = None,
+) -> bool:
+    """Require the local replay host to match the signed Lean environment manifest.
+
+    This compares the actual tool versions, executable bytes, toolchain pins,
+    Mathlib checkout, Lake inputs, and proof entrypoint before replay. It does
+    not authenticate the host or replace artifact-attestation verification.
+    """
+    import platform
+    import shutil
+
+    if not isinstance(manifest, bytes):
+        return False
+    project = project_dir or Path(__file__).resolve().parents[2] / "formal" / "polynomial"
+    root = project.parent.parent
+    try:
+        payload = _strict_json_loads(manifest)
+        expected = payload["environment"]
+        toolchain = (project / "lean-toolchain").read_text(encoding="utf-8").strip()
+        root_toolchain = (root / "lean-toolchain").read_text(encoding="utf-8").strip()
+        if toolchain != root_toolchain or toolchain != expected["lean_toolchain"]:
+            return False
+        commands = {
+            "lean_version_output": ["lake", "env", "lean", "--version"],
+            "lake_version_output": ["lake", "--version"],
+            "elan_version_output": ["elan", "--version"],
+        }
+        observed = {}
+        for key, command in commands.items():
+            observed[key] = subprocess.run(
+                command, cwd=project, check=True, capture_output=True,
+                text=True, timeout=30,
+            ).stdout.strip()
+        for name in ("lean", "lake", "elan"):
+            executable = shutil.which(name)
+            if executable is None:
+                return False
+            observed[f"{name}_binary_sha256"] = hashlib.sha256(
+                Path(executable).resolve().read_bytes()
+            ).hexdigest()
+        mathlib_path = project / ".lake" / "packages" / "mathlib"
+        observed["observed_mathlib_revision"] = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=mathlib_path, check=True,
+            capture_output=True, text=True, timeout=30,
+        ).stdout.strip()
+        mathlib_packages = [
+            item for item in _strict_json_loads(
+                (project / "lake-manifest.json").read_bytes()
+            ).get("packages", []) if item.get("name") == "mathlib"
+        ]
+        if len(mathlib_packages) != 1:
+            return False
+        observed["mathlib_revision"] = mathlib_packages[0]["rev"]
+        files = {
+            "root_lean_toolchain_sha256": root / "lean-toolchain",
+            "formal_lean_toolchain_sha256": project / "lean-toolchain",
+            "lake_manifest_sha256": project / "lake-manifest.json",
+            "lakefile_sha256": project / "lakefile.lean",
+            "lean_entrypoint_sha256": project / "Main.lean",
+        }
+        for key, file_path in files.items():
+            observed[key] = hashlib.sha256(file_path.read_bytes()).hexdigest()
+        keys = tuple(commands) + tuple(
+            f"{name}_binary_sha256" for name in ("lean", "lake", "elan")
+        ) + ("observed_mathlib_revision", "mathlib_revision") + tuple(files)
+        return all(observed[key] == expected.get(key) for key in keys)
+    except (OSError, subprocess.SubprocessError, KeyError, TypeError, ValueError):
+        return False
+
+
 def generate_ed25519_keypair() -> tuple[bytes, bytes]:
     """Generate raw 32-byte (private, public) Ed25519 keys for provisioning."""
     from cryptography.hazmat.primitives import serialization
