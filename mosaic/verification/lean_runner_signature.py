@@ -529,10 +529,13 @@ def verify_local_lean_environment_manifest(
         }
         for key, file_path in files.items():
             observed[key] = hashlib.sha256(file_path.read_bytes()).hexdigest()
-        keys = ("source_commit", "python_version", "platform") + tuple(commands) + tuple(
+        keys = ("python_version", "platform") + tuple(commands) + tuple(
             f"{name}_binary_sha256" for name in ("lean", "lake", "elan")
         ) + ("observed_mathlib_revision", "mathlib_revision") + tuple(files)
-        return all(observed[key] == expected.get(key) for key in keys)
+        return (
+            observed["source_commit"] == source["commit"]
+            and all(observed[key] == expected.get(key) for key in keys)
+        )
     except (OSError, subprocess.SubprocessError, KeyError, TypeError, ValueError):
         return False
 
