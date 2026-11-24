@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from mosaic.core.orchestration import (
-    AgentProposal, AgentRole, AgentTask, assess_proposals, collision_review_tasks, validate_task_graph,
+    AgentProposal, AgentRole, AgentTask, TaskRunRecord, TaskStatus, assess_proposals, collision_review_tasks, complete_task, dispatch_ready_tasks, fail_task, initialize_task_records, validate_task_graph,
 )
 
 
@@ -147,3 +147,79 @@ def test_collision_review_rejects_mismatched_assessment():
     assessment = assess_proposals(other, proposals)
     with pytest.raises(ValueError, match="does not match"):
         collision_review_tasks(task, assessment)
+
+
+
+def test_scheduler_dispatches_only_dependency_ready_tasks():
+    root = AgentTask(task_id="root", role=AgentRole.SOLVER, goal="Solve")
+    child = AgentTask(task_id="child", role=AgentRole.CRITIC, goal="Review", depends_on=("root",))
+    records = initialize_task_records([child, root])
+    running = dispatch_ready_tasks([child, root], records, now=10, max_concurrency=2)
+    state = {record.task_id: record for record in running}
+    assert state["root"].status == TaskStatus.RUNNING
+    assert state["child"].status == TaskStatus.PENDING
+    proposal = AgentProposal(task_id="root", agent_id="solver", role=AgentRole.SOLVER, claim="candidate")
+    completed = complete_task(root, running, proposal)
+    ready = dispatch_ready_tasks([child, root], completed, now=11, max_concurrency=2)
+    state = {record.task_id: record for record in ready}
+    assert state["root"].status == TaskStatus.COMPLETED
+    assert state["child"].status == TaskStatus.RUNNING
+
+
+def test_scheduler_enforces_concurrency_and_deterministic_order():
+    tasks = [
+        AgentTask(task_id="a", role=AgentRole.SOLVER, goal="A"),
+        AgentTask(task_id="b", role=AgentRole.SOLVER, goal="B"),
+        AgentTask(task_id="c", role=AgentRole.SOLVER, goal="C"),
+    ]
+    records = initialize_task_records(tasks)
+    dispatched = dispatch_ready_tasks(tasks, records, now=1, max_concurrency=2)
+    state = {record.task_id: record for record in dispatched}
+    assert state["a"].status == TaskStatus.RUNNING
+    assert state["b"].status == TaskStatus.RUNNING
+    assert state["c"].status == TaskStatus.PENDING
+
+
+def test_scheduler_retries_timeouts_only_within_attempt_budget():
+    task = AgentTask(task_id="slow", role=AgentRole.SOLVER, goal="Slow task", timeout_seconds=5)
+    records = initialize_task_records([task])
+    first = dispatch_ready_tasks([task], records, now=10, max_attempts=2)
+    assert first[0].status == TaskStatus.RUNNING
+    second = dispatch_ready_tasks([task], first, now=15, max_attempts=2)
+    assert second[0].status == TaskStatus.RUNNING
+    assert second[0].attempt == 2
+    exhausted = dispatch_ready_tasks([task], second, now=20, max_attempts=2)
+    assert exhausted[0].status == TaskStatus.TIMED_OUT
+    assert exhausted[0].attempt == 2
+
+
+def test_scheduler_failure_blocks_dependent_tasks():
+    root = AgentTask(task_id="root", role=AgentRole.SOLVER, goal="Solve")
+    child = AgentTask(task_id="child", role=AgentRole.CRITIC, goal="Review", depends_on=("root",))
+    records = initialize_task_records([root, child])
+    running = dispatch_ready_tasks([root, child], records, now=1)
+    failed = fail_task(root, running, error="provider unavailable")
+    next_state = dispatch_ready_tasks([root, child], failed, now=2)
+    state = {record.task_id: record for record in next_state}
+    assert state["root"].status == TaskStatus.FAILED
+    assert state["child"].status == TaskStatus.PENDING
+
+
+def test_scheduler_rejects_mismatched_proposal_and_nonrunning_completion():
+    task = AgentTask(task_id="task", role=AgentRole.SOLVER, goal="Solve")
+    records = initialize_task_records([task])
+    wrong = AgentProposal(task_id="other", agent_id="agent", role=AgentRole.SOLVER, claim="x")
+    with pytest.raises(ValueError, match="only a running"):
+        complete_task(task, records, wrong)
+    running = dispatch_ready_tasks([task], records, now=1)
+    with pytest.raises(ValueError, match="does not match"):
+        complete_task(task, running, wrong)
+
+
+def test_scheduler_rejects_duplicate_or_missing_records():
+    task = AgentTask(task_id="task", role=AgentRole.SOLVER, goal="Solve")
+    with pytest.raises(ValueError, match="match task IDs"):
+        dispatch_ready_tasks([task], (), now=1)
+    duplicate = (TaskRunRecord(task_id="task"), TaskRunRecord(task_id="task"))
+    with pytest.raises(ValueError, match="match task IDs"):
+        dispatch_ready_tasks([task], duplicate, now=1)
