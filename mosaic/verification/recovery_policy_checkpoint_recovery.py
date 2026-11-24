@@ -361,8 +361,8 @@ def report_rebootstrap_proposal_conflicts(
     # The retained audit order is authoritative; do not infer priority from
     # proposal order, timestamps, or digest sorting.
     winning = next((item for item in reversed(audited) if item in submitted), None)
-    losing = tuple(item for item in submitted if item in audited and item != winning)
-    unattributed = tuple(item for item in submitted if item not in audited)
+    losing = tuple(item for item in submitted if winning is not None and item != winning)
+    unattributed = tuple(item for item in submitted if winning is None and item not in audited)
     return RecoveryProposalConflictReport(
         registry_id=registry_id, proposal_count=len(intents),
         distinct_proposal_count=len(submitted), conflicting=len(submitted) > 1,
