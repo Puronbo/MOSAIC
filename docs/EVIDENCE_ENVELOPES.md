@@ -912,3 +912,31 @@ in G-EP103; it is not thereby proven malicious or intact. SQLite transaction
 atomicity protects a rebootstrap operation against partial commits, but
 database replacement, backup rollback, external-head custody, and genuinely
 independent operator-key administration remain deployment responsibilities.
+
+
+
+### Concurrent administrative recovery and replay resistance (G-EP105)
+
+G-EP105 exercises two independently constructed
+`RecoveryPolicyCheckpointStore` instances against the same SQLite database.
+Both submit the same fully signed, threshold-approved rebootstrap intent at
+the same time. The test requires exactly one successful transition, one
+retained audit row, and one set of new-epoch entries. The losing operation
+must observe the post-commit state and fail rather than repeat the transition.
+A subsequent replay of the same signed intent is also rejected.
+
+The rebootstrap operation obtains a SQLite `BEGIN IMMEDIATE` write
+transaction, then rechecks quarantine state, retained checkpoint digest,
+incident-history digest, and replay status before changing epoch entries,
+the trusted head, and the audit row. SQLite serializes competing writers;
+the transactional rechecks are the authorization boundary, not the timing
+or outcome of pre-transaction signature validation. A competing request
+whose proposal no longer matches the state is rejected.
+
+This test covers same-database local concurrency, not a distributed lock
+service or multi-host consensus. It assumes SQLite's configured locking and
+storage semantics are honored. Independent database copies can still accept
+conflicting administrative decisions, and privileged rollback remains
+detectable only when compared with an independently retained audit-head
+anchor. Successful concurrency tests do not establish independent human
+approval or trustworthy evidence.
