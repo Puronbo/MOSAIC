@@ -393,7 +393,8 @@ def test_attestation_rejects_unknown_schema_version_and_bad_signature_length():
         verification, request, result, receipt_id="strict-schema",
         runner_id="runner", key_id="key", private_key=private,
     )
-    assert not attestation.model_copy(update={"schema_version": "2.0"}).verify(public)
+    with pytest.raises(ValueError):
+        SignedLeanAttestation.model_validate({**attestation.model_dump(), "schema_version": "2.0"})
     assert not attestation.model_copy(update={
         "signature_b64": base64.b64encode(b"short").decode("ascii")
     }).verify(public)
