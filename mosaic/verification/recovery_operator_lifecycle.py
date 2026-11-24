@@ -195,3 +195,118 @@ def verify_operator_lifecycle_checkpoint_advance(
         previous_sha256=previous_digest, candidate_sha256=candidate_digest,
         errors=tuple(dict.fromkeys(errors)),
     )
+
+
+class RecoveryOperatorLifecycleTrustAnchorStore:
+    """SQLite CAS store for a deployment-pinned lifecycle checkpoint head.
+
+    The initial anchor must be provisioned from an independent trusted source.
+    SQLite transactions serialize writers sharing this database; they do not
+    protect against privileged rollback of the database file itself.
+    """
+    def __init__(self, database_path: str):
+        import sqlite3
+        self._sqlite3 = sqlite3
+        self._database_path = str(database_path)
+        with self._connect() as connection:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS lifecycle_trust_anchor ("
+                "registry_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL, "
+                "checkpoint_sha256 TEXT NOT NULL, updated_at_utc TEXT NOT NULL)"
+            )
+
+    def _connect(self):
+        connection = self._sqlite3.connect(self._database_path, timeout=30, isolation_level=None)
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA synchronous=FULL")
+        return connection
+
+    def provision(self, *, registry_id: str, sequence: int, checkpoint_sha256: str,
+                  updated_at_utc: str) -> bool:
+        """Insert an externally trusted starting anchor; never overwrite an existing one."""
+        import re
+        if (not isinstance(registry_id, str) or not registry_id
+                or not isinstance(sequence, int) or sequence < 0
+                or not isinstance(checkpoint_sha256, str)
+                or re.fullmatch(r"[0-9a-f]{64}", checkpoint_sha256) is None):
+            return False
+        try:
+            timestamp = _canonical_timestamp(updated_at_utc)
+            if timestamp != updated_at_utc:
+                return False
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                cursor = connection.execute(
+                    "INSERT OR IGNORE INTO lifecycle_trust_anchor "
+                    "(registry_id, sequence, checkpoint_sha256, updated_at_utc) VALUES (?, ?, ?, ?)",
+                    (registry_id, sequence, checkpoint_sha256, timestamp))
+                accepted = cursor.rowcount == 1
+                connection.commit()
+                return accepted
+        except (ValueError, TypeError, self._sqlite3.Error):
+            return False
+
+    def read(self, registry_id: str) -> dict | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    "SELECT registry_id, sequence, checkpoint_sha256, updated_at_utc "
+                    "FROM lifecycle_trust_anchor WHERE registry_id=?", (registry_id,)
+                ).fetchone()
+            if row is None:
+                return None
+            return {"registry_id": row[0], "sequence": row[1],
+                    "checkpoint_sha256": row[2], "updated_at_utc": row[3]}
+        except self._sqlite3.Error:
+            return None
+
+    def advance(self, previous: SignedOperatorLifecycleCheckpoint,
+                candidate: SignedOperatorLifecycleCheckpoint, *,
+                authority_keyring: dict[str, PolicyPublisherKey],
+                expected_current_sha256: str,
+                authorization_time_utc: str | None = None) -> OperatorLifecycleCheckpointAdvanceReport:
+        """Verify and atomically compare-and-swap the current anchor to candidate."""
+        fallback = "0" * 64
+        try:
+            with self._connect() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                row = connection.execute(
+                    "SELECT sequence, checkpoint_sha256 FROM lifecycle_trust_anchor WHERE registry_id=?",
+                    (previous.registry_id,)
+                ).fetchone()
+                if row is None or row[1] != expected_current_sha256 or row[1] != previous.digest() or row[0] != previous.sequence:
+                    connection.rollback()
+                    return OperatorLifecycleCheckpointAdvanceReport(
+                        accepted=False, previous_sequence=previous.sequence,
+                        candidate_sequence=candidate.sequence, previous_sha256=previous.digest(),
+                        candidate_sha256=candidate.digest(), errors=("stored_anchor_compare_failed",))
+                report = verify_operator_lifecycle_checkpoint_advance(
+                    previous, candidate, authority_keyring=authority_keyring,
+                    expected_previous_sha256=expected_current_sha256,
+                    expected_registry_id=previous.registry_id,
+                    authorization_time_utc=authorization_time_utc)
+                if not report.accepted:
+                    connection.rollback()
+                    return report
+                timestamp = _canonical_timestamp(candidate.issued_at_utc)
+                connection.execute(
+                    "UPDATE lifecycle_trust_anchor SET sequence=?, checkpoint_sha256=?, updated_at_utc=? "
+                    "WHERE registry_id=? AND sequence=? AND checkpoint_sha256=?",
+                    (candidate.sequence, candidate.digest(), timestamp, previous.registry_id,
+                     previous.sequence, expected_current_sha256))
+                if connection.total_changes != 1:
+                    connection.rollback()
+                    return OperatorLifecycleCheckpointAdvanceReport(
+                        accepted=False, previous_sequence=previous.sequence,
+                        candidate_sequence=candidate.sequence, previous_sha256=previous.digest(),
+                        candidate_sha256=candidate.digest(), errors=("compare_and_swap_failed",))
+                connection.commit()
+                return report
+        except (ValueError, TypeError, self._sqlite3.Error):
+            return OperatorLifecycleCheckpointAdvanceReport(
+                accepted=False,
+                previous_sequence=previous.sequence if isinstance(previous, SignedOperatorLifecycleCheckpoint) else 0,
+                candidate_sequence=candidate.sequence if isinstance(candidate, SignedOperatorLifecycleCheckpoint) else 0,
+                previous_sha256=previous.digest() if isinstance(previous, SignedOperatorLifecycleCheckpoint) else fallback,
+                candidate_sha256=candidate.digest() if isinstance(candidate, SignedOperatorLifecycleCheckpoint) else fallback,
+                errors=("anchor_store_error",))
