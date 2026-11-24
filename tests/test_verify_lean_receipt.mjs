@@ -66,3 +66,13 @@ test("Node rejects non-string optional provenance values", () => {
   assert.equal(verifyAttestation({ ...vector.attestation, ...bound, environment_manifest_sha256: 123 }, vector.public_key_b64), false);
   assert.equal(verifyAttestation({ ...vector.attestation, ...bound, source_commit: 123 }, vector.public_key_b64), false);
 });
+
+
+test("published JSON Schema exactly describes the Node verifier field set", () => {
+  const schema = JSON.parse(readFileSync(
+    new URL("../schemas/lean-runner-attestation-v1.schema.json", import.meta.url), "utf8"
+  ));
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual([...schema.required].sort(), Object.keys(vector.attestation).sort());
+  assert.deepEqual(Object.keys(schema.properties).sort(), Object.keys(vector.attestation).sort());
+});
