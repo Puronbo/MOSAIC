@@ -990,10 +990,11 @@ authorizing a later transaction when execution-time checking is enabled.
 
 `report_rebootstrap_proposal_conflicts` compares submitted intent digests
 with retained v1 audit records. It attributes a submitted proposal as the
-winner only when its exact digest appears in the audit, and reports unmatched
-proposals as unattributed. If multiple submitted proposals appear across
-multiple retained epochs, the latest matching audit record determines the
-reported winner; audit order, not caller order, timestamps, or digest sorting,
+winner only when its exact digest appears in the audit. When a winner is
+identified, the other submitted alternatives are reported as losing proposals;
+when no submitted proposal matches the audit, unmatched proposals remain
+unattributed. If multiple submitted proposals appear across multiple retained
+epochs, the latest matching audit record determines the reported winner; audit order, not caller order, timestamps, or digest sorting,
 provides attribution. This report does not validate evidence quality, select
 a winner, or prove that the selected policy is mathematically correct.
 
