@@ -66,13 +66,14 @@ class RecoveryPolicyCheckpointStore:
             columns = {row["name"] for row in db.execute("PRAGMA table_info(recovery_policy_heads)")}
             if "epoch" not in columns:
                 db.execute("ALTER TABLE recovery_policy_heads ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0")
-            db.execute("""
-                INSERT OR IGNORE INTO recovery_policy_epoch_entries
-                    (registry_id, epoch, sequence, entry_sha256, entry_json)
-                SELECT h.registry_id, 0, h.sequence,
-                       json_extract(h.checkpoint_json, '$.entry_sha256'), h.checkpoint_json
-                FROM recovery_policy_history h
-            """)
+            if db.execute("SELECT COUNT(*) FROM recovery_policy_epoch_entries").fetchone()[0] == 0:
+                db.execute("""
+                    INSERT OR IGNORE INTO recovery_policy_epoch_entries
+                        (registry_id, epoch, sequence, entry_sha256, entry_json)
+                    SELECT h.registry_id, 0, h.sequence,
+                           json_extract(h.checkpoint_json, '$.entry_sha256'), h.checkpoint_json
+                    FROM recovery_policy_history h
+                """)
 
     @contextmanager
     def _connection(self):
