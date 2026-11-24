@@ -62,7 +62,11 @@ def test_lean_provenance_schema_requires_nonempty_ci_execution_identity():
     assert properties["workflow"] == {"type": "string", "minLength": 1}
     assert properties["runner_os"] == {"type": "string", "enum": ["Linux", "Windows", "macOS"]}
     source = schema["properties"]["source"]["properties"]
-    assert source["repository"]["pattern"] == "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    repository_pattern = "^[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*$"
+    assert source["repository"]["pattern"] == repository_pattern
+    assert re.fullmatch(repository_pattern, "Puronbo/MOSAIC")
+    for invalid_repository in ("../MOSAIC", "owner/../MOSAIC", "./owner/repo", "owner/./repo", "owner/repo/extra"):
+        assert not re.fullmatch(repository_pattern, invalid_repository)
     assert properties["run_id"]["type"] == "string"
     assert properties["run_id"]["pattern"] == "^[1-9][0-9]*$"
     assert properties["run_attempt"]["type"] == "string"
@@ -116,6 +120,7 @@ def test_provenance_generator_requires_complete_github_actions_identity(monkeypa
         module.required_ci_metadata()
 
     monkeypatch.setenv("RUNNER_OS", "Linux")
-    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo/extra")
-    with pytest.raises(SystemExit, match="GITHUB_REPOSITORY must have owner/repository form"):
-        module.required_ci_metadata()
+    for invalid_repository in ("owner/repo/extra", "../MOSAIC", "owner/../MOSAIC", "./owner/repo"):
+        monkeypatch.setenv("GITHUB_REPOSITORY", invalid_repository)
+        with pytest.raises(SystemExit, match="GITHUB_REPOSITORY must have owner/repository form"):
+            module.required_ci_metadata()
