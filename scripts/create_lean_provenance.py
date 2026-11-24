@@ -32,6 +32,31 @@ def executable_sha256(name: str) -> str:
     return sha256(Path(executable).resolve())
 
 
+
+def required_ci_metadata() -> dict[str, str]:
+    """Return complete GitHub Actions identity or fail before writing provenance."""
+    required = {
+        "repository": "GITHUB_REPOSITORY",
+        "workflow": "GITHUB_WORKFLOW",
+        "run_id": "GITHUB_RUN_ID",
+        "run_attempt": "GITHUB_RUN_ATTEMPT",
+        "runner_os": "RUNNER_OS",
+    }
+    values = {key: os.environ.get(variable, "").strip() for key, variable in required.items()}
+    missing = [key for key, value in values.items() if not value]
+    if missing:
+        raise SystemExit(
+            "missing required GitHub Actions provenance metadata: "
+            + ", ".join(missing)
+        )
+    if "/" not in values["repository"] or values["repository"].startswith("/") or values["repository"].endswith("/"):
+        raise SystemExit("GITHUB_REPOSITORY must have owner/repository form")
+    for key in ("run_id", "run_attempt"):
+        if not values[key].isdigit():
+            raise SystemExit(f"{required[key]} must be numeric")
+    return values
+
+
 def main() -> None:
     toolchain_path = PROJECT / "lean-toolchain"
     root_toolchain_path = ROOT / "lean-toolchain"
@@ -74,10 +99,13 @@ def main() -> None:
         ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True,
         capture_output=True, text=True,
     ).stdout.strip()
+    if len(commit) != 40 or any(ch not in "0123456789abcdef" for ch in commit):
+        raise SystemExit(f"git returned an invalid full commit ID: {commit!r}")
+    ci = required_ci_metadata()
     payload = {
         "schema_version": "mosaic.lean-build-provenance.v1",
         "source": {
-            "repository": os.environ.get("GITHUB_REPOSITORY", "local"),
+            "repository": ci["repository"],
             "commit": commit,
         },
         "environment": {
@@ -99,10 +127,10 @@ def main() -> None:
             "platform": platform.platform(),
         },
         "execution": {
-            "workflow": os.environ.get("GITHUB_WORKFLOW"),
-            "run_id": os.environ.get("GITHUB_RUN_ID"),
-            "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
-            "runner_os": os.environ.get("RUNNER_OS"),
+            "workflow": ci["workflow"],
+            "run_id": ci["run_id"],
+            "run_attempt": ci["run_attempt"],
+            "runner_os": ci["runner_os"],
         },
         "scope": (
             "Environment and source provenance for the Lean polynomial project. "
