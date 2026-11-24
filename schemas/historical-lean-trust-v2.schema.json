@@ -11,7 +11,7 @@
     "proof_source", "environment_manifest_sha256", "source_commit",
     "workflow_run_id", "lean_toolchain", "mathlib_revision",
     "checker_id", "kernel_id", "kernel_version", "outcome",
-    "issued_at_utc", "signature_b64"
+    "issued_at_utc", "trust_policy_sha256", "signature_b64"
   ],
   "properties": {
     "schema_version": { "const": "2.0" },
@@ -32,6 +32,7 @@
     "kernel_version": { "type": "string", "minLength": 1, "maxLength": 160 },
     "outcome": { "enum": ["passed", "failed"] },
     "issued_at_utc": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "trust_policy_sha256": { "$ref": "#/$defs/sha256" },
     "signature_b64": { "type": "string", "minLength": 88, "maxLength": 88 }
   },
   "$defs": {
