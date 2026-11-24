@@ -219,8 +219,13 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
                 "registry_id TEXT NOT NULL, receipt_sha256 TEXT NOT NULL, "
                 "ending_sequence INTEGER NOT NULL, ending_checkpoint_sha256 TEXT NOT NULL, "
                 "bundle_sha256 TEXT NOT NULL, issued_at_utc TEXT NOT NULL, receipt_json TEXT NOT NULL, "
+                "event_sequence INTEGER NOT NULL DEFAULT 1, previous_receipt_sha256 TEXT, ledger_entry_sha256 TEXT, "
                 "PRIMARY KEY (registry_id, receipt_sha256))"
             )
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(lifecycle_chain_restore_receipt)").fetchall()}
+            for name, declaration in (("event_sequence", "INTEGER NOT NULL DEFAULT 1"), ("previous_receipt_sha256", "TEXT"), ("ledger_entry_sha256", "TEXT")):
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE lifecycle_chain_restore_receipt ADD COLUMN {name} {declaration}")
 
     def _connect(self):
         connection = self._sqlite3.connect(self._database_path, timeout=30, isolation_level=None)
@@ -357,26 +362,51 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         except (ValueError, TypeError, self._sqlite3.Error):
             return ()
 
+
     def _insert_checkpoint_chain_restore_receipt(self, connection, receipt) -> bool:
         import json
         if not isinstance(receipt, SignedOperatorLifecycleCheckpointChainRestoreReceipt):
             return False
         payload = receipt.model_dump(mode="json")
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        cursor = connection.execute(
-            "INSERT OR IGNORE INTO lifecycle_chain_restore_receipt "
-            "(registry_id, receipt_sha256, ending_sequence, ending_checkpoint_sha256, "
-            "bundle_sha256, issued_at_utc, receipt_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        existing = connection.execute(
+            "SELECT receipt_json FROM lifecycle_chain_restore_receipt WHERE registry_id=? AND receipt_sha256=?",
+            (receipt.registry_id, receipt.digest())).fetchone()
+        if existing is not None:
+            return existing[0] == encoded
+        prior = connection.execute(
+            "SELECT event_sequence, ledger_entry_sha256 FROM lifecycle_chain_restore_receipt "
+            "WHERE registry_id=? ORDER BY event_sequence DESC, rowid DESC LIMIT 1",
+            (receipt.registry_id,)).fetchone()
+        event_sequence = prior[0] + 1 if prior else 1
+        previous_digest = prior[1] if prior else None
+        entry_payload = {"registry_id": receipt.registry_id, "event_sequence": event_sequence,
+                         "previous_receipt_sha256": previous_digest, "receipt_sha256": receipt.digest()}
+        entry_digest = hashlib.sha256(_canonical(entry_payload)).hexdigest()
+        connection.execute(
+            "INSERT INTO lifecycle_chain_restore_receipt "
+            "(registry_id, receipt_sha256, ending_sequence, ending_checkpoint_sha256, bundle_sha256, "
+            "issued_at_utc, receipt_json, event_sequence, previous_receipt_sha256, ledger_entry_sha256) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (receipt.registry_id, receipt.digest(), receipt.ending_sequence,
-             receipt.ending_checkpoint_sha256, receipt.bundle_sha256, receipt.issued_at_utc, encoded))
-        if cursor.rowcount == 1:
-            return True
-        row = connection.execute(
-            "SELECT receipt_json FROM lifecycle_chain_restore_receipt "
-            "WHERE registry_id=? AND receipt_sha256=?",
-            (receipt.registry_id, receipt.digest())
-        ).fetchone()
-        return row is not None and row[0] == encoded
+             receipt.ending_checkpoint_sha256, receipt.bundle_sha256, receipt.issued_at_utc,
+             encoded, event_sequence, previous_digest, entry_digest))
+        return True
+
+    def read_checkpoint_chain_restore_ledger(self, registry_id: str) -> tuple[dict, ...]:
+        """Return receipt events and their hash-linked ledger metadata."""
+        import json
+        try:
+            with self._connect() as connection:
+                rows = connection.execute(
+                    "SELECT event_sequence, previous_receipt_sha256, receipt_sha256, ledger_entry_sha256, receipt_json "
+                    "FROM lifecycle_chain_restore_receipt WHERE registry_id=? ORDER BY event_sequence, rowid",
+                    (registry_id,)).fetchall()
+            return tuple({"registry_id": registry_id, "event_sequence": row[0],
+                          "previous_receipt_sha256": row[1], "receipt_sha256": row[2],
+                          "ledger_entry_sha256": row[3], "receipt": json.loads(row[4])} for row in rows)
+        except (ValueError, TypeError, self._sqlite3.Error):
+            return ()
 
     def restore_checkpoint_chain_bundle(
         self, bundle: "OperatorLifecycleCheckpointChainBundle",
@@ -878,3 +908,71 @@ def verify_operator_lifecycle_checkpoint_chain_restore_receipt(
         return False
 
 
+
+
+class OperatorLifecycleRestoreLedgerReport(BaseModel):
+    """Verification result for an externally anchored restoration receipt ledger."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    accepted: bool
+    registry_id: str
+    event_count: int = Field(ge=0)
+    ending_event_sequence: int = Field(ge=0)
+    ending_ledger_entry_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    errors: tuple[str, ...] = ()
+
+
+def verify_operator_lifecycle_restore_ledger(
+    entries: tuple[dict, ...] | list[dict], *, expected_registry_id: str,
+    expected_event_sequence: int, expected_ledger_entry_sha256: str,
+    authority_keyring: dict[str, PolicyPublisherKey],
+    expected_checkpoint_sha256: str | None = None,
+) -> OperatorLifecycleRestoreLedgerReport:
+    """Verify event order, hash links and receipt signatures against an external ledger head."""
+    errors: list[str] = []
+    previous = None
+    sequence = 0
+    for index, entry in enumerate(entries):
+        try:
+            sequence += 1
+            receipt = SignedOperatorLifecycleCheckpointChainRestoreReceipt.model_validate(entry["receipt"])
+            if entry["registry_id"] != expected_registry_id:
+                errors.append(f"event_{index}:registry_mismatch")
+            if entry["event_sequence"] != sequence:
+                errors.append(f"event_{index}:sequence_mismatch")
+            if entry["previous_receipt_sha256"] != previous:
+                errors.append(f"event_{index}:predecessor_mismatch")
+            receipt_digest = receipt.digest()
+            if entry["receipt_sha256"] != receipt_digest:
+                errors.append(f"event_{index}:receipt_digest_mismatch")
+            payload = {"registry_id": expected_registry_id, "event_sequence": sequence,
+                       "previous_receipt_sha256": previous, "receipt_sha256": receipt_digest}
+            calculated = hashlib.sha256(_canonical(payload)).hexdigest()
+            if entry["ledger_entry_sha256"] != calculated:
+                errors.append(f"event_{index}:ledger_entry_digest_mismatch")
+            authority = authority_keyring.get(receipt.authority_key_id) if isinstance(authority_keyring, dict) else None
+            if authority is None or not authority.permits(receipt.authority_key_id, receipt.issued_at_utc):
+                errors.append(f"event_{index}:receipt_authority_invalid")
+            else:
+                signature = base64.b64decode(receipt.signature_b64, validate=True)
+                signed_payload = receipt.model_dump(mode="json", exclude={"signature_b64"})
+                Ed25519PublicKey.from_public_bytes(authority.public_key()).verify(signature, _canonical(signed_payload))
+            previous = calculated
+        except (KeyError, TypeError, ValueError, InvalidSignature):
+            errors.append(f"event_{index}:malformed_or_invalid_event")
+            break
+    terminal = previous or ("0" * 64)
+    if sequence != expected_event_sequence:
+        errors.append("external_event_sequence_mismatch")
+    if terminal != expected_ledger_entry_sha256:
+        errors.append("external_ledger_head_mismatch")
+    if expected_checkpoint_sha256 is not None and entries:
+        try:
+            last = SignedOperatorLifecycleCheckpointChainRestoreReceipt.model_validate(entries[-1]["receipt"])
+            if last.ending_checkpoint_sha256 != expected_checkpoint_sha256:
+                errors.append("external_checkpoint_head_mismatch")
+        except (KeyError, TypeError, ValueError):
+            errors.append("terminal_receipt_invalid")
+    return OperatorLifecycleRestoreLedgerReport(
+        accepted=not errors, registry_id=expected_registry_id, event_count=sequence,
+        ending_event_sequence=sequence, ending_ledger_entry_sha256=terminal,
+        errors=tuple(dict.fromkeys(errors)))
