@@ -809,3 +809,42 @@ SQLite's backup API or a coordinated shutdown and retain an external
 freshness anchor. A policy rollback incident requires an explicit
 administrative investigation and re-bootstrap; this store never silently
 clears quarantine.
+
+
+
+### Administrative recovery of quarantined recovery-policy heads (G-EP102)
+
+The module `mosaic.verification.recovery_policy_checkpoint_recovery` adds
+threshold-signed administrative rebootstrap for a quarantined
+`RecoveryPolicyCheckpointStore`. An operator-signed intent binds the exact
+registry ID, currently retained checkpoint digest, complete current incident
+history digest, selected replacement checkpoint digest, evidence digest,
+reason, operator identity, and approval time. Additional Ed25519 approvals
+sign the exact intent digest. The default rebootstrap policy requires at least
+two distinct operator identities and public keys; lifecycle-valid operator
+keys must be separate from the registry publisher and checkpoint signer keys.
+Deployments can require or prohibit specific operator IDs.
+
+A successful rebootstrap is accepted only while the local registry is
+quarantined and only if the retained head and incident-history digests still
+match inside the SQLite write transaction. The complete proposed registry
+chain and signed checkpoint are re-verified. Replayed intents, stale state,
+insufficient or duplicate approvals, wrong selected checkpoints, and invalid
+signatures are rejected without clearing quarantine.
+
+Rebootstrap starts a new numbered history epoch. The prior epoch entries,
+incident rows, and complete signed operator approvals remain retained; no
+conflicting old entry is overwritten. Subsequent ordinary checkpoint
+advancement checks the active epoch's prefix, so an explicitly selected fork
+can advance without erasing the evidence for the previous branch. A durable
+audit row records the signed intent, all supplied approvals, selected
+checkpoint, and epoch. Existing databases are migrated to epoch zero when
+opened.
+
+This is an accountable administrative selection, not an automated truth
+oracle. The evidence digest binds externally reviewed evidence bytes but this
+library does not fetch or assess them. Two distinct keys do not guarantee two
+independent humans or custodians. The policy and operator keyring must be
+provisioned independently. SQLite still cannot prevent a privileged attacker
+from replacing or rolling back the database and its backups; retain external
+freshness anchors and protected backups.
