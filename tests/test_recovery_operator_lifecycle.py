@@ -59,3 +59,57 @@ def test_signed_operator_lifecycle_checkpoint_detects_tampering_and_rollback():
     assert not verify_operator_lifecycle_checkpoint(
         second_checkpoint, authority_keyring=ring, expected_registry_id="operators",
         expected_sequence=0, expected_previous_sha256=None)
+
+
+def test_lifecycle_checkpoint_advance_requires_contiguous_pinned_chain():
+    from mosaic.verification.recovery_operator_lifecycle import (
+        verify_operator_lifecycle_checkpoint_advance,
+    )
+    authority_sk, authority = identity("advance-authority")
+    op_sk, operator = identity("advance-operator")
+    ring = {"advance-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="operators", sequence=12, previous_checkpoint_sha256="a" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="advance-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="operators", sequence=13, previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:05:00.000000Z",
+        authority_key_id="advance-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    accepted = verify_operator_lifecycle_checkpoint_advance(
+        first, second, authority_keyring=ring,
+        expected_previous_sha256=first.digest(), expected_registry_id="operators",
+        authorization_time_utc="2026-11-24T08:06:00.000000Z")
+    assert accepted.accepted
+    assert accepted.errors == ()
+
+    skipped = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="operators", sequence=14, previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:07:00.000000Z",
+        authority_key_id="advance-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    rejected = verify_operator_lifecycle_checkpoint_advance(
+        first, skipped, authority_keyring=ring,
+        expected_previous_sha256=first.digest(), expected_registry_id="operators",
+        authorization_time_utc="2026-11-24T08:08:00.000000Z")
+    assert not rejected.accepted
+    assert "sequence_not_contiguous" in rejected.errors
+
+    fork = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="operators", sequence=13, previous_checkpoint_sha256="b" * 64,
+        issued_at_utc="2026-11-24T08:09:00.000000Z",
+        authority_key_id="advance-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    rejected_fork = verify_operator_lifecycle_checkpoint_advance(
+        first, fork, authority_keyring=ring,
+        expected_previous_sha256=first.digest(), expected_registry_id="operators",
+        authorization_time_utc="2026-11-24T08:10:00.000000Z")
+    assert not rejected_fork.accepted
+    assert "predecessor_digest_mismatch" in rejected_fork.errors
+
+    assert not verify_operator_lifecycle_checkpoint_advance(
+        first, second, authority_keyring=ring,
+        expected_previous_sha256="0" * 64, expected_registry_id="operators",
+        authorization_time_utc="2026-11-24T08:06:00.000000Z").accepted
