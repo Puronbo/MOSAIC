@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/lean-build-provenance-v1.schema.json",
+  "title": "MOSAIC Lean Build Provenance",
+  "description": "Descriptive record of declared and observed Lean/Mathlib build inputs; not a proof or a trusted attestation by itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source",
+    "environment",
+    "execution",
+    "scope"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mosaic.lean-build-provenance.v1"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lean_toolchain",
+        "lean_version_output",
+        "lake_version_output",
+        "root_lean_toolchain_sha256",
+        "formal_lean_toolchain_sha256",
+        "mathlib_revision",
+        "observed_mathlib_revision",
+        "lake_manifest_sha256",
+        "lakefile_sha256",
+        "lean_entrypoint_sha256",
+        "python_version",
+        "platform"
+      ],
+      "properties": {
+        "lean_toolchain": {
+          "const": "leanprover/lean4:v4.36.0"
+        },
+        "lean_version_output": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lake_version_output": {
+          "type": "string",
+          "minLength": 1
+        },
+        "root_lean_toolchain_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "formal_lean_toolchain_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "mathlib_revision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "observed_mathlib_revision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "lake_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "lakefile_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "lean_entrypoint_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "python_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflow",
+        "run_id",
+        "run_attempt",
+        "runner_os"
+      ],
+      "properties": {
+        "workflow": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_attempt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runner_os": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
