@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/historical-trust-policy-record-v1.schema.json",
+  "title": "MOSAIC Historical Trust Policy Registry Record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policy_sha256", "policy", "activated_at_utc", "retired_at_utc"],
+  "properties": {
+    "policy_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "policy": { "$ref": "historical-trust-policy-v1.schema.json" },
+    "activated_at_utc": { "type": "string", "format": "date-time" },
+    "retired_at_utc": { "type": ["string", "null"], "format": "date-time" }
+  }
+}
