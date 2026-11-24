@@ -208,7 +208,7 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         import sqlite3
         self._sqlite3 = sqlite3
         self._database_path = str(database_path)
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 "CREATE TABLE IF NOT EXISTS lifecycle_trust_anchor ("
                 "registry_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL, "
@@ -220,6 +220,16 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA synchronous=FULL")
         return connection
+
+    from contextlib import contextmanager as _contextmanager
+
+    @_contextmanager
+    def _connection(self):
+        connection = self._connect()
+        try:
+            yield connection
+        finally:
+            connection.close()
 
     def provision(self, *, registry_id: str, sequence: int, checkpoint_sha256: str,
                   updated_at_utc: str) -> bool:
