@@ -418,3 +418,57 @@ def test_competing_valid_recovery_proposals_leave_only_winner_state(tmp_path):
              after_store.incidents("registry"))
     assert after == before
     assert after_export["records"] == audit_export["records"]
+
+
+
+def test_operator_revocation_after_signing_blocks_rebootstrap_execution(tmp_path):
+    pub_sk, pub = identity("publisher")
+    cp_sk, cp_key = identity("checkpoint")
+    op1_sk, op1 = identity("operator-1")
+    op2_sk, op2 = identity("operator-2")
+    first, fork = entry(pub_sk, 1), entry(pub_sk, 6)
+    old_cp, new_cp = checkpoint(first, cp_sk), checkpoint(fork, cp_sk)
+    store = RecoveryPolicyCheckpointStore(tmp_path / "revoked-operator.sqlite3")
+    publisher_ring = {"publisher": pub}
+    checkpoint_ring = {"checkpoint": cp_key}
+    assert store.pin_checkpoint([first], checkpoint=old_cp,
+                                publisher_keyring=publisher_ring,
+                                checkpoint_keyring=checkpoint_ring)
+    assert not store.pin_checkpoint([fork], checkpoint=new_cp,
+                                    publisher_keyring=publisher_ring,
+                                    checkpoint_keyring=checkpoint_ring)
+    intent = RecoveryPolicyCheckpointRebootstrapIntent.sign(
+        registry_id="registry",
+        retained_checkpoint_sha256=hashlib.sha256(old_cp.model_dump_json().encode()).hexdigest(),
+        incident_history_sha256=hashlib.sha256(_canonical(store.incidents("registry"))).hexdigest(),
+        selected_checkpoint_sha256=hashlib.sha256(new_cp.model_dump_json().encode()).hexdigest(),
+        evidence_sha256="f" * 64,
+        reason="The selected recovery history was reviewed before operator key revocation.",
+        operator_key_id="operator-1", approved_at_utc="2026-11-24T07:00:00Z",
+        private_key=op1_sk)
+    approval = RecoveryPolicyCheckpointRebootstrapApproval.sign(
+        intent=intent, operator_key_id="operator-2",
+        approved_at_utc="2026-11-24T07:01:00Z", private_key=op2_sk)
+    # The signature remains historically valid, but this key was revoked
+    # before the explicitly supplied execution/authorization time.
+    revoked_op2 = op2.model_copy(update={"revoked_at_utc": "2026-11-24T07:30:00.000000Z"})
+    operator_ring = {"operator-1": op1, "operator-2": revoked_op2}
+    assert approval.verify(intent, operator_ring)
+    assert not rebootstrap_recovery_policy_checkpoint_store(
+        store, [fork], checkpoint=new_cp, publisher_keyring=publisher_ring,
+        checkpoint_keyring=checkpoint_ring, intent=intent, approvals=[approval],
+        policy=RecoveryPolicyCheckpointRebootstrapPolicy(minimum_approvals=2),
+        operator_keyring=operator_ring,
+        authorization_time_utc="2026-11-24T08:00:00.000000Z")
+    assert store.is_quarantined("registry")
+    assert not store.matches_trusted_checkpoint(new_cp)
+    assert export_rebootstrap_audit(store, registry_id="registry")["record_count"] == 0
+
+    # A replacement lifecycle snapshot without the revoked signer is not
+    # sufficient: the exact approval still names the revoked key identity.
+    assert not rebootstrap_recovery_policy_checkpoint_store(
+        store, [fork], checkpoint=new_cp, publisher_keyring=publisher_ring,
+        checkpoint_keyring=checkpoint_ring, intent=intent, approvals=[approval],
+        policy=RecoveryPolicyCheckpointRebootstrapPolicy(minimum_approvals=2),
+        operator_keyring=operator_ring,
+        authorization_time_utc="2026-11-24T07:31:00.000000Z")
