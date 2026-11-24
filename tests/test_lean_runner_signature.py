@@ -438,3 +438,18 @@ def test_strict_json_rejects_nonstandard_constants_and_lone_surrogates():
         _strict_json_loads('{"value":NaN}')
     with pytest.raises(ValueError, match="Unicode scalar"):
         _strict_json_loads('{"value":"\\\\ud800"}')
+
+
+def test_unicode_v1_conformance_vector_matches_python_canonical_bytes():
+    import base64
+    import json
+    from pathlib import Path
+    from mosaic.verification.lean_runner_signature import _canonical
+
+    vector = json.loads(
+        (Path(__file__).parent / "fixtures" / "lean_receipt_v1_unicode_vector.json").read_text()
+    )
+    attestation = SignedLeanAttestation.model_validate(vector["attestation"])
+    canonical = _canonical(attestation.model_dump(mode="json", exclude={"signature_b64"}))
+    assert hashlib.sha256(canonical).hexdigest() == vector["canonical_sha256"]
+    assert attestation.verify(base64.b64decode(vector["public_key_b64"], validate=True))
