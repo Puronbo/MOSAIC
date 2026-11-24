@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Puronbo/MOSAIC/blob/main/schemas/historical-lean-trust-v2.schema.json",
+  "title": "MOSAIC Historical Lean Attestation v2",
+  "description": "Signed v2 receipt with an issuance timestamp. The timestamp is a signer claim and is insufficient for historical acceptance without independently verified timestamp evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "receipt_id", "runner_id", "key_id",
+    "request_sha256", "artifact_sha256", "proof_artifact_sha256",
+    "proof_source", "environment_manifest_sha256", "source_commit",
+    "workflow_run_id", "lean_toolchain", "mathlib_revision",
+    "checker_id", "kernel_id", "kernel_version", "outcome",
+    "issued_at_utc", "signature_b64"
+  ],
+  "properties": {
+    "schema_version": { "const": "2.0" },
+    "receipt_id": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "runner_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "key_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "request_sha256": { "$ref": "#/$defs/sha256" },
+    "artifact_sha256": { "$ref": "#/$defs/sha256" },
+    "proof_artifact_sha256": { "$ref": "#/$defs/sha256" },
+    "proof_source": { "type": "string", "minLength": 1, "maxLength": 10000 },
+    "environment_manifest_sha256": { "$ref": "#/$defs/sha256" },
+    "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "workflow_run_id": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "lean_toolchain": { "type": "string", "maxLength": 160 },
+    "mathlib_revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "checker_id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "kernel_id": { "const": "Lean" },
+    "kernel_version": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "outcome": { "enum": ["passed", "failed"] },
+    "issued_at_utc": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "signature_b64": { "type": "string", "minLength": 88, "maxLength": 88 }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
