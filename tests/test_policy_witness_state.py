@@ -135,3 +135,76 @@ def test_same_head_checkpoint_refresh_is_not_misclassified_as_fork(tmp_path):
     assert endorse(store, refreshed, [first_entry]) is None
     assert not store.is_quarantined(first.log_id)
     assert store.get_head(first.log_id) == first
+
+def test_signed_snapshot_bootstraps_empty_store_and_preserves_head(tmp_path):
+    first_entry = entry(0)
+    first = checkpoint([first_entry])
+    source = PolicyWitnessStateStore(tmp_path / "source.sqlite3")
+    assert endorse(source, first, [first_entry]) is not None
+    snapshot = source.export_signed_snapshot(
+        first.log_id, witness_key_id="witness-1",
+        witness_private_key=WITNESS_PRIVATE,
+        exported_at_utc="2026-11-24T04:00:00Z",
+    )
+    assert snapshot is not None and snapshot.verify({"witness-1": WITNESS_KEY})
+    target = PolicyWitnessStateStore(tmp_path / "target.sqlite3")
+    assert target.import_signed_snapshot(
+        snapshot, witness_keyring={"witness-1": WITNESS_KEY},
+        entries=[first_entry], signer_keyring=SIGNERS,
+    )
+    assert target.get_head(first.log_id) == first
+
+
+def test_snapshot_import_rejects_tampering_and_rollback(tmp_path):
+    first_entry = entry(0)
+    first = checkpoint([first_entry])
+    source = PolicyWitnessStateStore(tmp_path / "source.sqlite3")
+    assert endorse(source, first, [first_entry]) is not None
+    old_snapshot = source.export_signed_snapshot(
+        first.log_id, witness_key_id="witness-1",
+        witness_private_key=WITNESS_PRIVATE,
+        exported_at_utc="2026-11-24T04:00:00Z",
+    )
+    second_entry = entry(1, first_entry.entry_sha256())
+    second = checkpoint([first_entry, second_entry], first)
+    assert endorse(source, second, [first_entry, second_entry]) is not None
+    new_snapshot = source.export_signed_snapshot(
+        second.log_id, witness_key_id="witness-1",
+        witness_private_key=WITNESS_PRIVATE,
+        exported_at_utc="2026-11-24T04:01:00Z",
+    )
+    target = PolicyWitnessStateStore(tmp_path / "target.sqlite3")
+    kwargs = {"witness_keyring": {"witness-1": WITNESS_KEY},
+              "signer_keyring": SIGNERS}
+    assert target.import_signed_snapshot(
+        new_snapshot, entries=[first_entry, second_entry], **kwargs
+    )
+    assert not target.import_signed_snapshot(
+        old_snapshot, entries=[first_entry], **kwargs
+    )
+    tampered = new_snapshot.model_copy(update={"quarantined": True})
+    assert not tampered.verify({"witness-1": WITNESS_KEY})
+    assert target.get_head(first.log_id) == second
+    assert not target.is_quarantined(first.log_id)
+
+
+def test_snapshot_cannot_clear_existing_quarantine(tmp_path):
+    first_entry = entry(0, version=1)
+    fork_entry = entry(0, version=2)
+    first, fork = checkpoint([first_entry]), checkpoint([fork_entry])
+    source = PolicyWitnessStateStore(tmp_path / "source.sqlite3")
+    target = PolicyWitnessStateStore(tmp_path / "target.sqlite3")
+    assert endorse(source, first, [first_entry]) is not None
+    assert endorse(target, first, [first_entry]) is not None
+    assert endorse(target, fork, [fork_entry]) is None
+    assert target.is_quarantined(first.log_id)
+    snapshot = source.export_signed_snapshot(
+        first.log_id, witness_key_id="witness-1",
+        witness_private_key=WITNESS_PRIVATE,
+        exported_at_utc="2026-11-24T04:00:00Z",
+    )
+    assert not target.import_signed_snapshot(
+        snapshot, witness_keyring={"witness-1": WITNESS_KEY},
+        entries=[first_entry], signer_keyring=SIGNERS,
+    )
+    assert target.is_quarantined(first.log_id)
