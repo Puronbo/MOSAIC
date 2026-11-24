@@ -192,9 +192,17 @@ response says so; experimental symbolic computation is never substituted for
 a formal proof.
 
 The polynomial project pins Lean 4.36.0 and Mathlib commit
-`fc4f59e577feb1a4956671bc04ac18aaaf8cd842`. Its real-kernel CI workflow
-tests accepted identities, a rejected identity, unsupported syntax, and a
-request-bound proof. After successful Lean checks, CI records the observed Lean/Mathlib pins, Lake manifest digest, source digests, commit, and workflow identity in `lean-provenance.json` and signs that manifest with a GitHub artifact attestation. Verify a downloaded manifest with `gh attestation verify lean-provenance.json -R Puronbo/MOSAIC`. This attests the environment manifest, not the integrity of the runner host. Affine and polynomial transformation results also retain their exact generated Lean source; Ed25519 attestations sign those bytes, and `replay_attested_proof_source(...)` rechecks the signed source under the pinned Lake project. See [the polynomial backend contract](docs/LEAN_POLYNOMIAL_BACKEND.md),
+`fc4f59e577feb1a4956671bc04ac18aaaf8cd842` in its committed Lake manifest;
+the root and project Lean toolchain pins must agree. Its real-kernel CI
+workflow tests accepted identities, a rejected identity, unsupported syntax,
+and a request-bound proof. The provenance generator now checks the actual
+installed Mathlib checkout against the manifest (not just the declared pin),
+checks the observed Lean version, and records Lean/Lake version strings, both
+toolchain-file hashes, the observed Mathlib revision, Lake manifest digest,
+source digests, commit, and workflow identity in `lean-provenance.json`. The
+manifest follows `schemas/lean-build-provenance-v1.schema.json`. Lean
+integration CI also installs MOSAIC from the committed `uv.lock` with
+`uv sync --locked --extra dev` and runs scripts with `uv run --locked`. Verify a downloaded manifest with `gh attestation verify lean-provenance.json -R Puronbo/MOSAIC`. This attests the environment manifest, not the integrity of the runner host. Affine and polynomial transformation results also retain their exact generated Lean source; Ed25519 attestations sign those bytes, and `replay_attested_proof_source(...)` rechecks the signed source under the pinned Lake project. See [the polynomial backend contract](docs/LEAN_POLYNOMIAL_BACKEND.md),
 [the architecture](docs/ARCHITECTURE.md), and [security limitations](SECURITY.md).
 
 A polynomial proof over `Int` does not establish rational-function domain
