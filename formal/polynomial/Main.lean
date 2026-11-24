@@ -166,8 +166,8 @@ a blanket real-valued recurrence theorem. -/
 theorem zero_base_after_first_step (k : Nat) (hk : 1 ≤ k) :
     value 0 k = 0 := by
   unfold value
-  have hne : 0 + k ≠ 0 := by omega
-  simp [hne]
+  have hk0 : k ≠ 0 := by omega
+  simp [hk0]
 
 
 /-- One forward finite difference of a sequence. -/
