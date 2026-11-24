@@ -186,3 +186,21 @@ test("Node bundle verifier rejects lone surrogates in request and signed fields"
   const attestation = { ...bundleVector.receipt.attestation, lean_toolchain: "\ud800" };
   assert.equal(verifyReceiptBundle({ ...bundleVector.receipt, attestation }, valid), false);
 });
+
+
+test("published MathRequest schema documents all request fingerprint fields and defaults", () => {
+  const schema = JSON.parse(readFileSync(
+    new URL("../schemas/math-request-v1.schema.json", import.meta.url), "utf8"
+  ));
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual([...schema.required].sort(), ["expression", "operation"]);
+  assert.deepEqual(Object.keys(schema.properties).sort(), ["expression", "operation", "rhs", "schema_version", "variable"]);
+  assert.equal(schema.properties.variable.default, "x");
+  assert.equal(schema.properties.schema_version.default, "1.0");
+  assert.equal(schema.properties.rhs.default, null);
+  assert.deepEqual(schema.properties.operation.enum, [
+    "simplify", "expand", "factor", "differentiate", "integrate",
+    "verify_identity", "solve", "verify_certificate", "search",
+    "counterexample", "analyze",
+  ]);
+});
