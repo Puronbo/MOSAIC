@@ -221,3 +221,23 @@ This is a fixed-base result for all natural derivative orders. The proof
 repeatedly applies the constant-multiple derivative rule to the preceding
 order. It does not yet cover variable-base derivatives or complex branches.
 
+
+
+### Variable-base and exponent partial derivatives
+
+The positive-base family is also exposed as `MosaicRealExponentShift.jointValue x t = x ^ (x + t)`. The kernel-checked theorem `base_derivative` differentiates with respect to the base while holding `t` fixed:
+
+\\[
+\\frac{\\partial}{\\partial x}x^{x+t}
+=(x+t)x^{x+t-1}+x^{x+t}\\log x,
+\\qquad x>0.
+\\]
+
+The theorem `exponent_partial_derivative` differentiates with respect to `t` while holding the base fixed:
+
+\\[
+\\frac{\\partial}{\\partial t}x^{x+t}
+=x^{x+t}\\log x.
+\\]
+
+These are one-variable `HasDerivAt` statements for the two coordinate slices, not yet a single Fréchet-derivative theorem for the joint map `(x,t) ↦ x^(x+t)`. The positive-base hypothesis is essential to the real-power derivative rule used here. Higher mixed partials and a full two-variable smoothness result remain separate targets.
