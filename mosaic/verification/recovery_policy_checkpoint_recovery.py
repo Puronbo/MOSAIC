@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 from typing import Literal
 
 from cryptography.exceptions import InvalidSignature
@@ -15,6 +16,7 @@ from mosaic.verification.policy_registry import _canonical_timestamp
 from mosaic.verification.policy_witness_recovery_policy_registry import (
     SignedPolicyWitnessRecoveryPolicyCheckpoint,
     SignedPolicyWitnessRecoveryPolicyEntry,
+    verify_policy_witness_recovery_policy_registry,
 )
 from mosaic.verification.policy_witness_recovery_governance import PolicyWitnessRecoveryPolicy
 
@@ -252,7 +254,7 @@ def export_rebootstrap_audit(store, *, registry_id: str) -> dict:
         ).fetchall()
     records = [{
         "epoch": row["epoch"],
-        "audit": __import__("json").loads(row["audit_json"]),
+        "audit": json.loads(row["audit_json"]),
         "previous_audit_sha256": row["previous_audit_sha256"],
         "audit_sha256": row["audit_sha256"],
     } for row in rows]
