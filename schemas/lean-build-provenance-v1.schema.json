@@ -137,11 +137,11 @@
         },
         "run_id": {
           "type": "string",
-          "pattern": "^[0-9]+$"
+          "pattern": "^[1-9][0-9]*$"
         },
         "run_attempt": {
           "type": "string",
-          "pattern": "^[0-9]+$"
+          "pattern": "^[1-9][0-9]*$"
         },
         "runner_os": {
           "type": "string",
