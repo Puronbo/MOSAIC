@@ -487,6 +487,7 @@ def test_portable_bundle_conformance_vector_verifies_and_binds_all_inputs():
 
 def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp_path):
     import json
+    import platform
     import shutil
     import subprocess
     from pathlib import Path
@@ -530,8 +531,8 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
         "elan_version_output": "elan 4.1",
         "mathlib_revision": "c" * 40,
         "observed_mathlib_revision": "c" * 40,
-        "python_version": "3.14.0",
-        "platform": "test-platform",
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
     }
     for name, binary in binary_paths.items():
         environment[f"{name}_binary_sha256"] = hashlib.sha256(Path(binary).read_bytes()).hexdigest()
@@ -562,6 +563,14 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
     assert not module.verify_local_lean_environment_manifest(
         json.dumps(altered_payload).encode(), project_dir=project
     )
+    for runtime_field in ("python_version", "platform"):
+        altered_runtime = {
+            **manifest_payload,
+            "environment": {**environment, runtime_field: "different-runtime"},
+        }
+        assert not module.verify_local_lean_environment_manifest(
+            json.dumps(altered_runtime).encode(), project_dir=project
+        )
     malformed_payload = {**manifest_payload, "schema_version": "unknown"}
     assert not module.verify_local_lean_environment_manifest(
         json.dumps(malformed_payload).encode(), project_dir=project
