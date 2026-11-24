@@ -23,7 +23,9 @@ Every proposal records its task ID, agent ID, role, claim, rationale, assumption
 
 - No proposals: keep the task pending or mark it incomplete.
 - One distinct claim: mark it as a candidate for independent checking.
-- Multiple distinct claims: require adversarial review and preserve every proposal.
+- Multiple distinct claims: require adversarial review and preserve every proposal. The assessment retains the immutable proposal records in input order, groups proposal indexes by claim, and identifies every proposal participating in a collision.
+- Claim grouping collapses presentation whitespace only. It does not case-fold, reorder symbols, simplify expressions, or infer mathematical equivalence; those require a separate sound checker.
+- A collision is a review trigger, not proof that either proposal is false. Reviewers must inspect assumptions, derivations, and evidence independently.
 - Matching claims from multiple models are not proof and do not increase the mathematical status above `EXPERIMENTAL`.
 - A critic's disagreement is a useful signal, not an automatic refutation.
 - Only a separate sound checker may establish a mathematical result. Only a configured trusted proof kernel may support `FORMALLY_VERIFIED`.
@@ -40,4 +42,4 @@ Treat prompts, model responses, retrieved documents, and tool outputs as untrust
 
 ## Current implementation
 
-`mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, dependency graph validation, and conservative proposal aggregation. It does not call model APIs, execute agents, provide a scheduler, or verify mathematics. Those integrations remain separate milestones.
+`mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, dependency graph validation, and conservative proposal aggregation. Collision assessments preserve the original proposals and expose deterministic claim groups and conflicting proposal indexes; they intentionally do not choose a winner or infer semantic equivalence. It does not call model APIs, execute agents, provide a scheduler, or verify mathematics. Those integrations remain separate milestones.
