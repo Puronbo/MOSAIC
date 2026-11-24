@@ -79,6 +79,7 @@ def test_accepts_verified_attestation_with_exact_repository_workflow_run_and_sub
     ("path", "value"),
     [
         (("sourceRepositoryIdentifier",), "999"),
+        (("sourceRepositoryOwnerIdentifier",), "999"),
         (("sourceRepositoryDigest",), "c" * 40),
         (("sourceRepositoryRef",), "refs/heads/attacker"),
         (("buildSignerURI",), "https://github.com/attacker/repo/workflow.yml@refs/heads/main"),
@@ -144,3 +145,18 @@ def test_published_policy_schema_matches_committed_policy():
     for field, value in policy.items():
         constraints = schema["properties"][field]
         assert constraints.get("const") == value
+
+
+def test_policy_rejects_disabled_security_requirements_and_mismatched_repository_uri():
+    for changes in (
+        {"require_github_hosted_runner": False},
+        {"require_verified_timestamp": False},
+        {"source_repository_uri": "https://github.com/attacker/MOSAIC"},
+        {"repository_id": "not-numeric"},
+    ):
+        with pytest.raises(AttestationPolicyError):
+            verify_gh_attestation_result(
+                verified_result(), policy={**POLICY, **changes},
+                expected_commit=COMMIT, expected_run_id=RUN_ID,
+                expected_subject_sha256=SUBJECT,
+            )
