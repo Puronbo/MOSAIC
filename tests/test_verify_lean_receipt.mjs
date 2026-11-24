@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { verifyAttestation, verifyReceiptBundle, parseJsonNoDuplicateKeys } from "../scripts/verify_lean_receipt.mjs";
 
-const vector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_vector.json", import.meta.url), "utf8"));\nconst bundleVector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_bundle_vector.json", import.meta.url), "utf8"));
+const vector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_vector.json", import.meta.url), "utf8"));
+const bundleVector = JSON.parse(readFileSync(new URL("./fixtures/lean_receipt_v1_bundle_vector.json", import.meta.url), "utf8"));
 
 test("Node independently verifies the Python Ed25519 conformance vector", () => {
   assert.equal(verifyAttestation(vector.attestation, vector.public_key_b64), true);
