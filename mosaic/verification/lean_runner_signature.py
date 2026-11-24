@@ -280,6 +280,52 @@ def verify_attested_environment_manifest(
         return False
 
 
+
+def verify_lean_proof_receipt_bundle(
+    receipt: dict,
+    *,
+    manifest: bytes,
+    trusted_public_key: bytes,
+    request_sha256: str,
+    candidate: bytes,
+) -> bool:
+    """Verify a portable proof-receipt bundle against caller-supplied trust inputs.
+
+    The caller must first verify the GitHub artifact attestation for the receipt
+    and manifest (for example with gh attestation verify). This function checks
+    the Ed25519 signature, exact manifest bytes, and caller-supplied
+    request/candidate digests; it does not establish trust in an embedded key.
+    """
+    try:
+        if receipt.get("schema_version") != "mosaic.signed-lean-proof-receipt.v1":
+            return False
+        attestation = SignedLeanAttestation.model_validate(receipt["attestation"])
+        embedded_key = base64.b64decode(receipt["public_key_b64"], validate=True)
+        if embedded_key != trusted_public_key or not attestation.verify(trusted_public_key):
+            return False
+        manifest_digest = hashlib.sha256(manifest).hexdigest()
+        if (
+            receipt.get("environment_manifest_sha256") != manifest_digest
+            or attestation.environment_manifest_sha256 != manifest_digest
+            or hashlib.sha256(candidate).hexdigest() != attestation.artifact_sha256
+            or request_sha256 != attestation.request_sha256
+            or hashlib.sha256(attestation.proof_source.encode("utf-8")).hexdigest()
+            != attestation.proof_artifact_sha256
+        ):
+            return False
+        if not verify_attested_environment_manifest(
+            attestation, trusted_public_key, manifest
+        ):
+            return False
+        replay = receipt.get("replay")
+        return (
+            isinstance(replay, dict)
+            and replay.get("exact_signed_source_replayed") is True
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def generate_ed25519_keypair() -> tuple[bytes, bytes]:
     """Generate raw 32-byte (private, public) Ed25519 keys for provisioning."""
     from cryptography.hazmat.primitives import serialization
