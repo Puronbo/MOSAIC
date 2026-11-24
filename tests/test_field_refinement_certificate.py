@@ -1,19 +1,60 @@
 from decimal import Decimal
+import hashlib
+import json
 
 import pytest
 
+from mosaic.core.field_configuration import FieldConfiguration1D, LatticeBoundary
+from mosaic.core.field_refinement import assess_field_timestep_refinement
 from mosaic.core.field_refinement_certificate import (
-    FieldRefinementCertificate,
     RefinementDecision,
     create_field_refinement_certificate,
     verify_field_refinement_certificate,
 )
-from tests.test_field_refinement import run
+from mosaic.core.scalar_potential import PolynomialTerm, ScalarPotential
+
+
+def make_refinement():
+    potential = ScalarPotential(
+        potential_id="quadratic",
+        model_id="model",
+        field_name="phi",
+        field_unit="phi",
+        energy_unit="energy",
+        domain_min=Decimal("-10"),
+        domain_max=Decimal("10"),
+        terms=(PolynomialTerm(coefficient=Decimal("0.5"), power=2),),
+    )
+    configuration = FieldConfiguration1D(
+        configuration_id="initial",
+        model_id="model",
+        potential_id="quadratic",
+        coordinates=(Decimal("0"), Decimal("1"), Decimal("2")),
+        field_values=(Decimal("1"), Decimal("0"), Decimal("-1")),
+        coordinate_unit="m",
+        field_unit="phi",
+        boundary=LatticeBoundary.OPEN,
+    )
+    return assess_field_timestep_refinement(
+        configuration,
+        potential,
+        initial_velocities=(Decimal("0"),) * 3,
+        base_time_step=Decimal("0.001"),
+        refinement_ratio=2,
+        levels=3,
+        time_unit="s",
+        inertia_coefficient=Decimal("1"),
+        inertia_coefficient_unit="inertia",
+        velocity_unit="phi/s",
+        kinetic_coefficient=Decimal("1"),
+        kinetic_coefficient_unit="kinetic",
+        output_configuration_id_prefix="certificate",
+    )
 
 
 def make_certificate():
     return create_field_refinement_certificate(
-        run(),
+        make_refinement(),
         assessment_id="assessment-001",
         field_difference_tolerance=Decimal("1"),
         velocity_difference_tolerance=Decimal("1"),
@@ -41,11 +82,6 @@ def test_certificate_verifier_recomputes_acceptance_metrics():
         "decision": RefinementDecision.REJECTED,
         "reasons": ("fabricated rejection",),
     })
-    # Even if an altered record is re-hashed, its decision must still agree
-    # with the independently recomputed criteria.
-    import hashlib
-    import json
-
     payload = tampered.model_dump(mode="json", exclude={"sha256"})
     digest = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -55,10 +91,9 @@ def test_certificate_verifier_recomputes_acceptance_metrics():
 
 
 def test_certificate_rejects_nonpositive_tolerances():
-    refinement = run()
     with pytest.raises(ValueError, match="field_difference_tolerance"):
         create_field_refinement_certificate(
-            refinement,
+            make_refinement(),
             assessment_id="assessment-002",
             field_difference_tolerance=Decimal("0"),
             velocity_difference_tolerance=Decimal("1"),
