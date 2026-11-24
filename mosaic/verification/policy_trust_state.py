@@ -12,7 +12,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from mosaic.verification.lean_runner_signature import _canonical
-from mosaic.verification.policy_governance import PolicyPublisherKey
+from mosaic.verification.policy_governance import (
+    PolicyPublisherKey, verify_policy_registry_with_keyring,
+)
 from mosaic.verification.policy_registry import SignedPolicyRegistryEntry
 from mosaic.verification.policy_transparency import (
     PolicyCheckpointWitness,
@@ -82,6 +84,29 @@ class PolicyCheckpointStore:
             """)
 
     @staticmethod
+    def _verify_claim(
+        checkpoint, entries, signer_keyring, witnesses, witness_keyring,
+        minimum_witnesses,
+    ) -> bool:
+        if (not isinstance(entries, list) or not entries
+                or checkpoint.sequence != len(entries) - 1
+                or entries[-1].entry_sha256() != checkpoint.head_entry_sha256
+                or not verify_policy_registry_with_keyring(
+                    entries, publisher_keyring=signer_keyring,
+                )
+                or not checkpoint.verify_signature(signer_keyring)
+                or minimum_witnesses < 0):
+            return False
+        accepted = set()
+        for witness in witnesses or []:
+            if (not isinstance(witness, PolicyCheckpointWitness)
+                    or witness.witness_key_id in accepted
+                    or not witness.verify(checkpoint, witness_keyring or {})):
+                return False
+            accepted.add(witness.witness_key_id)
+        return len(accepted) >= minimum_witnesses
+
+    @staticmethod
     def _json(checkpoint: PolicyRegistryCheckpoint) -> str:
         return _canonical(checkpoint.model_dump(mode="json")).decode("utf-8")
 
@@ -90,7 +115,7 @@ class PolicyCheckpointStore:
         return PolicyRegistryCheckpoint.model_validate_json(value)
 
     def get_head(self, log_id: str) -> PolicyRegistryCheckpoint | None:
-        with self._connect() as db:
+        with self._connection() as db:
             row = db.execute(
                 "SELECT checkpoint_json FROM policy_trust_heads WHERE log_id=?",
                 (log_id,),
@@ -98,14 +123,14 @@ class PolicyCheckpointStore:
         return self._decode(row["checkpoint_json"]) if row else None
 
     def is_quarantined(self, log_id: str) -> bool:
-        with self._connect() as db:
+        with self._connection() as db:
             row = db.execute(
                 "SELECT quarantined FROM policy_trust_heads WHERE log_id=?", (log_id,)
             ).fetchone()
         return bool(row["quarantined"]) if row else False
 
     def incidents(self, log_id: str) -> list[dict]:
-        with self._connect() as db:
+        with self._connection() as db:
             rows = db.execute(
                 """SELECT log_id, sequence, existing_head_sha256,
                    conflicting_head_sha256, checkpoint_sha256, reason, observed_at_utc
@@ -131,7 +156,7 @@ class PolicyCheckpointStore:
         """
         if not isinstance(checkpoint, PolicyRegistryCheckpoint):
             return False
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
                 "SELECT * FROM policy_trust_heads WHERE log_id=?", (checkpoint.log_id,)
@@ -143,7 +168,10 @@ class PolicyCheckpointStore:
 
             if previous and checkpoint.sequence == previous.sequence:
                 if (checkpoint.head_entry_sha256 != previous.head_entry_sha256
-                        and checkpoint.verify_signature(signer_keyring)):
+                        and self._verify_claim(
+                            checkpoint, entries, signer_keyring, witnesses,
+                            witness_keyring, minimum_witnesses,
+                        )):
                     db.execute(
                         """INSERT INTO policy_trust_incidents
                         (log_id, sequence, existing_head_sha256,
@@ -228,7 +256,7 @@ class PolicyCheckpointStore:
             minimum_witnesses=minimum_witnesses,
         ):
             return False
-        with self._connect() as db:
+        with self._connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute(
                 "SELECT quarantined, checkpoint_json FROM policy_trust_heads WHERE log_id=?",
