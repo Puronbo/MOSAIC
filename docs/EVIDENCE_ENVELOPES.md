@@ -1448,3 +1448,26 @@ envelope does not include the full restore receipt ledger; consumers that
 need to independently audit the ledger history must also obtain and verify
 that history against the signed ledger head. Signed timestamps remain policy
 data, not trusted time.
+
+### G-EP128: complete portable restoration-ledger evidence envelope
+
+The G-EP127 recovery envelope now carries the complete ordered restoration
+receipt ledger in addition to its signed terminal ledger head. The verifier
+requires a separately retained exact digest of that signed head, validates
+every ledger event's sequence, predecessor link, entry digest, receipt digest,
+and receipt-authority signature, and checks that the terminal receipt matches
+the independently pinned terminal receipt digest. Empty, truncated, reordered,
+forked, or tampered histories are rejected.
+
+The JSON Schema remains
+`schemas/operator-lifecycle-recovery-evidence-envelope-v1.schema.json` and
+now includes the complete ledger entries, each referencing the signed
+checkpoint-chain restore-receipt schema. The envelope digest covers the
+ledger as well as the rotation and ledger-head evidence.
+
+This remains independently anchored evidence, not a self-authenticating
+artifact: retain the restore-ledger-head digest and authority key material
+outside the envelope and its mutable storage domain. The ledger verifier
+checks signed receipt statements and hash-linked continuity; it does not
+establish trusted time, immutable storage, consensus, or the substantive truth
+of the underlying restoration claims.
