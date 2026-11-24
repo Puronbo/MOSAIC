@@ -205,3 +205,28 @@ def test_end_to_end_request_checker_receipt_persist_and_replay(tmp_path, monkeyp
     assert replayed.request_sha256 == request_fingerprint(request)
     assert replayed.source_task_id == obligation.source_task_id
     assert replayed.finding_id == obligation.finding.finding_id
+
+
+def test_receipt_rejects_nested_lean_obligation_for_another_request():
+    _, _, receipt = _issued()
+    altered_obligation = receipt.checker_result.obligation.model_copy(
+        update={"request_sha256": "0" * 64}
+    )
+    altered_result = receipt.checker_result.model_copy(
+        update={"obligation": altered_obligation}
+    )
+    values = receipt.model_dump()
+    values["checker_result"] = altered_result
+    with pytest.raises(Exception, match="different request"):
+        VerificationReceipt(**values)
+
+
+def test_receipt_rejects_formal_status_without_lean_obligation():
+    _, _, receipt = _issued()
+    values = receipt.model_dump()
+    values["checker_result"] = LeanIdentityVerification(
+        status="FORMALLY_VERIFIED",
+        explanation="forged status without a bound obligation",
+    )
+    with pytest.raises(Exception, match="requires its request-bound"):
+        VerificationReceipt(**values)
