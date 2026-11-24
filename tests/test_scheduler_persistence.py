@@ -160,3 +160,22 @@ def test_quarantined_dependency_blocks_downstream_dispatch():
     by_id = {record.task_id: record for record in after_restart}
     assert by_id["remote-1"].status == TaskStatus.FAILED
     assert by_id["followup-1"].status == TaskStatus.PENDING
+
+
+def test_recovery_quarantines_timed_out_tasks_that_may_still_be_running():
+    task = AgentTask(
+        task_id="slow-remote-1",
+        role=AgentRole.SOLVER,
+        goal="Call a slow external solver",
+        timeout_seconds=5,
+    )
+    records = initialize_task_records([task])
+    running = dispatch_ready_tasks([task], records, now=10.0, max_concurrency=1)
+    timed_out = dispatch_ready_tasks(
+        [task], running, now=16.0, max_concurrency=1, max_attempts=1
+    )
+    assert timed_out[0].status == TaskStatus.TIMED_OUT
+    snapshot = SchedulerSnapshot.capture([task], timed_out)
+    recovered = quarantine_interrupted_tasks(snapshot)
+    assert recovered.records[0].status == TaskStatus.FAILED
+    assert "RUNNING or TIMED_OUT" in recovered.records[0].error
