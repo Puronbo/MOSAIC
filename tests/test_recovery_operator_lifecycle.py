@@ -425,3 +425,80 @@ def test_portable_lifecycle_checkpoint_chain_bundle_rejects_gap_fork_and_tamperi
         expected_starting_checkpoint_sha256=first.digest(),
         authorization_time_utc="2026-11-24T08:03:00.000000Z")
     assert not altered_report.accepted
+
+
+
+def test_checkpoint_chain_restore_is_transactional_guarded_and_idempotent(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        RecoveryOperatorLifecycleTrustAnchorStore,
+    )
+    authority_sk, authority = identity("chain-restore-authority")
+    _, operator = identity("chain-restore-operator")
+    ring = {"chain-restore-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="chain-restore-registry", sequence=70,
+        previous_checkpoint_sha256="a" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="chain-restore-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=71,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="chain-restore-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    third = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=72,
+        previous_checkpoint_sha256=second.digest(),
+        issued_at_utc="2026-11-24T08:02:00.000000Z",
+        authority_key_id="chain-restore-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second, third])
+    kwargs = dict(
+        authority_keyring=ring, expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256=third.digest(),
+        expected_ending_sequence=third.sequence,
+        authorization_time_utc="2026-11-24T08:03:00.000000Z")
+
+    empty = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "empty-chain.sqlite3"))
+    assert not empty.restore_checkpoint_chain_bundle(bundle, first, **kwargs)
+    assert empty.read(first.registry_id) is None
+    assert empty.restore_checkpoint_chain_bundle(bundle, first, allow_initial=True, **kwargs)
+    assert empty.read(first.registry_id)["checkpoint_sha256"] == third.digest()
+    assert empty.read(first.registry_id)["sequence"] == 72
+    assert empty.restore_checkpoint_chain_bundle(bundle, first, **kwargs)
+
+    # Existing stores advance only from the exact retained predecessor.
+    advancing = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "advance-chain.sqlite3"))
+    assert advancing.provision(
+        registry_id=first.registry_id, sequence=first.sequence,
+        checkpoint_sha256=first.digest(), updated_at_utc=first.issued_at_utc)
+    assert advancing.restore_checkpoint_chain_bundle(bundle, first, **kwargs)
+    assert advancing.read(first.registry_id)["checkpoint_sha256"] == third.digest()
+
+    stale = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "stale-chain.sqlite3"))
+    assert stale.provision(
+        registry_id=first.registry_id, sequence=70,
+        checkpoint_sha256="f" * 64, updated_at_utc=first.issued_at_utc)
+    assert not stale.restore_checkpoint_chain_bundle(bundle, first, allow_initial=True, **kwargs)
+    assert stale.read(first.registry_id)["checkpoint_sha256"] == "f" * 64
+
+    newer = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "newer-chain.sqlite3"))
+    assert newer.provision(
+        registry_id=first.registry_id, sequence=73,
+        checkpoint_sha256="e" * 64, updated_at_utc=third.issued_at_utc)
+    assert not newer.restore_checkpoint_chain_bundle(bundle, first, allow_initial=True, **kwargs)
+    assert newer.read(first.registry_id)["sequence"] == 73
+    assert newer.read(first.registry_id)["checkpoint_sha256"] == "e" * 64
+
+    # A mathematically invalid but structurally well-formed suffix never mutates state.
+    forged = third.model_copy(update={"previous_checkpoint_sha256": "0" * 64})
+    invalid_bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second, forged])
+    before = advancing.read(first.registry_id)
+    invalid_kwargs = {**kwargs, "expected_ending_checkpoint_sha256": forged.digest()}
+    assert not advancing.restore_checkpoint_chain_bundle(invalid_bundle, first, **invalid_kwargs)
+    assert advancing.read(first.registry_id) == before
