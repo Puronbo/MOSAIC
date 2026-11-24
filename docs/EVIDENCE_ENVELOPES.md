@@ -475,3 +475,34 @@ signing, or freshness discovery. A signed publication timestamp is still a
 publisher claim, not an independent timestamp authority. Historical receipt
 acceptance continues to require separately verified external timestamp
 evidence.
+
+
+### Publisher-key lifecycle and quorum governance
+
+`mosaic.verification.policy_governance` adds an independently provisioned
+publisher keyring. Each `PolicyPublisherKey` binds a publisher ID to a base64
+Ed25519 public key and activation/revocation boundaries. Registry signatures
+are accepted only when their publication timestamp falls within that key's
+permitted interval. A revoked publisher cannot authorize entries published
+at or after its revocation boundary. Historical entries signed before
+revocation remain verifiable, subject to the separately trusted keyring and
+registry checkpoint.
+
+Optional `PolicyPublisherApproval` records let additional publishers approve
+the exact digest and sequence of a signed entry. The primary entry signer
+counts as one approval; additional approvals must come from distinct keys,
+be lifecycle-valid at approval time, and occur no earlier than publication.
+`verify_policy_registry_with_keyring` enforces the requested minimum quorum
+across every entry. Duplicate approvals, approvals for another entry, unknown
+publishers, and revoked or not-yet-active keys are rejected. The publisher
+key and approval schemas are `schemas/policy-publisher-key-v1.schema.json`
+and `schemas/policy-publisher-approval-v1.schema.json`.
+
+This is a verification primitive, not a key-distribution or governance service.
+Publisher keyrings and expected registry-head checkpoints must be provisioned
+and updated through an independent trusted channel. Key revocation timestamps
+are policy inputs supplied by that channel; they are not self-authenticating.
+A compromised publisher can still sign false statements before its revocation
+is recorded, and a quorum is only as independent as the people and systems
+controlling its keys. No automatic publisher-key rotation, hardware-backed
+signing, transparency-log publication, or anti-equivocation gossip is claimed.
