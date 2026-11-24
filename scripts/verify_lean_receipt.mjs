@@ -71,7 +71,15 @@ export function parseJsonNoDuplicateKeys(source) {
   if (index !== source.length) throw new Error("trailing data after JSON value");
   return parsed;
 }
-function isWellFormedUnicode(value) {\n  for (const character of value) {\n    const code = character.charCodeAt(0);\n    if (character.length === 1 && code >= 0xd800 && code <= 0xdfff) return false;\n  }\n  return true;\n}\n\nfunction sha256(value) {
+function isWellFormedUnicode(value) {
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (character.length === 1 && code >= 0xd800 && code <= 0xdfff) return false;
+  }
+  return true;
+}
+
+function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
