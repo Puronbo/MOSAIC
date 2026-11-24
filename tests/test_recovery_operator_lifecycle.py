@@ -502,3 +502,73 @@ def test_checkpoint_chain_restore_is_transactional_guarded_and_idempotent(tmp_pa
     invalid_kwargs = {**kwargs, "expected_ending_checkpoint_sha256": forged.digest()}
     assert not advancing.restore_checkpoint_chain_bundle(invalid_bundle, first, **invalid_kwargs)
     assert advancing.read(first.registry_id) == before
+
+
+
+def test_checkpoint_chain_restore_receipt_is_signed_and_independently_verifiable(tmp_path):
+    from mosaic.verification.recovery_operator_lifecycle import (
+        OperatorLifecycleCheckpointChainBundle,
+        RecoveryOperatorLifecycleTrustAnchorStore,
+        verify_operator_lifecycle_checkpoint_chain_restore_receipt,
+    )
+    authority_sk, authority = identity("chain-receipt-authority")
+    _, operator = identity("chain-receipt-operator")
+    ring = {"chain-receipt-authority": authority}
+    first = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id="chain-receipt-registry", sequence=80,
+        previous_checkpoint_sha256="b" * 64,
+        issued_at_utc="2026-11-24T08:00:00.000000Z",
+        authority_key_id="chain-receipt-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    second = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=81,
+        previous_checkpoint_sha256=first.digest(),
+        issued_at_utc="2026-11-24T08:01:00.000000Z",
+        authority_key_id="chain-receipt-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    third = SignedOperatorLifecycleCheckpoint.sign(
+        registry_id=first.registry_id, sequence=82,
+        previous_checkpoint_sha256=second.digest(),
+        issued_at_utc="2026-11-24T08:02:00.000000Z",
+        authority_key_id="chain-receipt-authority", operator_keys=[operator],
+        private_key=authority_sk)
+    bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second, third])
+    store = RecoveryOperatorLifecycleTrustAnchorStore(str(tmp_path / "receipt-chain.sqlite3"))
+    kwargs = dict(
+        authority_keyring=ring, expected_registry_id=first.registry_id,
+        expected_starting_checkpoint_sha256=first.digest(),
+        expected_ending_checkpoint_sha256=third.digest(),
+        expected_ending_sequence=third.sequence,
+        authorization_time_utc="2026-11-24T08:04:00.000000Z")
+    assert store.provision(
+        registry_id=first.registry_id, sequence=first.sequence,
+        checkpoint_sha256=first.digest(), updated_at_utc=first.issued_at_utc)
+    receipt = store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, issued_at_utc="2026-11-24T08:03:00.000000Z",
+        receipt_private_key=authority_sk, **kwargs)
+    assert receipt is not None
+    assert store.read(first.registry_id)["checkpoint_sha256"] == third.digest()
+    assert verify_operator_lifecycle_checkpoint_chain_restore_receipt(
+        receipt, bundle, first, **kwargs)
+
+    tampered = receipt.model_copy(update={"verified_transitions": 1})
+    assert not verify_operator_lifecycle_checkpoint_chain_restore_receipt(
+        tampered, bundle, first, **kwargs)
+    other_bundle = OperatorLifecycleCheckpointChainBundle.from_checkpoints(
+        starting_checkpoint=first, checkpoints=[second])
+    assert not verify_operator_lifecycle_checkpoint_chain_restore_receipt(
+        receipt, other_bundle, first,
+        **{**kwargs, "expected_ending_checkpoint_sha256": second.digest(),
+           "expected_ending_sequence": second.sequence})
+
+    # A rejected import cannot produce a receipt or move the retained head.
+    rejected_store = RecoveryOperatorLifecycleTrustAnchorStore(
+        str(tmp_path / "rejected-receipt-chain.sqlite3"))
+    assert rejected_store.provision(
+        registry_id=first.registry_id, sequence=first.sequence,
+        checkpoint_sha256="c" * 64, updated_at_utc=first.issued_at_utc)
+    assert rejected_store.restore_checkpoint_chain_bundle_with_receipt(
+        bundle, first, issued_at_utc="2026-11-24T08:03:00.000000Z",
+        receipt_private_key=authority_sk, **kwargs) is None
+    assert rejected_store.read(first.registry_id)["checkpoint_sha256"] == "c" * 64
