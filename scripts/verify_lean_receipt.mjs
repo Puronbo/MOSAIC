@@ -81,13 +81,17 @@ export function verifyAttestation(attestation, trustedPublicKeyB64) {
     if (Object.keys(attestation).sort().join("|") !== [...ATTESTATION_FIELDS].sort().join("|")) return false;
     if (attestation.schema_version !== "1.0" || attestation.kernel_id !== "Lean") return false;
     if (!["PASSED", "FAILED"].includes(attestation.outcome)) return false;
-    for (const field of ["receipt_id", "runner_id", "key_id", "checker_id", "kernel_version", "proof_source"]) {
-      if (typeof attestation[field] !== "string" || attestation[field].length < 1) return false;
+    const limits = {
+      receipt_id: 120, runner_id: 160, key_id: 160,
+      checker_id: 160, kernel_version: 160, proof_source: 10000,
+    };
+    for (const [field, maximum] of Object.entries(limits)) {
+      if (typeof attestation[field] !== "string" || Array.from(attestation[field]).length < 1 || Array.from(attestation[field]).length > maximum) return false;
     }
     for (const field of ["request_sha256", "artifact_sha256", "proof_artifact_sha256"]) {
       if (typeof attestation[field] !== "string" || !HEX64.test(attestation[field])) return false;
     }
-    if (Buffer.byteLength(attestation.proof_source, "utf8") > 10000) return false;
+    if (attestation.workflow_run_id !== null && attestation.workflow_run_id.length < 1) return false;
     if (sha256(Buffer.from(attestation.proof_source, "utf8")) !== attestation.proof_artifact_sha256) return false;
     const optional = ["environment_manifest_sha256", "source_commit", "workflow_run_id", "lean_toolchain", "mathlib_revision"];
     const values = optional.map((field) => attestation[field]);
@@ -96,8 +100,8 @@ export function verifyAttestation(attestation, trustedPublicKeyB64) {
     if (attestation.source_commit !== null && !HEX40.test(attestation.source_commit)) return false;
     if (attestation.mathlib_revision !== null && !HEX40.test(attestation.mathlib_revision)) return false;
     if (attestation.workflow_run_id !== null && (typeof attestation.workflow_run_id !== "string" || attestation.workflow_run_id.length > 40)) return false;
-    if (attestation.lean_toolchain !== null && (typeof attestation.lean_toolchain !== "string" || attestation.lean_toolchain.length > 160)) return false;
-    const publicKey = Buffer.from(trustedPublicKeyB64, "base64");
+    if (attestation.lean_toolchain !== null && (typeof attestation.lean_toolchain !== "string" || Array.from(attestation.lean_toolchain).length > 160)) return false;
+    if (typeof attestation.signature_b64 !== "string" || attestation.signature_b64.length !== 88) return false;\n    const publicKey = Buffer.from(trustedPublicKeyB64, "base64");
     if (publicKey.length !== 32 || publicKey.toString("base64") !== trustedPublicKeyB64) return false;
     const signature = Buffer.from(attestation.signature_b64, "base64");
     if (signature.length !== 64 || signature.toString("base64") !== attestation.signature_b64) return false;
