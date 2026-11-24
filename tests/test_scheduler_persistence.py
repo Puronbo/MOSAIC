@@ -109,7 +109,6 @@ def test_recovery_quarantines_running_tasks_instead_of_redispatching():
 
     # Failed is not a dispatchable state: recovery cannot duplicate an unknown
     # remote call merely because the local process restarted.
-    from mosaic.core.orchestration import dispatch_ready_tasks
     after_restart = dispatch_ready_tasks(
         [task], recovered.records, now=11.0, max_concurrency=1
     )
@@ -120,7 +119,6 @@ def test_recovery_refuses_tampered_snapshot():
     tasks, records = _completed_state()
     snapshot = SchedulerSnapshot.capture(tasks, records)
     tampered = snapshot.model_copy(update={"snapshot_sha256": "0" * 64})
-    from mosaic.core.scheduler_persistence import quarantine_interrupted_tasks
     with pytest.raises(ValueError, match="integrity"):
         quarantine_interrupted_tasks(tampered)
 
