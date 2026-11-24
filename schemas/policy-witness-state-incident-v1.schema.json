@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/policy-witness-state-incident-v1.schema.json",
+  "title": "MOSAIC Policy Witness State Incident v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "log_id",
+    "sequence",
+    "retained_checkpoint_sha256",
+    "conflicting_checkpoint_sha256",
+    "reason",
+    "observed_at_utc"
+  ],
+  "properties": {
+    "log_id": {"type": "string", "minLength": 1, "maxLength": 200},
+    "sequence": {"type": "integer", "minimum": 0},
+    "retained_checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "conflicting_checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reason": {"type": "string", "minLength": 1},
+    "observed_at_utc": {"type": "string", "format": "date-time"}
+  }
+}
