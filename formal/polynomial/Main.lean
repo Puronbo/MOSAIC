@@ -333,7 +333,7 @@ theorem difference_shift_commute (f : ℤ → ℝ) (m k : ℤ) :
     forwardDifference (fun j => shiftOperator f m j) k =
       shiftOperator (fun j => forwardDifference f j) m k := by
   simp only [forwardDifference, shiftOperator]
-  congr 1 <;> omega
+  congr 1 <;> ring
 
 /-- The integer translations form a group action on bi-infinite sequences:
 the inverse law is witnessed by translation through the negated offset. -/
@@ -345,43 +345,45 @@ theorem translation_group_laws (f : ℤ → ℝ) (m k : ℤ) :
 end MosaicIntegerShift
 
 
-/-! ## Positive-real-base exponent shifts
+/-! ## Continuous positive-real exponent shifts
 
-This layer specializes the integer translation law to the original real-power
-family. Positivity of the base is explicit, so real exponents and negative
-integer offsets are well-defined in the standard real-power semantics.
+For a fixed positive base, the real-indexed family has a genuine derivative.
+This is the infinitesimal limit of its finite-step difference quotient.
 -/
 
 namespace MosaicRealExponentShift
 
-/-- The bi-infinite real-exponent sequence based at x^x. -/
-def value (x : ℝ) (k : ℤ) : ℝ :=
-  x ^ (x + (k : ℝ))
+/-- The real-parameter exponent family, written with the translated
+parameter first so the derivative is a direct constant-base rpow chain rule. -/
+noncomputable def value (x t : ℝ) : ℝ :=
+  x ^ (t + x)
 
-/-- An integer exponent shift multiplies the value by the matching integer
-power of the positive base. -/
-theorem integer_shift (x : ℝ) (hx : 0 < x) (k m : ℤ) :
-    value x (k + m) = value x k * x ^ m := by
-  unfold value
-  rw [show x + ((k + m : ℤ) : ℝ) =
-      (x + (k : ℝ)) + (m : ℝ) by push_cast; ring]
-  exact Real.rpow_add_int (ne_of_gt hx) (x + (k : ℝ)) m
+/-- For every positive base, the derivative with respect to the exponent
+parameter is the value multiplied by the natural logarithm of the base. -/
+theorem derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt (fun s : ℝ => value x s)
+      (value x t * Real.log x) t := by
+  have hlinear : HasDerivAt (fun s : ℝ => s + x) 1 t := by
+    simpa using (hasDerivAt_id t).add_const x
+  simpa [value, mul_comm, mul_left_comm, mul_assoc] using
+    (HasDerivAt.const_rpow hx hlinear)
 
-/-- The shift ratio is the integer power of the base. -/
-theorem shift_ratio (x : ℝ) (hx : 0 < x) (k m : ℤ) :
-    value x (k + m) / value x k = x ^ m := by
-  rw [integer_shift x hx k m]
-  have hvalue : value x k ≠ 0 := by
+/-- The derivative is positive above base one, zero at base one, and
+negative between zero and one, since the family itself is positive. -/
+theorem derivative_sign (x t : ℝ) (hx : 0 < x) :
+    (0 < Real.log x → 0 < (value x t * Real.log x)) ∧
+    (Real.log x = 0 → value x t * Real.log x = 0) ∧
+    (Real.log x < 0 → value x t * Real.log x < 0) := by
+  have hvalue : 0 < value x t := by
     unfold value
-    exact (Real.rpow_pos_of_pos hx _).ne'
-  field_simp
-
-/-- Forward and backward integer shifts are both valid for positive real
-bases; in particular, a negative offset divides by the corresponding
-positive integer power. -/
-theorem negative_shift (x : ℝ) (hx : 0 < x) (k m : ℤ) :
-    value x (k - m) = value x k / x ^ m := by
-  rw [show k - m = k + (-m) by ring, integer_shift x hx k (-m)]
-  simp [zpow_neg]
+    exact Real.rpow_pos_of_pos hx _
+  constructor
+  · intro hlog
+    exact mul_pos hvalue hlog
+  constructor
+  · intro hlog
+    rw [hlog, mul_zero]
+  · intro hlog
+    exact mul_neg_of_pos_of_neg hvalue hlog
 
 end MosaicRealExponentShift
