@@ -199,6 +199,27 @@ The proof receipt's Ed25519 key is ephemeral in CI. Its standalone signature
 is therefore not a persistent identity; the GitHub artifact attestation is
 the externally verifiable binding to the repository workflow and commit.
 
+### Cross-language receipt verification
+
+A dependency-free Node.js verifier independently implements the version 1.0
+Ed25519 payload check. It uses Node's built-in Ed25519 support and a strict
+JSON parser that rejects duplicate object keys. Run it with a trusted
+base64-encoded 32-byte public key:
+
+```sh
+node scripts/verify_lean_receipt.mjs lean-proof-attestation.json TRUSTED_PUBLIC_KEY_B64
+```
+
+The same verifier is exercised against the fixed Python-generated vector by
+`node --test tests/test_verify_lean_receipt.mjs`. It checks the exact
+canonical UTF-8 JSON payload, Ed25519 signature, proof-source digest, schema
+version, and complete environment-binding shape. This is a signature-level
+cross-language conformance check, not a replacement for validating the
+GitHub artifact attestation, request/candidate bindings, and environment
+manifest. Use the Python bundle verifier for those additional external
+bindings, or implement them in the consuming system before accepting the
+receipt as a complete proof bundle.
+
 ### Independent receipt verification
 
 After downloading both artifacts, first verify their GitHub attestations as
