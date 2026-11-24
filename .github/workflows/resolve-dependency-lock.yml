@@ -1,0 +1,32 @@
+name: resolve-dependency-lock
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "pyproject.toml"
+      - ".github/workflows/resolve-dependency-lock.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.11"
+      - name: Resolve and validate lock
+        run: |
+          uv lock --python 3.11
+          uv lock --check
+          sha256sum uv.lock
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resolved-uv-lock
+          path: uv.lock
+          if-no-files-found: error
+          retention-days: 7
