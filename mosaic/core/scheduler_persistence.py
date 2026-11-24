@@ -167,11 +167,11 @@ class SchedulerSnapshotStore:
 def quarantine_interrupted_tasks(
     snapshot: SchedulerSnapshot,
 ) -> SchedulerSnapshot:
-    """Mark persisted RUNNING tasks FAILED after restart; never blindly rerun them.
+    """Mark persisted RUNNING or TIMED_OUT tasks FAILED after restart; never blindly rerun them.
 
-    A process restart cannot establish whether an external provider completed.
-    Such tasks are quarantined as FAILED for explicit reconciliation rather than
-    being automatically dispatched a second time.
+    A process restart cannot establish whether an external provider completed,
+    including work whose deadline expired. Such tasks are quarantined as FAILED
+    for explicit reconciliation rather than automatically dispatched again.
     """
     validate_scheduler_snapshot(snapshot)
     recovered_records = tuple(
@@ -179,12 +179,12 @@ def quarantine_interrupted_tasks(
             update={
                 "status": TaskStatus.FAILED,
                 "error": (
-                    "process restarted while task was RUNNING; external provider "
+                    "process restarted while task was RUNNING or TIMED_OUT; external provider "
                     "outcome is unknown and requires reconciliation"
                 ),
             }
         )
-        if record.status == TaskStatus.RUNNING else record
+        if record.status in {TaskStatus.RUNNING, TaskStatus.TIMED_OUT} else record
         for record in snapshot.records
     )
     return SchedulerSnapshot.capture(snapshot.tasks, recovered_records)
