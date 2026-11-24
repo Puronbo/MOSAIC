@@ -342,3 +342,45 @@ theorem translation_group_laws (f : ℤ → ℝ) (m k : ℤ) :
   exact ⟨shift_inverse_left f m k, shift_inverse_right f m k⟩
 
 end MosaicIntegerShift
+
+
+/-! ## Positive-real-base exponent shifts
+
+This layer specializes the integer translation law to the original real-power
+family. Positivity of the base is explicit, so real exponents and negative
+integer offsets are well-defined in the standard real-power semantics.
+-/
+
+namespace MosaicRealExponentShift
+
+/-- The bi-infinite real-exponent sequence based at x^x. -/
+def value (x : ℝ) (k : ℤ) : ℝ :=
+  x ^ (x + (k : ℝ))
+
+/-- An integer exponent shift multiplies the value by the matching integer
+power of the positive base. -/
+theorem integer_shift (x : ℝ) (hx : 0 < x) (k m : ℤ) :
+    value x (k + m) = value x k * x ^ m := by
+  unfold value
+  rw [show x + ((k + m : ℤ) : ℝ) =
+      (x + (k : ℝ)) + (m : ℝ) by push_cast; ring]
+  exact Real.rpow_add_int (ne_of_gt hx) (x + (k : ℝ)) m
+
+/-- The shift ratio is the integer power of the base. -/
+theorem shift_ratio (x : ℝ) (hx : 0 < x) (k m : ℤ) :
+    value x (k + m) / value x k = x ^ m := by
+  rw [integer_shift x hx k m]
+  have hvalue : value x k ≠ 0 := by
+    unfold value
+    exact (Real.rpow_pos_of_pos hx _).ne'
+  field_simp
+
+/-- Forward and backward integer shifts are both valid for positive real
+bases; in particular, a negative offset divides by the corresponding
+positive integer power. -/
+theorem negative_shift (x : ℝ) (hx : 0 < x) (k m : ℤ) :
+    value x (k - m) = value x k / x ^ m := by
+  rw [show k - m = k + (-m) by ring, integer_shift x hx k (-m)]
+  simp [zpow_neg]
+
+end MosaicRealExponentShift
