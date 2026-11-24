@@ -79,8 +79,9 @@ metadata from being treated as a CI-produced replay environment.
 
 
 The provenance generator itself now refuses to emit a CI manifest if any
-GitHub Actions identity field is absent or malformed. It requires repository,
-workflow name, numeric run ID, numeric run attempt, and runner OS, and checks
-that the source revision is a full lowercase commit ID. This avoids producing
-a superficially successful but schema-invalid manifest outside a fully
-identified CI execution.
+GitHub Actions identity field is absent or malformed. It requires a repository
+name in `owner/repository` form, a workflow name, positive numeric run ID and
+run attempt, and a recognized runner OS (`Linux`, `Windows`, or `macOS`). It
+also checks that the source revision is a full lowercase commit ID. This avoids
+producing a superficially successful but schema-invalid manifest outside a
+fully identified CI execution.
