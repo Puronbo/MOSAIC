@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/policy-registry-checkpoint-v1.schema.json",
+  "title": "MOSAIC Policy Registry Checkpoint v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "log_id",
+    "sequence",
+    "head_entry_sha256",
+    "previous_checkpoint_sha256",
+    "issued_at_utc",
+    "signer_key_id",
+    "signature_b64"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mosaic.policy-registry-checkpoint.v1"
+    },
+    "log_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "head_entry_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "previous_checkpoint_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "issued_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signer_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "signature_b64": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}
