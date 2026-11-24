@@ -218,6 +218,26 @@ base64-encoded 32-byte public key:
 node scripts/verify_lean_receipt.mjs lean-proof-attestation.json TRUSTED_PUBLIC_KEY_B64
 ```
 
+For independent full-bundle verification, also supply the exact environment
+manifest, original request JSON, and candidate bytes:
+
+```sh
+node scripts/verify_lean_receipt.mjs lean-proof-attestation.json TRUSTED_PUBLIC_KEY_B64 lean-provenance.json request.json candidate.txt
+```
+
+This mode checks the embedded public key against the trusted key, Ed25519
+signature, exact manifest bytes and digest, manifest commit/run/toolchain/
+Mathlib bindings, normalized `MathRequest` fingerprint, exact candidate
+bytes, proof-source digest, and recorded replay marker. As with the Python
+verifier, consumers must verify the GitHub artifact attestations separately
+before treating the receipt and manifest as authenticated CI outputs. A
+recorded replay marker is not a fresh local replay.
+
+The complete cross-language bundle vector is
+`tests/fixtures/lean_receipt_v1_bundle_vector.json`; both Python and Node
+tests independently validate its external bindings and reject altered
+candidate, request, manifest, or replay data.
+
 The same verifier is exercised against the fixed Python-generated vector by
 `node --test tests/test_verify_lean_receipt.mjs`. It checks the exact
 canonical UTF-8 JSON payload, Ed25519 signature, proof-source digest, schema
