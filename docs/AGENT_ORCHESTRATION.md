@@ -26,6 +26,8 @@ Every proposal records its task ID, agent ID, role, claim, rationale, assumption
 - Multiple distinct claims: require adversarial review and preserve every proposal. The assessment retains the immutable proposal records in input order, groups proposal indexes by claim, and identifies every proposal participating in a collision.
 - Claim grouping collapses presentation whitespace only. It does not case-fold, reorder symbols, simplify expressions, or infer mathematical equivalence; those require a separate sound checker.
 - A collision is a review trigger, not proof that either proposal is false. Reviewers must inspect assumptions, derivations, and evidence independently.
+- `collision_review_tasks` creates one bounded critic task per conflicting proposal and a synthesis task dependent on all critics. Critic tasks depend on the original task; the synthesis task depends on the original task and every critic.
+- The planner enforces a configurable proposal-count budget (16 by default), bounded context size, deterministic task IDs, and graph validation. It creates tasks only; it does not call providers, run reviewers, or treat review output as verification.
 - Matching claims from multiple models are not proof and do not increase the mathematical status above `EXPERIMENTAL`.
 - A critic's disagreement is a useful signal, not an automatic refutation.
 - Only a separate sound checker may establish a mathematical result. Only a configured trusted proof kernel may support `FORMALLY_VERIFIED`.
@@ -42,4 +44,4 @@ Treat prompts, model responses, retrieved documents, and tool outputs as untrust
 
 ## Current implementation
 
-`mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, dependency graph validation, and conservative proposal aggregation. Collision assessments preserve the original proposals and expose deterministic claim groups and conflicting proposal indexes; they intentionally do not choose a winner or infer semantic equivalence. It does not call model APIs, execute agents, provide a scheduler, or verify mathematics. Those integrations remain separate milestones.
+`mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, dependency graph validation, and conservative proposal aggregation. Collision assessments preserve the original proposals and expose deterministic claim groups and conflicting proposal indexes; they intentionally do not choose a winner or infer semantic equivalence. `collision_review_tasks` turns those indexes into a bounded, deterministic critic-and-synthesis dependency plan. It does not call model APIs, execute agents, provide a scheduler, or verify mathematics. Those integrations remain separate milestones.
