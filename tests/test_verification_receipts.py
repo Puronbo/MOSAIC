@@ -255,3 +255,59 @@ def test_authenticated_receipt_rejects_modified_tag_and_receipt():
     envelope = sealed.model_copy(update={"receipt": altered_receipt})
     with pytest.raises(ValueError, match="integrity"):
         envelope.verify(key, request)
+
+
+
+def test_receipt_coverage_requires_exact_obligation_set_and_stays_experimental():
+    from mosaic.verification.receipts import assess_receipt_coverage
+
+    request, obligation, receipt = _issued()
+    assessment = assess_receipt_coverage([obligation], [receipt], request)
+    assert assessment.obligation_count == 1
+    assert assessment.verified_obligation_ids == (obligation.obligation_id,)
+    assert assessment.unresolved_obligation_ids == ()
+    assert assessment.disposition == "all-required-checks-formally-verified"
+    assert assessment.mathematical_status == "EXPERIMENTAL"
+
+
+def test_receipt_coverage_rejects_missing_extra_and_duplicate_receipts():
+    from mosaic.verification.receipts import assess_receipt_coverage
+
+    request, obligation, receipt = _issued()
+    with pytest.raises(ValueError, match="exact obligation set"):
+        assess_receipt_coverage([obligation], [], request)
+    with pytest.raises(ValueError, match="duplicate obligation IDs"):
+        assess_receipt_coverage([obligation], [receipt, receipt], request)
+    with pytest.raises(ValueError, match="exact obligation set"):
+        assess_receipt_coverage([], [receipt], request)
+
+
+def test_receipt_coverage_does_not_promote_unsupported_checker_outcome():
+    from mosaic.verification.receipts import assess_receipt_coverage
+
+    request = _request()
+    obligation = _obligation(request)
+    checked = ReviewCheckerReceipt(
+        obligation_id=obligation.obligation_id,
+        request_sha256=request_fingerprint(request),
+        checker_id="mosaic.lean.request_identity.v1",
+        status="UNSUPPORTED",
+        explanation="not supported",
+    )
+    receipt = VerificationReceipt.issue(obligation, checked)
+    assessment = assess_receipt_coverage([obligation], [receipt], request)
+    assert assessment.verified_obligation_ids == ()
+    assert assessment.unresolved_obligation_ids == (obligation.obligation_id,)
+    assert assessment.disposition == "checks-incomplete-or-not-verified"
+    assert assessment.mathematical_status == "EXPERIMENTAL"
+
+
+def test_receipt_coverage_rejects_cross_wired_provenance():
+    from mosaic.verification.receipts import assess_receipt_coverage
+
+    request, obligation, receipt = _issued()
+    altered_obligation = obligation.model_copy(
+        update={"source_agent_id": "different-reviewer"}
+    )
+    with pytest.raises(ValueError, match="provenance"):
+        assess_receipt_coverage([altered_obligation], [receipt], request)
