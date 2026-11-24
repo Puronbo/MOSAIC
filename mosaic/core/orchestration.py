@@ -59,6 +59,47 @@ class AgentProposal(BaseModel):
     status: TaskStatus = TaskStatus.COMPLETED
 
 
+class ReviewFindingKind(StrEnum):
+    DERIVATION_GAP = "derivation-gap"
+    UNSUPPORTED_ASSUMPTION = "unsupported-assumption"
+    COUNTEREXAMPLE = "counterexample"
+    EVIDENCE_REQUIRED = "evidence-required"
+    UNRESOLVED = "unresolved"
+
+
+class ReviewFinding(BaseModel):
+    """A reviewer-authored, explicitly typed issue; still untrusted evidence."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    finding_id: str = Field(min_length=1, max_length=80)
+    kind: ReviewFindingKind
+    statement: str = Field(min_length=1, max_length=4000)
+    requires_independent_check: bool = True
+    evidence_refs: tuple[str, ...] = ()
+
+
+class ReviewObligation(BaseModel):
+    """A review finding routed for independent checking, with its provenance."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    obligation_id: str
+    source_task_id: str
+    source_agent_id: str
+    finding: ReviewFinding
+
+
+class ReviewAssessment(BaseModel):
+    """Structured aggregation of completed reviews; never a proof verdict."""
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    original_task_id: str
+    review_task_ids: tuple[str, ...]
+    completed_review_count: int = Field(ge=0)
+    obligations: tuple[ReviewObligation, ...] = ()
+    disposition: str
+    mathematical_status: str = "EXPERIMENTAL"
+
+
 class TaskRunRecord(BaseModel):
     """Immutable scheduler state for one task attempt."""
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -351,3 +392,134 @@ def validate_task_graph(tasks: list[AgentTask]) -> list[str]:
     for task_id in sorted(by_id):
         visit(task_id)
     return ordered
+
+
+def assess_completed_reviews(
+    original_task: AgentTask,
+    review_tasks: list[AgentTask],
+    records: tuple[TaskRunRecord, ...],
+    *,
+    max_findings: int = 64,
+) -> ReviewAssessment:
+    """Require every expected critic result and extract only typed check requests.
+
+    Natural-language claims, reviewer consensus, and synthesis prose are not parsed
+    into proof obligations. Only explicit ReviewFinding records are routed onward.
+    """
+    if max_findings < 1:
+        raise ValueError("max_findings must be positive")
+    if not review_tasks:
+        raise ValueError("at least one review task is required")
+    task_ids = [task.task_id for task in review_tasks]
+    if len(set(task_ids)) != len(task_ids):
+        raise ValueError("review task IDs must be unique")
+    if any(task.role != AgentRole.CRITIC for task in review_tasks):
+        raise ValueError("all review tasks must have the critic role")
+    if any(original_task.task_id not in task.depends_on for task in review_tasks):
+        raise ValueError("each review task must depend on the original task")
+
+    by_record = {record.task_id: record for record in records}
+    if len(by_record) != len(records) or set(by_record) != set(task_ids):
+        raise ValueError("review records must match expected task IDs exactly")
+
+    obligations: list[ReviewObligation] = []
+    seen_finding_ids: set[tuple[str, str]] = set()
+    for task in review_tasks:
+        record = by_record[task.task_id]
+        if record.status != TaskStatus.COMPLETED or record.proposal is None:
+            raise ValueError(f"review task {task.task_id} is not completed")
+        proposal = record.proposal
+        if proposal.task_id != task.task_id or proposal.role != AgentRole.CRITIC:
+            raise ValueError("review proposal does not match its critic task")
+        for finding in proposal.findings:
+            key = (task.task_id, finding.finding_id)
+            if key in seen_finding_ids:
+                raise ValueError("duplicate finding ID within a review task")
+            seen_finding_ids.add(key)
+            if finding.requires_independent_check:
+                if len(obligations) >= max_findings:
+                    raise ValueError("review findings exceed the configured budget")
+                digest = hashlib.sha256(
+                    f"{task.task_id}:{finding.finding_id}".encode("utf-8")
+                ).hexdigest()[:12]
+                obligations.append(
+                    ReviewObligation(
+                        obligation_id=f"obligation-{digest}",
+                        source_task_id=task.task_id,
+                        source_agent_id=proposal.agent_id,
+                        finding=finding,
+                    )
+                )
+
+    return ReviewAssessment(
+        original_task_id=original_task.task_id,
+        review_task_ids=tuple(task_ids),
+        completed_review_count=len(review_tasks),
+        obligations=tuple(obligations),
+        disposition=(
+            "independent-checks-required" if obligations else "no-typed-checks-requested"
+        ),
+        mathematical_status="EXPERIMENTAL",
+    )
+
+
+def obligation_verification_tasks(
+    original_task: AgentTask,
+    assessment: ReviewAssessment,
+    *,
+    max_obligations: int = 32,
+) -> list[AgentTask]:
+    """Route explicit review findings to bounded verifier tasks, preserving provenance."""
+    if assessment.original_task_id != original_task.task_id:
+        raise ValueError("review assessment belongs to another original task")
+    if assessment.completed_review_count != len(assessment.review_task_ids):
+        raise ValueError("review assessment is incomplete")
+    if max_obligations < 1 or len(assessment.obligations) > max_obligations:
+        raise ValueError("verification obligation budget exceeded")
+
+    tasks: list[AgentTask] = []
+    seen_ids: set[str] = set()
+    for obligation in assessment.obligations:
+        if obligation.obligation_id in seen_ids:
+            raise ValueError("duplicate obligation ID")
+        seen_ids.add(obligation.obligation_id)
+        payload = json.dumps(
+            {
+                "obligation_id": obligation.obligation_id,
+                "source_task_id": obligation.source_task_id,
+                "source_agent_id": obligation.source_agent_id,
+                "finding_id": obligation.finding.finding_id,
+                "kind": obligation.finding.kind.value,
+                "statement": obligation.finding.statement,
+                "evidence_refs": list(obligation.finding.evidence_refs),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        if len(payload) > 6000:
+            raise ValueError("verification context exceeds the task size limit")
+        tasks.append(
+            AgentTask(
+                task_id=obligation.obligation_id,
+                role=AgentRole.VERIFIER,
+                goal=(
+                    "Independently check this explicitly reported review obligation. "
+                    "Return the method, assumptions, and checkable evidence; do not "
+                    "treat the originating reviewer statement as established."
+                ),
+                context=payload,
+                depends_on=(original_task.task_id, obligation.source_task_id),
+                max_tokens=2500,
+                timeout_seconds=45,
+            )
+        )
+    validate_task_graph([original_task, *[
+        AgentTask(
+            task_id=task_id,
+            role=AgentRole.CRITIC,
+            goal="Completed source review task.",
+            depends_on=(original_task.task_id,),
+        )
+        for task_id in assessment.review_task_ids
+    ], *tasks])
+    return tasks
