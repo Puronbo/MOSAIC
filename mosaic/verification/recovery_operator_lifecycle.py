@@ -449,6 +449,15 @@ class RecoveryOperatorLifecycleTrustAnchorStore:
                 private_key=receipt_private_key)
         except (ValueError, TypeError):
             return None
+        if not verify_operator_lifecycle_checkpoint_chain_restore_receipt(
+            receipt, bundle, starting_checkpoint,
+            authority_keyring=authority_keyring,
+            expected_registry_id=expected_registry_id,
+            expected_starting_checkpoint_sha256=expected_starting_checkpoint_sha256,
+            expected_ending_checkpoint_sha256=expected_ending_checkpoint_sha256,
+            expected_ending_sequence=expected_ending_sequence,
+            authorization_time_utc=authorization_time_utc):
+            return None
         if not self.restore_checkpoint_chain_bundle(
             bundle, starting_checkpoint, authority_keyring=authority_keyring,
             expected_registry_id=expected_registry_id,
@@ -782,6 +791,7 @@ def verify_operator_lifecycle_checkpoint_chain_restore_receipt(
             or receipt.verified_transitions != report.verified_transitions
             or not bundle.checkpoints
             or receipt.authority_key_id != bundle.checkpoints[-1].authority_key_id
+            or receipt.issued_at_utc < bundle.checkpoints[-1].issued_at_utc
             or not authority.permits(receipt.authority_key_id, receipt.issued_at_utc)):
         return False
     try:
