@@ -55,3 +55,10 @@ Treat prompts, model responses, retrieved documents, and tool outputs as untrust
 ## Current implementation
 
 `mosaic.core.orchestration` provides immutable Pydantic task/proposal/assessment contracts, typed review findings and obligation routing, request-bound checker dispatch, dependency graph validation, and conservative proposal aggregation. Collision assessments preserve the original proposals and expose deterministic claim groups and conflicting proposal indexes; they intentionally do not choose a winner or infer semantic equivalence. `collision_review_tasks` turns those indexes into a bounded, deterministic critic-and-synthesis dependency plan. It does not call model APIs, execute agents, provide provider isolation, or verify mathematics. The scheduler manages state and dispatch eligibility only; provider execution remains an external adapter.
+
+
+## Integrity-checked verification receipts
+
+The mosaic.verification.receipts module provides an immutable, versioned receipt format for an allow-listed checker result. A receipt binds the outcome to the request fingerprint, checker ID, review obligation, originating task/agent, and finding ID. Its canonical SHA-256 digest covers the complete serialized payload except the digest field itself; replay validates both that digest and the exact request fingerprint before returning the stored record.
+
+Receipt replay does not invoke a provider or checker and does not elevate an outcome. A valid digest is an integrity/provenance check, not a digital signature and not evidence that the mathematical claim is true. A FORMALLY_VERIFIED receipt records that the named trusted checker reported success for the bound request; deployments with a stronger freshness policy must rerun the trusted kernel or validate a separately authenticated kernel artifact. Receipts are currently an in-memory serialization/validation contract: durable storage, access control, key management, atomic writes, and crash-safe indexing remain deployment responsibilities.
