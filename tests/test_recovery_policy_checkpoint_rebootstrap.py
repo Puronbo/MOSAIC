@@ -283,3 +283,138 @@ def test_concurrent_rebootstrap_from_independent_stores_commits_exactly_once(tmp
         publisher_keyring=publisher_ring, checkpoint_keyring=checkpoint_ring,
         intent=intent, approvals=[approval], policy=policy,
         operator_keyring=operator_ring)
+
+
+
+def test_competing_valid_recovery_proposals_leave_only_winner_state(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    pub_sk, pub = identity("publisher")
+    cp_sk, cp_key = identity("checkpoint")
+    operator_secrets = {}
+    operator_ring = {}
+    for name in ("operator-a1", "operator-a2", "operator-b1", "operator-b2"):
+        secret, record = identity(name)
+        operator_secrets[name] = secret
+        operator_ring[name] = record
+
+    original = entry(pub_sk, 1)
+    fork_a = entry(pub_sk, 3)
+    fork_b = entry(pub_sk, 7)
+    original_cp = checkpoint(original, cp_sk)
+    fork_a_cp = checkpoint(fork_a, cp_sk)
+    fork_b_cp = checkpoint(fork_b, cp_sk)
+    db_path = tmp_path / "competing-proposals.sqlite3"
+    store = RecoveryPolicyCheckpointStore(db_path)
+    publisher_ring = {"publisher": pub}
+    checkpoint_ring = {"checkpoint": cp_key}
+    assert store.pin_checkpoint([original], checkpoint=original_cp,
+                                publisher_keyring=publisher_ring,
+                                checkpoint_keyring=checkpoint_ring)
+    assert not store.pin_checkpoint([fork_a], checkpoint=fork_a_cp,
+                                    publisher_keyring=publisher_ring,
+                                    checkpoint_keyring=checkpoint_ring)
+    assert store.is_quarantined("registry")
+    incident_snapshot = store.incidents("registry")
+    retained_hash = hashlib.sha256(original_cp.model_dump_json().encode()).hexdigest()
+    incident_hash = hashlib.sha256(_canonical(incident_snapshot)).hexdigest()
+
+    intent_a = RecoveryPolicyCheckpointRebootstrapIntent.sign(
+        registry_id="registry", retained_checkpoint_sha256=retained_hash,
+        incident_history_sha256=incident_hash,
+        selected_checkpoint_sha256=hashlib.sha256(fork_a_cp.model_dump_json().encode()).hexdigest(),
+        evidence_sha256="d" * 64,
+        reason="Proposal A selects the independently verified alternate policy history.",
+        operator_key_id="operator-a1", approved_at_utc="2026-11-24T07:10:00Z",
+        private_key=operator_secrets["operator-a1"])
+    approval_a = RecoveryPolicyCheckpointRebootstrapApproval.sign(
+        intent=intent_a, operator_key_id="operator-a2",
+        approved_at_utc="2026-11-24T07:11:00Z",
+        private_key=operator_secrets["operator-a2"])
+    intent_b = RecoveryPolicyCheckpointRebootstrapIntent.sign(
+        registry_id="registry", retained_checkpoint_sha256=retained_hash,
+        incident_history_sha256=incident_hash,
+        selected_checkpoint_sha256=hashlib.sha256(fork_b_cp.model_dump_json().encode()).hexdigest(),
+        evidence_sha256="e" * 64,
+        reason="Proposal B selects a different independently verified policy history.",
+        operator_key_id="operator-b1", approved_at_utc="2026-11-24T07:12:00Z",
+        private_key=operator_secrets["operator-b1"])
+    approval_b = RecoveryPolicyCheckpointRebootstrapApproval.sign(
+        intent=intent_b, operator_key_id="operator-b2",
+        approved_at_utc="2026-11-24T07:13:00Z",
+        private_key=operator_secrets["operator-b2"])
+
+    proposals = [
+        ([fork_a], fork_a_cp, intent_a, [approval_a]),
+        ([fork_b], fork_b_cp, intent_b, [approval_b]),
+    ]
+    barrier = Barrier(2)
+    policy = RecoveryPolicyCheckpointRebootstrapPolicy(minimum_approvals=2)
+
+    def attempt(index):
+        entries, selected_cp, intent, approvals = proposals[index]
+        independent_store = RecoveryPolicyCheckpointStore(db_path)
+        barrier.wait(timeout=10)
+        return rebootstrap_recovery_policy_checkpoint_store(
+            independent_store, entries, checkpoint=selected_cp,
+            publisher_keyring=publisher_ring, checkpoint_keyring=checkpoint_ring,
+            intent=intent, approvals=approvals, policy=policy,
+            operator_keyring=operator_ring)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, (0, 1)))
+    assert sorted(results) == [False, True]
+
+    winning_index = results.index(True)
+    winning_entries, winning_checkpoint, winning_intent, winning_approvals = proposals[winning_index]
+    losing_index = 1 - winning_index
+    losing_entries, losing_checkpoint, losing_intent, losing_approvals = proposals[losing_index]
+    reopened = RecoveryPolicyCheckpointStore(db_path)
+    assert not reopened.is_quarantined("registry")
+    assert reopened.matches_trusted_checkpoint(winning_checkpoint)
+    assert not reopened.matches_trusted_checkpoint(losing_checkpoint)
+    assert reopened.incidents("registry") == incident_snapshot
+
+    audit_export = export_rebootstrap_audit(reopened, registry_id="registry")
+    audit_head = audit_export["head_sha256"]
+    assert audit_export["record_count"] == 1
+    audit = audit_export["records"][0]["audit"]
+    assert audit["intent"]["selected_checkpoint_sha256"] == hashlib.sha256(
+        winning_checkpoint.model_dump_json().encode()).hexdigest()
+    assert audit["intent"]["selected_checkpoint_sha256"] != hashlib.sha256(
+        losing_checkpoint.model_dump_json().encode()).hexdigest()
+    assert audit["intent"]["operator_key_id"] == winning_intent.operator_key_id
+    assert verify_rebootstrap_audit_export(
+        audit_export, operator_keyring=operator_ring,
+        publisher_keyring=publisher_ring, checkpoint_keyring=checkpoint_ring,
+        expected_head_sha256=audit_head)
+
+    with sqlite3.connect(db_path) as db:
+        assert db.execute(
+            "SELECT COUNT(*) FROM recovery_policy_rebootstrap_audit WHERE registry_id='registry'"
+        ).fetchone()[0] == 1
+        assert db.execute(
+            "SELECT COUNT(*) FROM recovery_policy_epoch_entries WHERE registry_id='registry' AND epoch=1"
+        ).fetchone()[0] == len(winning_entries)
+        persisted = db.execute(
+            "SELECT checkpoint_sha256, quarantined, epoch FROM recovery_policy_heads WHERE registry_id='registry'"
+        ).fetchone()
+        assert persisted[0] == hashlib.sha256(winning_checkpoint.model_dump_json().encode()).hexdigest()
+        assert persisted[1:] == (0, 1)
+
+    # The losing proposal remains invalid after the winner commits; it cannot
+    # rewrite the audit chain or mutate the trusted checkpoint.
+    before = (audit_head, reopened.matches_trusted_checkpoint(winning_checkpoint),
+              reopened.incidents("registry"))
+    assert not rebootstrap_recovery_policy_checkpoint_store(
+        RecoveryPolicyCheckpointStore(db_path), losing_entries,
+        checkpoint=losing_checkpoint, publisher_keyring=publisher_ring,
+        checkpoint_keyring=checkpoint_ring, intent=losing_intent,
+        approvals=losing_approvals, policy=policy, operator_keyring=operator_ring)
+    after_export = export_rebootstrap_audit(RecoveryPolicyCheckpointStore(db_path), registry_id="registry")
+    after_store = RecoveryPolicyCheckpointStore(db_path)
+    after = (after_export["head_sha256"], after_store.matches_trusted_checkpoint(winning_checkpoint),
+             after_store.incidents("registry"))
+    assert after == before
+    assert after_export["records"] == audit_export["records"]
