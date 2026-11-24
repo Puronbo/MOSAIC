@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/operator-lifecycle-checkpoint-chain-restore-receipt-v1.schema.json",
+  "title": "MOSAIC Signed Operator Lifecycle Checkpoint-Chain Restore Receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "registry_id",
+    "bundle_sha256",
+    "starting_sequence",
+    "starting_checkpoint_sha256",
+    "ending_sequence",
+    "ending_checkpoint_sha256",
+    "verified_transitions",
+    "authority_key_id",
+    "issued_at_utc",
+    "signature_b64"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "registry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "bundle_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "starting_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "starting_checkpoint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "ending_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ending_checkpoint_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "verified_transitions": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "authority_key_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "issued_at_utc": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 40
+    },
+    "signature_b64": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}
