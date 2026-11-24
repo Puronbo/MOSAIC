@@ -43,6 +43,9 @@ class EvidenceEvent(BaseModel):
     runner_receipt_id: str | None = Field(default=None, max_length=120)
     runner_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     runner_mac_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    runner_signature_b64: str | None = Field(default=None, max_length=256)
+    runner_signature_algorithm: str | None = Field(default=None, max_length=32)
+    runner_key_id: str | None = Field(default=None, max_length=160)
 
     @model_validator(mode="after")
     def validate_event(self):
@@ -66,10 +69,25 @@ class EvidenceEvent(BaseModel):
                 value is not None for value in runner_fields
             ):
                 raise ValueError("authenticated runner metadata must be supplied as a complete set")
+            signature_fields = (
+                self.runner_signature_b64, self.runner_signature_algorithm,
+                self.runner_key_id,
+            )
+            if any(value is not None for value in signature_fields) and not all(
+                value is not None for value in signature_fields
+            ):
+                raise ValueError("signed runner metadata must be supplied as a complete set")
+            if self.runner_signature_algorithm not in {None, "Ed25519"}:
+                raise ValueError("unsupported runner signature algorithm")
+            if all(value is not None for value in signature_fields) and not all(
+                value is not None for value in runner_fields
+            ):
+                raise ValueError("signed runner metadata requires receipt identity and request hash")
         elif any(value is not None for value in (
             self.kernel_id, self.kernel_version, self.proof_artifact_sha256,
             self.runner_id, self.runner_receipt_id, self.runner_request_sha256,
-            self.runner_mac_sha256,
+            self.runner_mac_sha256, self.runner_signature_b64,
+            self.runner_signature_algorithm, self.runner_key_id,
         )):
             raise ValueError("kernel metadata is only valid for FORMAL_KERNEL_CHECK")
         return self
