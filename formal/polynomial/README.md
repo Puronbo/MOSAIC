@@ -44,3 +44,17 @@ dependency drift in the configured CI path. They do not make hosted runners
 bit-for-bit deterministic, prove the runner host is uncompromised, or turn
 environment metadata into a mathematical proof. Formal proof status still
 comes from the Lean kernel checking the generated theorem.
+
+
+## Independent replay environment matching
+
+When `scripts/verify_lean_proof_receipt.py --replay` is used, the verifier
+now compares the local replay host against the exact signed provenance
+manifest before invoking Lean. It checks Lean, Lake, and Elan version output;
+the SHA-256 of each resolved executable; both toolchain-file hashes; the
+declared and observed Mathlib revision; the Lake manifest and lakefile hashes;
+and the proof entrypoint hash. Any missing input or mismatch fails closed and
+prevents replay. A matching fingerprint establishes environment equivalence
+for these recorded inputs only; it does not attest the local host's integrity
+or prove the theorem. Lean still has to accept the exact signed source during
+the subsequent replay.
