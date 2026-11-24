@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosaic.example/schemas/policy-witness-reconciliation-v1.schema.json",
+  "title": "MOSAIC Policy Witness Reconciliation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "log_id", "status", "verified_witness_key_ids",
+    "rejected_witness_key_ids", "common_prefix_length",
+    "divergence_sequence", "head_checkpoint_sha256",
+    "quarantined_witness_key_ids", "operator_action"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "log_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": {
+      "enum": ["invalid_input", "agreement", "compatible_extension", "divergence"]
+    },
+    "verified_witness_key_ids": {
+      "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 160 },
+      "uniqueItems": true
+    },
+    "rejected_witness_key_ids": {
+      "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 160 },
+      "uniqueItems": true
+    },
+    "common_prefix_length": { "type": "integer", "minimum": 0 },
+    "divergence_sequence": { "type": ["integer", "null"], "minimum": 0 },
+    "head_checkpoint_sha256": {
+      "type": "array", "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "quarantined_witness_key_ids": {
+      "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 160 },
+      "uniqueItems": true
+    },
+    "operator_action": { "type": "string", "minLength": 1, "maxLength": 1000 }
+  }
+}
