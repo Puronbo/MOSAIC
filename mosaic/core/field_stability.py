@@ -4,7 +4,7 @@ The bound applies to the declared convex discrete potential over its entire
 field domain. It is a sufficient linear-stability screen for semi-implicit
 Euler, not a nonlinear error estimate or a physical stability theorem.
 """
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
@@ -118,7 +118,7 @@ def assess_field_time_step(
             sufficient_condition="No bound certified: the potential curvature lower bound is negative.",
         )
 
-    with __import__("decimal").localcontext() as context:
+    with localcontext() as context:
         context.prec += 8
         raw_bound = Decimal("2") / omega_squared_bound.sqrt()
         timestep_bound = raw_bound.next_minus()
