@@ -566,3 +566,17 @@ def test_local_replay_environment_requires_exact_manifest_match(monkeypatch, tmp
     assert not module.verify_local_lean_environment_manifest(
         json.dumps(malformed_payload).encode(), project_dir=project
     )
+    malformed_execution = {
+        **manifest_payload,
+        "execution": {**manifest_payload["execution"], "run_attempt": "not-a-number"},
+    }
+    assert not module.verify_local_lean_environment_manifest(
+        json.dumps(malformed_execution).encode(), project_dir=project
+    )
+    malformed_revision = {
+        **manifest_payload,
+        "environment": {**environment, "mathlib_revision": "not-a-commit"},
+    }
+    assert not module.verify_local_lean_environment_manifest(
+        json.dumps(malformed_revision).encode(), project_dir=project
+    )
