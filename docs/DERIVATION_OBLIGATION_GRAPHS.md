@@ -88,3 +88,16 @@ Bundles are bounded by candidate count, candidate payload size, and total serial
 The adapter requires a complete registered derivation tree for the exact request, hashes that tree, and binds the receipt to both the request fingerprint and tree digest. The Lean calculus checker independently parses the original expression, computes its polynomial derivative, rejects a mismatching candidate, and asks the Lean kernel to check a `HasDerivAt` theorem over `ℝ`. A successful receipt therefore establishes the root derivative theorem for the exact expression and candidate, subject to the pinned Lean/Mathlib environment.
 
 **Important scope boundary:** the current proof is generated directly for the root expression. The tree digest preserves provenance and prevents a receipt from being casually transferred to a different derivation, but the tree's individual chain-rule edges are not themselves the proof term and are not yet formally composed. `validate_lean_derivation_receipt` re-runs the restricted Lean checker and requires exact receipt equality; the receipt's hashes alone are not an authenticity mechanism. This is a real root-level formal result, not yet a formal proof of the recursive decomposition procedure. Non-polynomial expressions, variables other than `x`, unsupported domain conditions, and general chain-rule composition remain outside this bridge. A kernel-unavailable or rejected result is preserved as such; it is never upgraded to formal verification.
+
+
+## Formally checked exponent increments
+
+The pinned Lean project now contains the `MosaicExponentShift` theorem family. For natural `n` and `k`, it embeds the value `value n k = (n : ℝ) ^ (n + k)` into the reals and proves:
+
+- `value n (k + 1) = (n : ℝ) * value n k`;
+- `value n (k + 1) - value n k = ((n : ℝ) - 1) * value n k`;
+- strict increase for `2 ≤ n`;
+- the fixed point at base one;
+- zero-valued terms for base zero after the initial exponent-zero boundary.
+
+The natural-number base is intentional. It avoids silently treating negative bases as arbitrary real exponentiation, and the strict-growth theorem has the explicit hypothesis `2 ≤ n`. The initial zero-base term is not assigned a special value by this theorem family: `0^0` remains a boundary case. These are kernel-checked Lean statements when the pinned polynomial-kernel workflow passes. They establish the recurrence and its stated domain-specific properties, not a universal monotonicity claim over all real or complex bases.
