@@ -1116,10 +1116,11 @@ theorem boolean_spherical_orthants_disjoint {n : Nat}
   intro x hx hy
   have hne : booleanSignVector b ≠ booleanSignVector c :=
     booleanSignVector_injective.ne hbc
-  exact (signedOrthant_disjoint_of_ne
+  have hdisj := signedOrthant_disjoint_of_ne
     (booleanSignVector b) (booleanSignVector c)
     (fun i => boolSign_sq (b i))
-    (fun i => boolSign_sq (c i)) hne) hx.2 hy.2
+    (fun i => boolSign_sq (c i)) hne
+  exact (Set.disjoint_left.mp hdisj) x hx.2 hy.2
 
 
 /-- Boolean patterns enumerate distinct open orthants: the map from
