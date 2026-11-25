@@ -901,6 +901,20 @@ theorem boolean_sign_pattern_cardinality (n : Nat) :
   simp
 
 
+/-- Every real sign vector whose coordinates square to one is represented
+by a Boolean sign pattern. -/
+theorem booleanSignVector_surjective_onto_signs {n : Nat}
+    (ε : Fin n → ℝ) (hε : ∀ i, ε i ^ 2 = 1) :
+    ∃ b : Fin n → Bool, booleanSignVector b = ε := by
+  let b : Fin n → Bool := fun i => decide (ε i = 1)
+  refine ⟨b, ?_⟩
+  funext i
+  by_cases h : ε i = 1
+  · simp [booleanSignVector, b, h, boolSign]
+  · have hneg : ε i = -1 := by nlinarith [hε i, h]
+    simp [booleanSignVector, b, h, boolSign, hneg]
+
+
 /-- An open orthant specified by a vector of coordinate signs. -/
 def signedOrthant {n : Nat} (ε : Fin n → ℝ) : Set (Fin n → ℝ) :=
   {x | ∀ i, 0 < ε i * x i}
@@ -994,6 +1008,24 @@ theorem signedOrthant_ne_of_ne {n : Nat}
   · apply hprod_ne
     linarith
   · linarith
+
+/-- Boolean patterns enumerate distinct open orthants: the map from
+Boolean coordinate choices to their corresponding open orthant is injective. -/
+theorem boolean_orthant_injective {n : Nat} :
+    Function.Injective
+      (fun b : Fin n → Bool => signedOrthant (booleanSignVector b)) := by
+  intro b c hsets
+  apply booleanSignVector_injective
+  by_contra hne
+  have hneOrth :
+      signedOrthant (booleanSignVector b) ≠
+        signedOrthant (booleanSignVector c) :=
+    signedOrthant_ne_of_ne
+      (booleanSignVector b) (booleanSignVector c)
+      (fun i => boolSign_sq (b i))
+      (fun i => boolSign_sq (c i)) hne
+  exact hneOrth hsets
+
 
 end MosaicSphericalGeometry
 
