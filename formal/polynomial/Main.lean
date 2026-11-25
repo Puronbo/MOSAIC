@@ -1421,25 +1421,25 @@ theorem dimH_unitSphere_le_of_unit
     {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
     [FiniteDimensional ℝ E] {k : Nat}
     (v : E) (hv : ‖v‖ = 1)
-    (hE : finrank ℝ E = k + 1) :
+    (hE : Module.finrank ℝ E = k + 1) :
     dimH (Metric.sphere (0 : E) 1) ≤ k := by
-  letI : Fact (finrank ℝ E = k + 1) := ⟨hE⟩
+  letI : Fact (Module.finrank ℝ E = k + 1) := ⟨hE⟩
   have hv0 : v ≠ 0 := by
     intro h
     simp [h] at hv
   let f : (ℝ ∙ v)ᗮ → E := fun w => stereoInvFunAux v (w : E)
   have hfaux : Differentiable ℝ (stereoInvFunAux v) :=
     (contDiff_stereoInvFunAux (m := 1)).differentiable (by norm_num)
-  have hsub : Differentiable ℝ (fun w : (ℝ ∙ v)ᗮ => (w : E)) :=
-    differentiable_subtype_val
+  have hsub : Differentiable ℝ (fun w : (ℝ ∙ v)ᗮ => (w : E)) := by
+    fun_prop
   have hf : Differentiable ℝ f := by
     change Differentiable ℝ (fun w : (ℝ ∙ v)ᗮ => stereoInvFunAux v (w : E))
     exact hfaux.comp hsub
-  have hdim : finrank ℝ ((ℝ ∙ v)ᗮ) = k :=
-    finrank_orthogonal_span_singleton hv0
+  have hdim : Module.finrank ℝ ((ℝ ∙ v)ᗮ) = k := by
+    exact Submodule.finrank_orthogonal_span_singleton hv0
   have hrange : dimH (Set.range f) ≤ k := by
     calc
-      dimH (Set.range f) ≤ finrank ℝ ((ℝ ∙ v)ᗮ) := hf.dimH_range_le
+      dimH (Set.range f) ≤ Module.finrank ℝ ((ℝ ∙ v)ᗮ) := hf.dimH_range_le
       _ = k := by exact_mod_cast hdim
   have hcover : Metric.sphere (0 : E) 1 = Set.range f ∪ {v} := by
     ext x
