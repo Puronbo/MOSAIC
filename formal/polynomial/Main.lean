@@ -1033,6 +1033,28 @@ theorem boolean_orthant_injective {n : Nat} :
   exact hneOrth hsets
 
 
+/-- The finite family of Boolean-indexed open orthants has exactly
+2^n members. -/
+theorem boolean_orthant_cardinality (n : Nat) :
+    Fintype.card
+      (Set.range
+        (fun b : Fin n → Bool =>
+          signedOrthant (booleanSignVector b))) = 2 ^ n := by
+  classical
+  calc
+    Fintype.card
+        (Set.range
+          (fun b : Fin n → Bool =>
+            signedOrthant (booleanSignVector b))) =
+        Fintype.card (Fin n → Bool) :=
+      Fintype.card_congr
+        (Equiv.ofInjective
+          (fun b : Fin n → Bool =>
+            signedOrthant (booleanSignVector b))
+          boolean_orthant_injective)
+    _ = 2 ^ n := boolean_sign_pattern_cardinality n
+
+
 end MosaicSphericalGeometry
 
 
