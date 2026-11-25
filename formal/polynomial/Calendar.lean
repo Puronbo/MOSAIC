@@ -54,10 +54,10 @@ theorem daysBeforeYear_period_400 (y : Nat) :
   omega
 
 /-- The Gregorian leap-year predicate and year-length formula agree. -/
-theorem leap_year_day_count (year : Nat) :
+theorem leap_year_day_count (year : Nat)
+    [Decidable (isLeapYear year)] :
     (if isLeapYear year then 366 else 365) =
       365 + (if isLeapYear year then 1 else 0) := by
-  classical
   by_cases h : isLeapYear year <;> simp [h]
 
 end MosaicCalendar
