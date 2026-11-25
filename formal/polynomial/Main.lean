@@ -943,4 +943,26 @@ theorem all_regions_equal_measure
   exact measure_eq_of_measure_preserving_equiv μ (A i) (A j)
     (hmeas i) (hmeas j) e hpres himage
 
+/-- If a finite family of measurable regions is related transitively by
+measure-preserving equivalences, then summing their measures is the
+cardinality of the family times the measure of any chosen region. -/
+theorem sum_region_measures
+    {α : Type*} [MeasurableSpace α] (μ : Measure α)
+    {ι : Type*} [Fintype ι] (A : ι → Set α)
+    (hmeas : ∀ i, MeasurableSet (A i))
+    (htrans : ∀ i j, ∃ e : α ≃ᵐ α,
+      MeasurePreserving (fun x => e x) μ μ ∧ e '' A i = A j)
+    (i₀ : ι) :
+    (∑ i : ι, μ (A i)) =
+      (Fintype.card ι : ENNReal) * μ (A i₀) := by
+  classical
+  have heq := all_regions_equal_measure μ A hmeas htrans
+  calc
+    (∑ i : ι, μ (A i)) = ∑ i : ι, μ (A i₀) := by
+      apply Finset.sum_congr rfl
+      intro i hi
+      exact heq i i₀
+    _ = (Fintype.card ι : ENNReal) * μ (A i₀) := by
+      simp
+
 end MosaicMeasureSymmetry
