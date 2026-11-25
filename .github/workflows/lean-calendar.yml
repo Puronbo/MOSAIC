@@ -1,0 +1,40 @@
+name: Lean Gregorian calendar proofs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "formal/polynomial/Calendar.lean"
+      - "formal/polynomial/lakefile.lean"
+      - "formal/polynomial/lean-toolchain"
+      - ".github/workflows/lean-calendar.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "formal/polynomial/Calendar.lean"
+      - "formal/polynomial/lakefile.lean"
+      - "formal/polynomial/lean-toolchain"
+      - ".github/workflows/lean-calendar.yml"
+  workflow_dispatch:
+
+jobs:
+  calendar-kernel:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Elan
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o /tmp/elan-init.sh
+          sh /tmp/elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Install pinned Lean and Mathlib dependencies
+        working-directory: formal/polynomial
+        run: |
+          elan toolchain install "$(cat lean-toolchain)"
+          lake --version
+          lake exe cache get
+      - name: Check Gregorian calendar theorems with Lean kernel
+        working-directory: formal/polynomial
+        run: lake env lean Calendar.lean
