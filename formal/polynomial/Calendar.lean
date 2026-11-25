@@ -67,6 +67,18 @@ theorem daysBeforeYear_succ (y : Nat)
       daysBeforeYear y +
         (if isLeapYear (y + 1) then 366 else 365) := by
   unfold daysBeforeYear isLeapYear
+  have h4 := Nat.mod_add_div y 4
+  have h100 := Nat.mod_add_div y 100
+  have h400 := Nat.mod_add_div y 400
+  have h4' := Nat.mod_add_div (y + 1) 4
+  have h100' := Nat.mod_add_div (y + 1) 100
+  have h400' := Nat.mod_add_div (y + 1) 400
+  have b4 : y % 4 < 4 := Nat.mod_lt y (by omega)
+  have b100 : y % 100 < 100 := Nat.mod_lt y (by omega)
+  have b400 : y % 400 < 400 := Nat.mod_lt y (by omega)
+  have b4' : (y + 1) % 4 < 4 := Nat.mod_lt (y + 1) (by omega)
+  have b100' : (y + 1) % 100 < 100 := Nat.mod_lt (y + 1) (by omega)
+  have b400' : (y + 1) % 400 < 400 := Nat.mod_lt (y + 1) (by omega)
   omega
 
 end MosaicCalendar
