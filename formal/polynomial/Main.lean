@@ -1016,6 +1016,52 @@ theorem signedOrthant_ne_of_ne {n : Nat}
     linarith
   · linarith
 
+/-- Distinct sign vectors with entries squaring to one define disjoint
+open orthants. -/
+theorem signedOrthant_disjoint_of_ne {n : Nat}
+    (ε η : Fin n → ℝ)
+    (hε : ∀ i, ε i ^ 2 = 1) (hη : ∀ i, η i ^ 2 = 1)
+    (hne : ε ≠ η) :
+    Disjoint (signedOrthant ε) (signedOrthant η) := by
+  obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
+  rw [Set.disjoint_left]
+  intro x hx hy
+  have hprod_sq : (ε i * η i) ^ 2 = 1 := by
+    rw [mul_pow, hε i, hη i]
+    norm_num
+  have hprod_ne : ε i * η i ≠ 1 := by
+    intro h
+    apply hi
+    calc
+      ε i = ε i * 1 := by ring
+      _ = ε i * (η i * η i) := by
+        have hηmul : η i * η i = 1 := by nlinarith [hη i]
+        rw [hηmul]
+      _ = (ε i * η i) * η i := by ring
+      _ = 1 * η i := by rw [h]
+      _ = η i := by ring
+  have hfactor :
+      (ε i * η i - 1) * (ε i * η i + 1) = 0 := by
+    nlinarith [hprod_sq]
+  have hpos : 0 < ε i * x i := hx i
+  have hpos' : 0 < η i * x i := hy i
+  have hprodpos : 0 < ε i * η i := by
+    have hmul : (ε i * x i) * (η i * x i) =
+        (ε i * η i) * (x i * x i) := by ring
+    have hxne : x i ≠ 0 := by
+      intro hz
+      rw [hz] at hpos
+      norm_num at hpos
+    have hxx : 0 < x i * x i := mul_self_pos.mpr hxne
+    rw [← hmul]
+    exact mul_pos hpos hpos'
+  rcases mul_eq_zero.mp hfactor with hplus | hminus
+  · have : ε i * η i = 1 := by linarith
+    exact hprod_ne this
+  · have : ε i * η i = -1 := by linarith
+    linarith
+
+
 /-- Boolean patterns enumerate distinct open orthants: the map from
 Boolean coordinate choices to their corresponding open orthant is injective. -/
 theorem boolean_orthant_injective {n : Nat} :
