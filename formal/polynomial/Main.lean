@@ -1052,11 +1052,11 @@ theorem signedOrthant_disjoint_of_ne {n : Nat}
     rw [hz] at hpos
     norm_num at hpos
   have hxx : 0 < x i * x i := mul_self_pos.mpr hxne
+  have hprod : 0 < (ε i * x i) * (η i * x i) :=
+    mul_pos hpos hpos'
+  rw [hmul] at hprod
   have hprodpos : 0 < ε i * η i := by
-    have hscaled : 0 < (ε i * η i) * (x i * x i) := by
-      rw [← hmul]
-      exact mul_pos hpos hpos'
-    nlinarith
+    nlinarith [hprod, hxx]
   rcases mul_eq_zero.mp hfactor with hplus | hminus
   · have : ε i * η i = 1 := by linarith
     exact hprod_ne this
