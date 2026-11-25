@@ -793,4 +793,30 @@ theorem stereographic_reflect_second (u t : ℝ) :
   simp [sphereX, sphereY, sphereZ]
   <;> ring
 
+
+/-- Coordinatewise multiplication by a sign vector on a finite-dimensional
+real coordinate space. -/
+def signChange {n : Nat} (ε x : Fin n → ℝ) : Fin n → ℝ :=
+  fun i => ε i * x i
+
+/-- Any coordinatewise sign vector (entries whose squares are one)
+preserves the sum of coordinate squares in every finite dimension. -/
+theorem sign_change_preserves_sum_squares {n : Nat}
+    (ε x : Fin n → ℝ) (hε : ∀ i, ε i ^ 2 = 1) :
+    (∑ i : Fin n, (signChange ε x i) ^ 2) =
+      ∑ i : Fin n, (x i) ^ 2 := by
+  unfold signChange
+  apply Finset.sum_congr rfl
+  intro i hi
+  rw [mul_pow, hε i]
+  ring
+
+/-- Applying two coordinatewise sign changes is multiplication by their
+pointwise product. -/
+theorem sign_change_compose {n : Nat} (ε δ x : Fin n → ℝ) :
+    signChange ε (signChange δ x) =
+      signChange (fun i => ε i * δ i) x := by
+  funext i
+  simp [signChange, mul_assoc]
+
 end MosaicSphericalGeometry
