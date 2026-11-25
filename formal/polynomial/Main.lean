@@ -1082,7 +1082,6 @@ theorem exists_boolean_orthant_iff_all_coordinates_ne_zero {n : Nat}
     intro i
     by_cases hpos : 0 < x i
     · simp [booleanSignVector, b, hpos, boolSign]
-      exact hpos
     · have hle : x i ≤ 0 := le_of_not_gt hpos
       have hneg : x i < 0 := lt_of_le_of_ne hle (hx i)
       simp [booleanSignVector, b, hpos, boolSign]
