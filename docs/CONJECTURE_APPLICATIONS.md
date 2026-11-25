@@ -58,9 +58,12 @@ a local extremum is REFUTED by the Hessian test.
   derivative; the two mixed derivatives passed at commits 5cf620b08dd7 and
   203a233de57b; their equality passed both workflows at commit
   373008486b1e.
-- PENDING VERIFICATION: a bundled Hessian theorem, uniqueness of the
-  stationary point, and formal saddle classification remain analytic until
-  their corresponding theorems compile in the pinned project.
+- FORMALLY_VERIFIED: uniqueness of the stationary point is now proved
+  under the positive-base assumptions by `stationary_point_unique`; the
+  exact source passed both CI workflows at commit 2fb9e21731be.
+- PENDING VERIFICATION: a bundled Hessian theorem and formal saddle
+  classification remain analytic until their corresponding theorems compile
+  in the pinned project.
 - NOT IMPLIED: a local saddle classification does not by itself describe
   global level sets, behavior at the boundary x→0+, or asymptotics as x→∞.
 
@@ -169,3 +172,38 @@ derivative checker described in
 currently accept arbitrary real powers or multivariate derivatives; those
 claims require the dedicated Lean development in
 formal/polynomial/Main.lean and successful CI.
+
+
+## Spherical sign symmetries
+
+The stereographic parametrization
+\[
+\Phi(u,t)=\left(
+\frac{2u}{1+u^2+t^2},
+\frac{2t}{1+u^2+t^2},
+\frac{u^2+t^2-1}{1+u^2+t^2}
+\right)
+\]
+has unit norm. The Lean development verifies this identity and proves that
+the two coordinate reflections are commuting involutions. It also verifies
+that reflecting either plane coordinate reflects the corresponding sphere
+coordinate while leaving the other two coordinates unchanged. The exact
+stereographic and reflection source passed both workflows at
+\`c67d69df0377\` and \`094bdbd702dc\`.
+
+The reflection maps preserve \(u^2+t^2\), and their finite-dimensional
+generalization has now been formalized: if every entry of a sign vector
+\(\varepsilon\) satisfies \(\varepsilon_i^2=1\), then
+\[
+\sum_i(\varepsilon_i x_i)^2=\sum_i x_i^2.
+\]
+This finite-dimensional norm identity passed both workflows at
+\`74a821bf5994\`. It is the algebraic basis for the action of coordinate
+sign changes on the unit sphere. The involution, squared-distance, and
+unit-sphere corollaries are being checked separately; they are not yet
+counted as verified here.
+
+Equal measure of all spherical orthants is a further consequence once
+surface-measure invariance under these orthogonal sign maps and the
+measure-zero nature of the coordinate boundaries are supplied. The algebraic
+Lean results alone do not establish that measure-theoretic conclusion.
