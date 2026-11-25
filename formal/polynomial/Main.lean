@@ -856,4 +856,40 @@ theorem sign_change_preserves_squared_distance {n : Nat}
   rw [mul_pow, hε i]
   ring
 
+
+/-- A Boolean choice encodes one of the two coordinate signs. -/
+def boolSign (b : Bool) : ℝ :=
+  if b then 1 else -1
+
+/-- Every Boolean sign has square one. -/
+theorem boolSign_sq (b : Bool) : (boolSign b) ^ 2 = 1 := by
+  cases b <;> norm_num [boolSign]
+
+/-- The finite sign vector associated with a Boolean sign pattern. -/
+def booleanSignVector {n : Nat} (b : Fin n → Bool) : Fin n → ℝ :=
+  fun i => boolSign (b i)
+
+/-- Every Boolean sign pattern preserves squared Euclidean norm. -/
+theorem boolean_sign_preserves_sum_squares {n : Nat}
+    (b : Fin n → Bool) (x : Fin n → ℝ) :
+    (∑ i : Fin n, (signChange (booleanSignVector b) x i) ^ 2) =
+      ∑ i : Fin n, (x i) ^ 2 := by
+  apply sign_change_preserves_sum_squares
+  intro i
+  exact boolSign_sq (b i)
+
+/-- Distinct Boolean patterns give distinct sign vectors. -/
+theorem booleanSignVector_injective {n : Nat} :
+    Function.Injective (booleanSignVector (n := n)) := by
+  intro b c h
+  funext i
+  have hi := congrFun h i
+  cases hb : b i <;> cases hc : c i <;>
+    simp [booleanSignVector, boolSign, hb, hc] at hi ⊢
+
+/-- There are exactly 2^n Boolean sign patterns in dimension n. -/
+theorem boolean_sign_pattern_cardinality (n : Nat) :
+    Fintype.card (Fin n → Bool) = 2 ^ n := by
+  simp
+
 end MosaicSphericalGeometry
