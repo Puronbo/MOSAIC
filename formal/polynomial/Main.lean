@@ -1156,6 +1156,29 @@ theorem sign_change_maps_spherical_coordinate_section {n : Nat}
       ring
 
 
+/-- Coordinate sign changes preserve the entire spherical coordinate boundary. -/
+theorem sign_change_maps_spherical_coordinate_boundary {n : Nat}
+    (ε : Fin n → ℝ) (hε : ∀ j, ε j ^ 2 = 1) :
+    signChange ε '' sphericalCoordinateBoundary (n := n) =
+      sphericalCoordinateBoundary (n := n) := by
+  apply Set.Subset.antisymm
+  · rintro y ⟨x, hx, rfl⟩
+    refine ⟨sign_change_preserves_unit_sphere ε x hε hx.1, ?_⟩
+    obtain ⟨i, hi⟩ := hx.2
+    refine ⟨i, ?_⟩
+    change ε i * x i = 0
+    rw [hi]
+    ring
+  · intro y hy
+    refine ⟨signChange ε y, ?_, sign_change_involutive ε y hε⟩
+    refine ⟨sign_change_preserves_unit_sphere ε y hε hy.1, ?_⟩
+    obtain ⟨i, hi⟩ := hy.2
+    refine ⟨i, ?_⟩
+    change ε i * y i = 0
+    rw [hi]
+    ring
+
+
 /-- Restricting coordinates away from a fixed zero coordinate is injective
 on the corresponding spherical section. -/
 def sphericalSectionCoordinates {n : Nat} (i : Fin n)
