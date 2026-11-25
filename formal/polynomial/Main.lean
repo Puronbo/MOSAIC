@@ -1378,4 +1378,19 @@ theorem sum_region_measures
     _ = (Fintype.card ι : ENNReal) * μ (A i₀) := by
       simp
 
+
+/-- A finite union of sets with a common strict Hausdorff-dimension bound
+has zero Hausdorff measure in every larger dimension. -/
+theorem hausdorffMeasure_iUnion_zero_of_uniform_dimH_bound
+    {α : Type*} [EMetricSpace α] {ι : Type*} [Fintype ι]
+    (A : ι → Set α) (d' d : ℝ≥0)
+    (hbound : ∀ i, dimH (A i) ≤ (d' : ℝ≥0∞))
+    (hlt : d' < d) :
+    μH[d] (⋃ i, A i) = 0 := by
+  apply hausdorffMeasure_of_dimH_lt
+  rw [dimH_iUnion]
+  calc
+    (⨆ i, dimH (A i)) ≤ (d' : ℝ≥0∞) := iSup_le hbound
+    _ < (d : ℝ≥0∞) := by exact_mod_cast hlt
+
 end MosaicMeasureSymmetry
