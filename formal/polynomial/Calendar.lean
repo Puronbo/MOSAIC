@@ -60,4 +60,13 @@ theorem leap_year_day_count (year : Nat)
       365 + (if isLeapYear year then 1 else 0) := by
   by_cases h : isLeapYear year <;> simp [h]
 
+/-- Advancing the year index adds the exact length of the next Gregorian year. -/
+theorem daysBeforeYear_succ (y : Nat)
+    [Decidable (isLeapYear (y + 1))] :
+    daysBeforeYear (y + 1) =
+      daysBeforeYear y +
+        (if isLeapYear (y + 1) then 366 else 365) := by
+  unfold daysBeforeYear isLeapYear
+  omega
+
 end MosaicCalendar
