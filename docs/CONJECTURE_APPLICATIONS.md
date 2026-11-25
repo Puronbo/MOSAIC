@@ -207,3 +207,26 @@ Equal measure of all spherical orthants is a further consequence once
 surface-measure invariance under these orthogonal sign maps and the
 measure-zero nature of the coordinate boundaries are supplied. The algebraic
 Lean results alone do not establish that measure-theoretic conclusion.
+
+
+## Measure-preserving symmetry and equal-region theorem
+
+A reusable Lean development has been added in namespace
+\`MosaicMeasureSymmetry\`. Its intended theorem chain is:
+
+1. A measure-preserving measurable equivalence that maps a measurable set
+   \(A\) onto a measurable set \(B\) gives \(\mu(A)=\mu(B)\).
+2. If such equivalences act transitively on a finite family of measurable
+   regions, all regions have equal measure.
+3. The sum of the measures of the regions is therefore the cardinality of
+   the family times the measure of any one region.
+
+This is an abstract theorem, independent of spheres. Applying it to the
+\(2^n\) spherical orthants still requires formal constructions of the
+orthant subsets, the restricted sign-change equivalences, their
+measure-preservation, and the boundary-null/partition statements.
+
+The corresponding source was added at commits
+\`1ad177b313bf\`, \`b7ebe55ff34e\`, and \`36f42e391887\`. CI is pending;
+these new measure-theoretic declarations are not yet counted as
+kernel-verified.
