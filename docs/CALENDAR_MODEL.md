@@ -54,6 +54,50 @@ Calendar integer fields reject booleans rather than accepting Python's `bool`-is
 
 These tests are executable checks, not formal proofs. Next formalization targets are the leap-year equivalence, month-length sum, ordinal successor law, weekday periodicity modulo seven, and round-trip date/ordinal conversion. The timezone layer should be added only with explicit transition and database-version semantics.
 
+## Extended temporal semantics (research specification)
+
+The next layer must keep four different objects distinct:
+
+1. **Civil date/time**: a label in a calendar and local clock convention.
+2. **Zone rule set**: an IANA zone identifier interpreted against a particular tzdb release. An offset is the result of applying those rules at an instant, not a permanent property of the zone.
+3. **Instant / timescale coordinate**: a point on a declared scale such as UTC, TAI, or POSIX time. Conversions must state their leap-second policy.
+4. **Duration or calendar period**: elapsed seconds are measured on a timescale; a period such as one day, one month, or one year is applied in calendar space and needs explicit resolution rules.
+
+### Local-time resolution
+
+Converting a local date/time plus an IANA zone into an instant is not always a function with exactly one result. A forward clock transition can make a local time nonexistent; a backward transition can make it ambiguous. The API must return a typed resolution outcome (unique, ambiguous with both candidates, or nonexistent with the transition gap) and require an explicit policy before selecting or shifting a result. It must never silently pick a candidate.
+
+Every resolved value should retain the zone identifier, tzdb release, original local input, chosen disambiguation policy, and resulting offset. This makes historical and future conversions reproducible even when political rules later change.
+
+RFC 3339 numeric offsets encode a relationship to UTC for one timestamp; they do not encode the rule history of a named time zone. The TZif specification defines the interchange format used for compiled time-zone data and describes local offsets as dependent on date and time.
+
+### Leap seconds and clock uncertainty
+
+Leap-second handling must be a separately versioned timescale layer. A timestamp with second 60 is valid only when supported by the applicable leap-second table and the declared timescale/representation. The current model intentionally rejects it. Do not approximate leap seconds by silently stretching every day or by treating every civil day as exactly 86,400 SI seconds.
+
+Clock readings may also be uncertain. A future synchronized-clock observation should represent an estimate and an error bound (or interval), plus its source and synchronization epoch. Ordering two uncertain observations is only justified when their intervals do not overlap; otherwise their order is indeterminate at the stated precision. This uncertainty must not be confused with timezone ambiguity.
+
+### Recurrence semantics
+
+A recurring event must declare whether it is:
+- **wall-clock recurrence** (for example, every Monday at 09:00 in a named zone), preserving local intent across offset changes; or
+- **elapsed recurrence** (for example, every 168 elapsed hours), preserving fixed elapsed spacing.
+
+A wall-clock recurrence must additionally define behavior for nonexistent and ambiguous local occurrences, month-end overflow (clamp, reject, or another named policy), calendar, zone, and tzdb version/update policy. A recurrence engine should produce an occurrence together with its resolution provenance rather than only a timestamp.
+
+### Formalization sequence
+
+The Lean calendar development should proceed in dependency order:
+
+1. Prove the 400-year leap predicate periodicity and the 146,097-day year-prefix periodicity.
+2. Define month-prefix lengths and prove their sum is the year length.
+3. Define the ordinal of a valid date and prove the successor law.
+4. Prove ordinal injectivity and date/ordinal round trips over the supported domain.
+5. Derive weekday periodicity modulo seven from ordinal arithmetic.
+6. Only then formalize timezone transition and leap-second layers, each with explicit finite/versioned input data.
+
+Python exhaustive tests and independent implementations are evidence of implementation behavior, not substitutes for these kernel-checked theorems.
+
 ## References
 
 - RFC 3339, *Date and Time on the Internet: Timestamps*, especially section 5.7 and appendix C: https://www.rfc-editor.org/rfc/rfc3339.html
