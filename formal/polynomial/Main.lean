@@ -627,3 +627,21 @@ theorem joint_map_fderiv
     mul_left_comm, mul_assoc]
 
 end MosaicRealExponentShift
+
+
+/-- The two mixed-coordinate derivative formulas agree. This is the
+explicit symmetry identity for the mixed second partials of the joint
+positive-base exponent family. -/
+theorem mixed_partials_equal (x t : ℝ) (hx : 0 < x) :
+    (((x + t) * x ^ (x + t - 1) + jointValue x t * Real.log x) *
+        Real.log x + jointValue x t * x⁻¹) =
+      (x ^ (x + t - 1) +
+        (x + t) * x ^ (x + t - 1) * Real.log x +
+        jointValue x t * (Real.log x) ^ 2) := by
+  have hpow : x ^ (x + t) = x * x ^ (x + t - 1) := by
+    rw [show x + t = (x + t - 1) + 1 by ring,
+      Real.rpow_add (ne_of_gt hx)]
+    simp
+  rw [jointValue, hpow]
+  field_simp
+  <;> ring
