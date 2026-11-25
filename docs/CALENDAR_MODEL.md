@@ -22,8 +22,9 @@ Thus 1600 and 2000 are leap years; 1700, 1800, 1900, and 2100 are not. This is t
 - `days_in_month(year, month)` and `days_in_year(year)`
 - `GregorianDate(year, month, day)`, validated at construction
 - `GregorianDate.ordinal`: one-based day count from 0001-01-01
+- `GregorianDate.from_ordinal(n)`: inverse ordinal mapping, with bounded year search
 - `GregorianDate.day_of_year` and `weekday_monday_zero`
-- `GregorianDate.add_days(n)`: exact calendar-day arithmetic
+- `GregorianDate.add_days(n)`: exact calendar-day arithmetic, implemented through the ordinal inverse
 - `GregorianDate.add_months(n, policy)`: explicit `CLAMP` or `REJECT` semantics
 - `CivilTime(date, hour, minute, second, utc_offset_minutes)`
 - `CivilTime.utc_coordinate_seconds`: a nominal civil-coordinate conversion that deliberately does not model leap seconds
@@ -38,10 +39,13 @@ The numeric offset is not an IANA time zone. It is insufficient to resolve dayli
 
 ## Verification plan
 
-The Python regression suite exercises:
+Calendar integer fields reject booleans rather than accepting Python's `bool`-is-an-`int` behavior. The Python regression suite exercises:
 - century leap-year edge cases (1600, 1700, 1800, 1900, 2000, 2100, 2400);
 - valid and invalid month/day combinations;
 - ordinal and weekday reference points;
+- every date in a complete 400-year Gregorian cycle against Python's independent standard-library date implementation;
+- ordinal inversion at the supported range boundaries and day-addition inverse/weekday periodicity;
+- rejection of boolean values in integer calendar inputs;
 - day arithmetic across leap days and year boundaries;
 - range overflow;
 - month-addition clamp/reject behavior;
