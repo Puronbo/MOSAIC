@@ -1412,3 +1412,50 @@ theorem sphericalCoordinateBoundary_hausdorffMeasure_zero_of_section_bound
     d' d hbound hlt
 
 end MosaicMeasureSymmetry
+
+/-- The unit sphere in a finite-dimensional real inner product space has
+Hausdorff dimension at most one less than the dimension of the ambient space.
+The proof uses stereographic projection from a unit vector and the smooth
+inverse chart on its orthogonal complement. -/
+theorem dimH_unitSphere_le_of_unit
+    {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
+    [FiniteDimensional ℝ E] {k : Nat}
+    (v : E) (hv : ‖v‖ = 1)
+    (hE : finrank ℝ E = k + 1) :
+    dimH (Metric.sphere (0 : E) 1) ≤ k := by
+  letI : Fact (finrank ℝ E = k + 1) := ⟨hE⟩
+  have hv0 : v ≠ 0 := by
+    intro h
+    simp [h] at hv
+  let f : (ℝ ∙ v)ᗮ → E := fun w => stereoInvFunAux v (w : E)
+  have hfaux : Differentiable ℝ (stereoInvFunAux v) :=
+    (contDiff_stereoInvFunAux v (m := 1)).differentiable (by norm_num)
+  have hsub : Differentiable ℝ (fun w : (ℝ ∙ v)ᗮ => (w : E)) :=
+    differentiable_subtype_val
+  have hf : Differentiable ℝ f := by
+    change Differentiable ℝ (fun w : (ℝ ∙ v)ᗮ => stereoInvFunAux v (w : E))
+    exact hfaux.comp hsub
+  have hdim : finrank ℝ ((ℝ ∙ v)ᗮ) = k :=
+    finrank_orthogonal_span_singleton hv0
+  have hrange : dimH (Set.range f) ≤ k := by
+    calc
+      dimH (Set.range f) ≤ finrank ℝ ((ℝ ∙ v)ᗮ) := hf.dimH_range_le
+      _ = k := by exact_mod_cast hdim
+  have hcover : Metric.sphere (0 : E) 1 = Set.range f ∪ {v} := by
+    ext x
+    constructor
+    · intro hx
+      by_cases hxv : x = v
+      · right
+        simp [hxv]
+      · left
+        refine ⟨stereoToFun v (⟨x, hx⟩ : Metric.sphere (0 : E) 1), ?_⟩
+        have hleft := stereo_left_inv hv (x := (⟨x, hx⟩ : Metric.sphere (0 : E) 1)) hxv
+        have hval := congrArg (fun y : Metric.sphere (0 : E) 1 => (y : E)) hleft
+        simpa [f, stereoInvFun] using hval
+    · rintro (⟨w, rfl⟩ | rfl)
+      · exact stereoInvFunAux_mem hv w.2
+      · simpa [Metric.mem_sphere, dist_eq_norm] using hv
+  rw [hcover, dimH_union]
+  exact max_le hrange (by simp)
+
