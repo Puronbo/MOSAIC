@@ -1386,14 +1386,14 @@ has zero Hausdorff measure in every larger dimension. -/
 theorem hausdorffMeasure_iUnion_zero_of_uniform_dimH_bound
     {α : Type*} [EMetricSpace α] {ι : Type*} [Fintype ι]
     (A : ι → Set α) (d' d : ℝ≥0)
-    (hbound : ∀ i, dimH (A i) ≤ (d' : ℝ≥0∞))
+    (hbound : ∀ i, dimH (A i) ≤ (d' : ENNReal))
     (hlt : d' < d) :
     (MeasureTheory.Measure.hausdorffMeasure (d : ℝ)) (⋃ i, A i) = 0 := by
   apply hausdorffMeasure_of_dimH_lt
   rw [dimH_iUnion]
   calc
-    (⨆ i, dimH (A i)) ≤ (d' : ℝ≥0∞) := iSup_le hbound
-    _ < (d : ℝ≥0∞) := by exact_mod_cast hlt
+    (⨆ i, dimH (A i)) ≤ (d' : ENNReal) := iSup_le hbound
+    _ < (d : ENNReal) := by exact_mod_cast hlt
 
 
 /-- Once each coordinate section has a uniform dimension bound strictly
@@ -1402,7 +1402,7 @@ theorem sphericalCoordinateBoundary_hausdorffMeasure_zero_of_section_bound
     {n : Nat} (d' d : ℝ≥0)
     (hbound : ∀ i : Fin n,
       dimH (MosaicSphericalGeometry.sphericalCoordinateSection (n := n) i) ≤
-        (d' : ℝ≥0∞))
+        (d' : ENNReal))
     (hlt : d' < d) :
     (MeasureTheory.Measure.hausdorffMeasure (d : ℝ)) (MosaicSphericalGeometry.sphericalCoordinateBoundary (n := n)) = 0 := by
   rw [MosaicSphericalGeometry.sphericalCoordinateBoundary_eq_iUnion]
