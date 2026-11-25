@@ -1395,4 +1395,19 @@ theorem hausdorffMeasure_iUnion_zero_of_uniform_dimH_bound
     (⨆ i, dimH (A i)) ≤ (d' : ℝ≥0∞) := iSup_le hbound
     _ < (d : ℝ≥0∞) := by exact_mod_cast hlt
 
+
+/-- Once each coordinate section has a uniform dimension bound strictly
+below d, the entire spherical coordinate boundary is μH[d]-null. -/
+theorem sphericalCoordinateBoundary_hausdorffMeasure_zero_of_section_bound
+    {n : Nat} (d' d : ℝ≥0)
+    (hbound : ∀ i : Fin n,
+      dimH (MosaicSphericalGeometry.sphericalCoordinateSection (n := n) i) ≤
+        (d' : ℝ≥0∞))
+    (hlt : d' < d) :
+    μH[d] (MosaicSphericalGeometry.sphericalCoordinateBoundary (n := n)) = 0 := by
+  rw [MosaicSphericalGeometry.sphericalCoordinateBoundary_eq_iUnion]
+  exact hausdorffMeasure_iUnion_zero_of_uniform_dimH_bound
+    (MosaicSphericalGeometry.sphericalCoordinateSection (n := n))
+    d' d hbound hlt
+
 end MosaicMeasureSymmetry
