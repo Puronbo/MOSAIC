@@ -60,6 +60,30 @@ theorem leap_year_day_count (year : Nat)
       365 + (if isLeapYear year then 1 else 0) := by
   by_cases h : isLeapYear year <;> simp [h]
 
+/-- Successor quotient identity for division by four. -/
+theorem div_succ_4 (n : Nat) :
+    (n + 1) / 4 = n / 4 + (if n % 4 = 3 then 1 else 0) := by
+  rw [Nat.succ_div]
+  have h : (4 : Nat) ∣ n + 1 ↔ n % 4 = 3 := by
+    rw [Nat.dvd_iff_mod_eq_zero, Nat.succ_mod_succ_eq_zero_iff]
+  simp only [h]
+
+/-- Successor quotient identity for division by one hundred. -/
+theorem div_succ_100 (n : Nat) :
+    (n + 1) / 100 = n / 100 + (if n % 100 = 99 then 1 else 0) := by
+  rw [Nat.succ_div]
+  have h : (100 : Nat) ∣ n + 1 ↔ n % 100 = 99 := by
+    rw [Nat.dvd_iff_mod_eq_zero, Nat.succ_mod_succ_eq_zero_iff]
+  simp only [h]
+
+/-- Successor quotient identity for division by four hundred. -/
+theorem div_succ_400 (n : Nat) :
+    (n + 1) / 400 = n / 400 + (if n % 400 = 399 then 1 else 0) := by
+  rw [Nat.succ_div]
+  have h : (400 : Nat) ∣ n + 1 ↔ n % 400 = 399 := by
+    rw [Nat.dvd_iff_mod_eq_zero, Nat.succ_mod_succ_eq_zero_iff]
+  simp only [h]
+
 /-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
 theorem daysBeforeYear_weekday_period_400 (y : Nat) :
     daysBeforeYear (y + 400) % 7 = daysBeforeYear y % 7 := by
