@@ -685,17 +685,17 @@ namespace MosaicSphericalGeometry
 
 /-- First coordinate of stereographic projection from the plane to the
 unit sphere. -/
-def sphereX (u t : ℝ) : ℝ :=
+noncomputable def sphereX (u t : ℝ) : ℝ :=
   2 * u / (1 + u ^ 2 + t ^ 2)
 
 /-- Second coordinate of stereographic projection from the plane to the
 unit sphere. -/
-def sphereY (u t : ℝ) : ℝ :=
+noncomputable def sphereY (u t : ℝ) : ℝ :=
   2 * t / (1 + u ^ 2 + t ^ 2)
 
 /-- Third coordinate of stereographic projection from the plane to the
 unit sphere. -/
-def sphereZ (u t : ℝ) : ℝ :=
+noncomputable def sphereZ (u t : ℝ) : ℝ :=
   (u ^ 2 + t ^ 2 - 1) / (1 + u ^ 2 + t ^ 2)
 
 /-- Every finite point under stereographic projection lies on the unit
