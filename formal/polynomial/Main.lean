@@ -534,10 +534,10 @@ theorem base_second_derivative (x t : ℝ) (hx : 0 < x) :
   have hexponent : HasDerivAt (fun s : ℝ => s + t - 1) 1 x := by
     convert hlinear.sub_const 1 using 1 <;> ring
   have hpower : HasDerivAt (fun s : ℝ => s ^ (s + t - 1))
-      ((x + t - 1) * x ^ (x + t - 2) +
+      ((x + t - 1) * x ^ ((x + t - 1) - 1) +
         x ^ (x + t - 1) * Real.log x) x := by
-    simpa [mul_comm, mul_left_comm, mul_assoc] using
-      (hasDerivAt_id x).rpow hexponent hx
+    convert (hasDerivAt_id x).rpow hexponent hx using 1 <;>
+      simp [sub_eq_add_neg, add_comm, add_left_comm, add_assoc] <;> ring
   have hfirst := hlinear.mul hpower
   have hmixed := exponent_partial_base_derivative x t hx
   have hsum := hfirst.add hmixed
