@@ -517,6 +517,29 @@ theorem exponent_partial_base_derivative (x t : ℝ) (hx : 0 < x) :
 
 
 
+/-- Differentiate the base partial with respect to the exponent
+coordinate. This gives the other mixed-coordinate derivative directly. -/
+theorem base_partial_exponent_derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt
+      (fun s : ℝ =>
+        (x + s) * x ^ (x + s - 1) + jointValue x s * Real.log x)
+      (x ^ (x + t - 1) +
+        (x + t) * x ^ (x + t - 1) * Real.log x +
+        jointValue x t * (Real.log x) ^ 2) t := by
+  have hlinear : HasDerivAt (fun s : ℝ => x + s) 1 t := by
+    simpa using (hasDerivAt_id t).const_add x
+  have hexponent : HasDerivAt (fun s : ℝ => x + s - 1) 1 t := by
+    convert hlinear.sub_const 1 using 1 <;> ring
+  have hpower : HasDerivAt (fun s : ℝ => x ^ (x + s - 1))
+      (x ^ (x + t - 1) * Real.log x) t := by
+    simpa [mul_comm, mul_left_comm, mul_assoc] using
+      (HasDerivAt.const_rpow hx hexponent)
+  have hfirst := hlinear.mul hpower
+  have hsecond := (exponent_partial_derivative x t hx).mul_const (Real.log x)
+  have hsum := hfirst.add hsecond
+  convert hsum using 1 <;> simp [jointValue, pow_two, mul_assoc] <;> ring
+
+
 /-- Differentiate the base partial once more. This product-rule form is
 algebraically equivalent to the compact logarithmic Hessian formula. -/
 theorem base_second_derivative (x t : ℝ) (hx : 0 < x) :
