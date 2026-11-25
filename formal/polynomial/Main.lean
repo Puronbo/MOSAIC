@@ -978,16 +978,22 @@ theorem signedOrthant_ne_of_ne {n : Nat}
     apply hi
     calc
       ε i = ε i * 1 := by ring
-      _ = ε i * (η i * η i) := by rw [hη i]
+      _ = ε i * (η i * η i) := by
+        have hηmul : η i * η i = 1 := by nlinarith [hη i]
+        rw [hηmul]
       _ = (ε i * η i) * η i := by ring
       _ = 1 * η i := by rw [h]
       _ = η i := by ring
-  have hprod : ε i * η i = -1 := by
-    nlinarith [hprod_sq, hprod_ne]
+  have hfactor :
+      (ε i * η i - 1) * (ε i * η i + 1) = 0 := by
+    nlinarith [hprod_sq]
   have hpos := hmem' i
   change 0 < η i * ε i at hpos
-  rw [mul_comm, hprod] at hpos
-  norm_num at hpos
+  rw [mul_comm] at hpos
+  rcases mul_eq_zero.mp hfactor with h | h
+  · apply hprod_ne
+    linarith
+  · linarith
 
 end MosaicSphericalGeometry
 
