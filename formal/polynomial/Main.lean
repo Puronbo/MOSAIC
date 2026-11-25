@@ -920,12 +920,14 @@ theorem sign_change_maps_signed_orthant {n : Nat}
             ε i * ((δ i) ^ 2 * x i) := by ring
         _ = ε i * (1 * x i) := by rw [hδ i]
         _ = ε i * x i := by ring
+    change 0 < (ε i * δ i) * (δ i * x i)
     rw [heq]
     exact hx i
   · intro y hy
     refine ⟨signChange δ y, ?_, sign_change_involutive δ y hδ⟩
     intro i
     have heq : ε i * (δ i * y i) = (ε i * δ i) * y i := by ring
+    change 0 < ε i * (δ i * y i)
     rw [heq]
     exact hy i
 
