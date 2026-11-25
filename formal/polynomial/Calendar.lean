@@ -79,6 +79,9 @@ theorem daysBeforeYear_succ (y : Nat)
   have b4' : (y + 1) % 4 < 4 := Nat.mod_lt (y + 1) (by omega)
   have b100' : (y + 1) % 100 < 100 := Nat.mod_lt (y + 1) (by omega)
   have b400' : (y + 1) % 400 < 400 := Nat.mod_lt (y + 1) (by omega)
+  have hm4 : (y + 1) % 4 = (y % 4 + 1) % 4 := by omega
+  have hm100 : (y + 1) % 100 = (y % 100 + 1) % 100 := by omega
+  have hm400 : (y + 1) % 400 = (y % 400 + 1) % 400 := by omega
   omega
 
 
