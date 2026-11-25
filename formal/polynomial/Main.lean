@@ -954,6 +954,30 @@ theorem signed_orthants_transitive {n : Nat}
       _ = η i := by ring
   rw [hsign]
 
+
+/-- Different sign vectors specify different open orthants. -/
+theorem signedOrthant_ne_of_ne {n : Nat}
+    (ε η : Fin n → ℝ)
+    (hε : ∀ i, ε i ^ 2 = 1) (hη : ∀ i, η i ^ 2 = 1)
+    (hne : ε ≠ η) :
+    signedOrthant ε ≠ signedOrthant η := by
+  intro hsets
+  obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
+  have hmem : ε ∈ signedOrthant ε := by
+    intro j
+    have hsq := hε j
+    dsimp [signedOrthant]
+    nlinarith
+  have hmem' : ε ∈ signedOrthant η := by
+    rw [← hsets]
+    exact hmem
+  have hprod : ε i * η i = -1 := by
+    nlinarith [hε i, hη i, hi]
+  have hpos := hmem' i
+  dsimp [signedOrthant] at hpos
+  rw [hprod] at hpos
+  norm_num at hpos
+
 end MosaicSphericalGeometry
 
 
