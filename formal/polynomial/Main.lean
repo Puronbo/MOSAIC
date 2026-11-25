@@ -1090,6 +1090,36 @@ theorem exists_boolean_orthant_iff_all_coordinates_ne_zero {n : Nat}
       nlinarith
 
 
+/-- The unit sphere in finite-dimensional real coordinate space. -/
+def coordinateUnitSphere {n : Nat} : Set (Fin n → ℝ) :=
+  {x | ∑ i : Fin n, (x i) ^ 2 = 1}
+
+/-- The Boolean-indexed spherical orthants cover exactly the part of the
+unit sphere away from all coordinate hyperplanes. -/
+theorem spherical_orthant_cover_iff {n : Nat}
+    (x : Fin n → ℝ) (hx : x ∈ coordinateUnitSphere) :
+    (∃ b : Fin n → Bool,
+      x ∈ signedOrthant (booleanSignVector b)) ↔
+      ∀ i, x i ≠ 0 := by
+  exact exists_boolean_orthant_iff_all_coordinates_ne_zero x
+
+
+/-- Distinct Boolean-indexed spherical orthants are disjoint. -/
+theorem boolean_spherical_orthants_disjoint {n : Nat}
+    (b c : Fin n → Bool) (hbc : b ≠ c) :
+    Disjoint
+      (coordinateUnitSphere ∩ signedOrthant (booleanSignVector b))
+      (coordinateUnitSphere ∩ signedOrthant (booleanSignVector c)) := by
+  apply Set.disjoint_left.mpr
+  intro x hx hy
+  have hne : booleanSignVector b ≠ booleanSignVector c :=
+    booleanSignVector_injective.ne hbc
+  exact (signedOrthant_disjoint_of_ne
+    (booleanSignVector b) (booleanSignVector c)
+    (fun i => boolSign_sq (b i))
+    (fun i => boolSign_sq (c i)) hne) hx.2 hy.2
+
+
 /-- Boolean patterns enumerate distinct open orthants: the map from
 Boolean coordinate choices to their corresponding open orthant is injective. -/
 theorem boolean_orthant_injective {n : Nat} :
