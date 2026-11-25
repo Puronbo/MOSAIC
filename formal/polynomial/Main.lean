@@ -837,8 +837,10 @@ theorem sign_change_involutive {n : Nat}
     signChange ε (signChange ε x) = x := by
   funext i
   change ε i * (ε i * x i) = x i
-  rw [← mul_assoc, hε i]
-  ring
+  calc
+    ε i * (ε i * x i) = (ε i) ^ 2 * x i := by ring
+    _ = 1 * x i := by rw [hε i]
+    _ = x i := by ring
 
 
 /-- Coordinatewise sign changes preserve Euclidean squared distance, not
