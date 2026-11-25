@@ -51,14 +51,16 @@ a local extremum is REFUTED by the Hessian test.
 ### Status ledger
 
 - FORMALLY_VERIFIED: the positive-base first derivatives, the general
-  Fréchet derivative of the joint exponent map, and the first three
-  derivatives in the exponent coordinate, subject to the current CI result
-  for the third derivative.
-- ANALYTIC / NOT YET FORMALLY VERIFIED: the base-base and mixed second
-  partial formulas, the Hessian matrix, uniqueness of the stationary point,
-  and the saddle classification. These are elementary calculations, but
-  they must not be presented as Lean-verified until their corresponding
-  theorems compile in the pinned project.
+  Fréchet derivative of the joint exponent map, the first three derivatives
+  in the exponent coordinate, the base-base second derivative, and the
+  mixed derivative obtained by differentiating the exponent partial in the
+  base coordinate. The exact Lean source passed both CI workflows at commit
+  2a1ad09d98b7 for the base-base derivative; the mixed derivative passed at
+  commit 5cf620b08dd7.
+- PENDING VERIFICATION: the reverse mixed-coordinate derivative has been
+  added as a Lean theorem target and awaits CI. The combined Hessian identity,
+  uniqueness of the stationary point, and saddle classification remain
+  analytic until their corresponding theorems compile in the pinned project.
 - NOT IMPLIED: a local saddle classification does not by itself describe
   global level sets, behavior at the boundary x→0+, or asymptotics as x→∞.
 
