@@ -893,3 +893,39 @@ theorem boolean_sign_pattern_cardinality (n : Nat) :
   simp
 
 end MosaicSphericalGeometry
+
+
+/-!
+A reusable measure-theoretic bridge for the orthant argument:
+a measurable equivalence that preserves a measure and maps one measurable
+region onto another forces the two regions to have equal measure.
+-/
+namespace MosaicMeasureSymmetry
+
+open MeasureTheory
+
+/-- A measure-preserving measurable equivalence carries measurable sets
+to sets of equal measure. -/
+theorem measure_eq_of_measure_preserving_equiv
+    {α : Type*} [MeasurableSpace α] (μ : Measure α)
+    (s t : Set α) (hs : MeasurableSet s) (ht : MeasurableSet t)
+    (e : α ≃ᵐ α)
+    (hpres : MeasurePreserving (fun x => e x) μ μ)
+    (himage : e '' s = t) :
+    μ s = μ t := by
+  have hpre : e ⁻¹' t = s := by
+    ext x
+    change e x ∈ t ↔ x ∈ s
+    rw [← himage]
+    constructor
+    · rintro ⟨y, hy, hxy⟩
+      have hEq : y = x := e.injective hxy
+      simpa [hEq] using hy
+    · intro hx
+      exact ⟨x, hx, rfl⟩
+  have hmap := congrArg (fun ν : Measure α => ν t) hpres.map_eq
+  rw [Measure.map_apply hpres.measurable ht] at hmap
+  rw [hpre] at hmap
+  exact hmap
+
+end MosaicMeasureSymmetry
