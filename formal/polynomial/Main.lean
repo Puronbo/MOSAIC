@@ -915,7 +915,8 @@ theorem booleanSignVector_surjective_onto_signs {n : Nat}
       nlinarith [hε i]
     have hneg : ε i = -1 := by
       rcases mul_eq_zero.mp hfactor with hone | hminus
-      · exact (h h one)
+      · have heq : ε i = 1 := by linarith
+        exact (h heq)
       · linarith
     simp [booleanSignVector, b, boolSign, hneg]
 
