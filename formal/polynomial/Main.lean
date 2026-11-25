@@ -679,3 +679,61 @@ theorem stationary_point_unique (x t : ℝ) (hx : 0 < x)
     linarith
 
 end MosaicRealExponentShift
+
+
+namespace MosaicSphericalGeometry
+
+/-- First coordinate of stereographic projection from the plane to the
+unit sphere. -/
+def sphereX (u t : ℝ) : ℝ :=
+  2 * u / (1 + u ^ 2 + t ^ 2)
+
+/-- Second coordinate of stereographic projection from the plane to the
+unit sphere. -/
+def sphereY (u t : ℝ) : ℝ :=
+  2 * t / (1 + u ^ 2 + t ^ 2)
+
+/-- Third coordinate of stereographic projection from the plane to the
+unit sphere. -/
+def sphereZ (u t : ℝ) : ℝ :=
+  (u ^ 2 + t ^ 2 - 1) / (1 + u ^ 2 + t ^ 2)
+
+/-- Every finite point under stereographic projection lies on the unit
+sphere. This is the algebraic invariant underlying the spherical model. -/
+theorem stereographic_sphere_identity (u t : ℝ) :
+    (sphereX u t) ^ 2 + (sphereY u t) ^ 2 +
+      (sphereZ u t) ^ 2 = 1 := by
+  unfold sphereX sphereY sphereZ
+  have hden : 1 + u ^ 2 + t ^ 2 ≠ 0 := by
+    positivity
+  field_simp
+  <;> ring
+
+/-- Reflection in the first coordinate axis. -/
+def reflectFirst (p : ℝ × ℝ) : ℝ × ℝ :=
+  (-p.1, p.2)
+
+/-- Reflection in the second coordinate axis. -/
+def reflectSecond (p : ℝ × ℝ) : ℝ × ℝ :=
+  (p.1, -p.2)
+
+/-- Each coordinate reflection is an involution. -/
+theorem reflectFirst_involutive (p : ℝ × ℝ) :
+    reflectFirst (reflectFirst p) = p := by
+  cases p
+  simp [reflectFirst]
+
+/-- The second coordinate reflection is also an involution. -/
+theorem reflectSecond_involutive (p : ℝ × ℝ) :
+    reflectSecond (reflectSecond p) = p := by
+  cases p
+  simp [reflectSecond]
+
+/-- The two independent coordinate reflections commute. -/
+theorem coordinate_reflections_commute (p : ℝ × ℝ) :
+    reflectFirst (reflectSecond p) =
+      reflectSecond (reflectFirst p) := by
+  cases p
+  simp [reflectFirst, reflectSecond]
+
+end MosaicSphericalGeometry
