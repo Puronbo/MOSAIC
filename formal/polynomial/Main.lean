@@ -736,4 +736,44 @@ theorem coordinate_reflections_commute (p : ℝ × ℝ) :
   cases p
   simp [reflectFirst, reflectSecond]
 
+
+/-- Squared Euclidean radius in the stereographic parameter plane. -/
+def squaredRadius (p : ℝ × ℝ) : ℝ :=
+  p.1 ^ 2 + p.2 ^ 2
+
+/-- Reflection in the first coordinate preserves squared radius. -/
+theorem reflectFirst_preserves_squaredRadius (p : ℝ × ℝ) :
+    squaredRadius (reflectFirst p) = squaredRadius p := by
+  cases p
+  simp [squaredRadius, reflectFirst]
+
+/-- Reflection in the second coordinate preserves squared radius. -/
+theorem reflectSecond_preserves_squaredRadius (p : ℝ × ℝ) :
+    squaredRadius (reflectSecond p) = squaredRadius p := by
+  cases p
+  simp [squaredRadius, reflectSecond]
+
+/-- Simultaneous sign reversal, the composition of the two reflections. -/
+def reflectBoth (p : ℝ × ℝ) : ℝ × ℝ :=
+  (-p.1, -p.2)
+
+/-- Simultaneous sign reversal is an involution. -/
+theorem reflectBoth_involutive (p : ℝ × ℝ) :
+    reflectBoth (reflectBoth p) = p := by
+  cases p
+  simp [reflectBoth]
+
+/-- Simultaneous sign reversal also preserves squared radius. -/
+theorem reflectBoth_preserves_squaredRadius (p : ℝ × ℝ) :
+    squaredRadius (reflectBoth p) = squaredRadius p := by
+  cases p
+  simp [squaredRadius, reflectBoth]
+
+/-- The simultaneous reversal is exactly the composition of the
+independent coordinate reflections. -/
+theorem reflectBoth_eq_composition (p : ℝ × ℝ) :
+    reflectBoth p = reflectFirst (reflectSecond p) := by
+  cases p
+  rfl
+
 end MosaicSphericalGeometry
