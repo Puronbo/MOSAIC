@@ -776,4 +776,21 @@ theorem reflectBoth_eq_composition (p : ℝ × ℝ) :
   cases p
   rfl
 
+
+/-- Stereographic projection intertwines reflection of the first plane
+coordinate with reflection of the first sphere coordinate. -/
+theorem stereographic_reflect_first (u t : ℝ) :
+    (sphereX (-u) t, sphereY (-u) t, sphereZ (-u) t) =
+      (-sphereX u t, sphereY u t, sphereZ u t) := by
+  simp [sphereX, sphereY, sphereZ]
+  <;> ring
+
+/-- Stereographic projection intertwines reflection of the second plane
+coordinate with reflection of the second sphere coordinate. -/
+theorem stereographic_reflect_second (u t : ℝ) :
+    (sphereX u (-t), sphereY u (-t), sphereZ u (-t)) =
+      (sphereX u t, -sphereY u t, sphereZ u t) := by
+  simp [sphereX, sphereY, sphereZ]
+  <;> ring
+
 end MosaicSphericalGeometry
