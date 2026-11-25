@@ -71,11 +71,13 @@ Every resolved value should retain the zone identifier, tzdb release, original l
 
 RFC 3339 numeric offsets encode a relationship to UTC for one timestamp; they do not encode the rule history of a named time zone. The TZif specification defines the interchange format used for compiled time-zone data and describes local offsets as dependent on date and time.
 
-### Leap seconds and clock uncertainty
+### UTC continuity, historical leap seconds, and clock uncertainty
 
-Leap-second handling must be a separately versioned timescale layer. A timestamp with second 60 is valid only when supported by the applicable leap-second table and the declared timescale/representation. The current model intentionally rejects it. Do not approximate leap seconds by silently stretching every day or by treating every civil day as exactly 86,400 SI seconds.
+Leap-second behavior is a separately versioned timescale concern, not a property of Gregorian dates. Historical UTC data still requires correct treatment of the leap seconds already inserted. However, the 28th CGPM adopted Resolution 5 (2026), which makes continuous UTC effective on **20 May 2027** and permits |UT1-UTC| to grow to one hour. Therefore, a new implementation must not assume that future UTC timestamps will contain inserted leap seconds indefinitely. It must version its timescale policy and preserve historical conversion data; it must also distinguish UTC from TAI, POSIX time, and any local clock-smear convention. The current model intentionally rejects a seconds field of 60 and is not a historical UTC timescale converter.
 
-Clock readings may also be uncertain. A future synchronized-clock observation should represent an estimate and an error bound (or interval), plus its source and synchronization epoch. Ordering two uncertain observations is only justified when their intervals do not overlap; otherwise their order is indeterminate at the stated precision. This uncertainty must not be confused with timezone ambiguity.
+Do not approximate historical leap seconds by silently stretching every day or by treating every civil day as exactly 86,400 SI seconds. Conversely, after continuous UTC takes effect, do not invent leap-second events from the old model. The effective policy and data release must be explicit in every conversion record.
+
+Clock readings may also be uncertain. A synchronized-clock observation should represent an estimate and an error bound (or interval), plus its source and synchronization epoch. Ordering two uncertain observations is only justified when their intervals do not overlap; otherwise their order is indeterminate at the stated precision. This uncertainty must not be confused with timezone ambiguity.
 
 ### Recurrence semantics
 
