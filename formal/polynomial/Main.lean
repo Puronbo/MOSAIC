@@ -1429,7 +1429,7 @@ theorem dimH_unitSphere_le_of_unit
     simp [h] at hv
   let f : (ℝ ∙ v)ᗮ → E := fun w => stereoInvFunAux v (w : E)
   have hfaux : Differentiable ℝ (stereoInvFunAux v) :=
-    (contDiff_stereoInvFunAux v (m := 1)).differentiable (by norm_num)
+    (contDiff_stereoInvFunAux (m := 1)).differentiable (by norm_num)
   have hsub : Differentiable ℝ (fun w : (ℝ ∙ v)ᗮ => (w : E)) :=
     differentiable_subtype_val
   have hf : Differentiable ℝ f := by
