@@ -60,65 +60,7 @@ theorem leap_year_day_count (year : Nat)
       365 + (if isLeapYear year then 1 else 0) := by
   by_cases h : isLeapYear year <;> simp [h]
 
-/-- Quotient successor identities for the Gregorian divisors. -/
-theorem div_succ_4 (n : Nat) :
-    (n + 1) / 4 = n / 4 + (if n % 4 = 3 then 1 else 0) := by
-  have hdiv := Nat.mod_add_div n 4
-  have hdiv' := Nat.mod_add_div (n + 1) 4
-  have hmod := Nat.mod_lt n (by omega)
-  by_cases hlast : n % 4 = 3
-  · have hnext : (n + 1) % 4 = 0 := by omega
-    simp [hlast]
-    omega
-  · have hnext : (n + 1) % 4 = n % 4 + 1 := by omega
-    simp [hlast]
-    omega
-
-theorem div_succ_100 (n : Nat) :
-    (n + 1) / 100 = n / 100 + (if n % 100 = 99 then 1 else 0) := by
-  have hdiv := Nat.mod_add_div n 100
-  have hdiv' := Nat.mod_add_div (n + 1) 100
-  have hmod := Nat.mod_lt n (by omega)
-  by_cases hlast : n % 100 = 99
-  · have hnext : (n + 1) % 100 = 0 := by omega
-    simp [hlast]
-    omega
-  · have hnext : (n + 1) % 100 = n % 100 + 1 := by omega
-    simp [hlast]
-    omega
-
-theorem div_succ_400 (n : Nat) :
-    (n + 1) / 400 = n / 400 + (if n % 400 = 399 then 1 else 0) := by
-  have hdiv := Nat.mod_add_div n 400
-  have hdiv' := Nat.mod_add_div (n + 1) 400
-  have hmod := Nat.mod_lt n (by omega)
-  by_cases hlast : n % 400 = 399
-  · have hnext : (n + 1) % 400 = 0 := by omega
-    simp [hlast]
-    omega
-  · have hnext : (n + 1) % 400 = n % 400 + 1 := by omega
-    simp [hlast]
-    omega
-
-/-- Advancing the year index adds the exact length of the next Gregorian year. -/
-theorem daysBeforeYear_succ (y : Nat)
-    [Decidable (isLeapYear (y + 1))] :
-    daysBeforeYear (y + 1) =
-      daysBeforeYear y +
-        (if isLeapYear (y + 1) then 366 else 365) := by
-  unfold daysBeforeYear
-  have q4 := div_succ_4 y
-  have q100 := div_succ_100 y
-  have q400 := div_succ_400 y
-  have r4 : (y + 1) % 4 = 0 ↔ y % 4 = 3 := by omega
-  have r100 : (y + 1) % 100 = 0 ↔ y % 100 = 99 := by omega
-  have r400 : (y + 1) % 400 = 0 ↔ y % 400 = 399 := by omega
-  have hsub : y / 100 ≤ 365 * y + y / 4 := by omega
-  have hsub' : (y + 1) / 100 ≤ 365 * (y + 1) + (y + 1) / 4 := by omega
-  unfold isLeapYear
-  omega
-
-
+/-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
 /-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
 theorem daysBeforeYear_weekday_period_400 (y : Nat) :
     daysBeforeYear (y + 400) % 7 = daysBeforeYear y % 7 := by
