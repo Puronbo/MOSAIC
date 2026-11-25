@@ -60,28 +60,34 @@ theorem leap_year_day_count (year : Nat)
       365 + (if isLeapYear year then 1 else 0) := by
   by_cases h : isLeapYear year <;> simp [h]
 
+/-- The quotient increases exactly when the next number crosses a multiple. -/
+theorem div_succ_remainder (n k : Nat) (hk : 0 < k) :
+    (n + 1) / k = n / k + (if n % k = k - 1 then 1 else 0) := by
+  have hdiv := Nat.mod_add_div n k
+  have hdiv' := Nat.mod_add_div (n + 1) k
+  have hmod := Nat.mod_lt n hk
+  by_cases hlast : n % k = k - 1
+  · have hnext : (n + 1) % k = 0 := by omega
+    simp [hlast]
+    omega
+  · have hnext : (n + 1) % k = n % k + 1 := by omega
+    simp [hlast]
+    omega
+
 /-- Advancing the year index adds the exact length of the next Gregorian year. -/
 theorem daysBeforeYear_succ (y : Nat)
     [Decidable (isLeapYear (y + 1))] :
     daysBeforeYear (y + 1) =
       daysBeforeYear y +
         (if isLeapYear (y + 1) then 366 else 365) := by
-  unfold daysBeforeYear isLeapYear
-  have h4 := Nat.mod_add_div y 4
-  have h100 := Nat.mod_add_div y 100
-  have h400 := Nat.mod_add_div y 400
-  have h4' := Nat.mod_add_div (y + 1) 4
-  have h100' := Nat.mod_add_div (y + 1) 100
-  have h400' := Nat.mod_add_div (y + 1) 400
-  have b4 : y % 4 < 4 := Nat.mod_lt y (by omega)
-  have b100 : y % 100 < 100 := Nat.mod_lt y (by omega)
-  have b400 : y % 400 < 400 := Nat.mod_lt y (by omega)
-  have b4' : (y + 1) % 4 < 4 := Nat.mod_lt (y + 1) (by omega)
-  have b100' : (y + 1) % 100 < 100 := Nat.mod_lt (y + 1) (by omega)
-  have b400' : (y + 1) % 400 < 400 := Nat.mod_lt (y + 1) (by omega)
-  have hm4 : (y + 1) % 4 = (y % 4 + 1) % 4 := by omega
-  have hm100 : (y + 1) % 100 = (y % 100 + 1) % 100 := by omega
-  have hm400 : (y + 1) % 400 = (y % 400 + 1) % 400 := by omega
+  unfold daysBeforeYear
+  have q4 := div_succ_remainder y 4 (by omega)
+  have q100 := div_succ_remainder y 100 (by omega)
+  have q400 := div_succ_remainder y 400 (by omega)
+  have r4 : (y + 1) % 4 = 0 ↔ y % 4 = 3 := by omega
+  have r100 : (y + 1) % 100 = 0 ↔ y % 100 = 99 := by omega
+  have r400 : (y + 1) % 400 = 0 ↔ y % 400 = 399 := by omega
+  unfold isLeapYear
   omega
 
 
