@@ -93,3 +93,53 @@ def test_civil_time_validates_clock_fields_and_offset():
         CivilTime(date=GregorianDate(year=2024, month=1, day=1), hour=0, minute=0, second=60, utc_offset_minutes=0)
     with pytest.raises(ValidationError):
         CivilTime(date=GregorianDate(year=2024, month=1, day=1), hour=0, minute=0, second=0, utc_offset_minutes=900)
+
+
+def test_ordinal_round_trip_over_complete_gregorian_400_year_cycle():
+    # The Gregorian leap-year pattern repeats every 400 years (146097 days).
+    # Check every ordinal in the cycle, not just selected dates.
+    from datetime import date
+
+    cycle_days = 146097
+    for ordinal in range(1, cycle_days + 1):
+        actual = GregorianDate.from_ordinal(ordinal)
+        expected = date.fromordinal(ordinal)
+        assert (actual.year, actual.month, actual.day) == (
+            expected.year, expected.month, expected.day
+        )
+        assert actual.ordinal == ordinal
+        assert actual.weekday_monday_zero == expected.weekday()
+
+
+def test_ordinal_round_trip_at_supported_range_edges():
+    first = GregorianDate(year=1, month=1, day=1)
+    last = GregorianDate(year=9999, month=12, day=31)
+    assert GregorianDate.from_ordinal(first.ordinal) == first
+    assert GregorianDate.from_ordinal(last.ordinal) == last
+    with pytest.raises(ValueError):
+        GregorianDate.from_ordinal(0)
+    with pytest.raises(ValueError):
+        GregorianDate.from_ordinal(last.ordinal + 1)
+
+
+def test_calendar_integer_inputs_reject_booleans():
+    with pytest.raises(TypeError):
+        is_gregorian_leap_year(True)
+    with pytest.raises(TypeError):
+        days_in_month(2024, False)
+    with pytest.raises(TypeError):
+        GregorianDate.from_ordinal(True)
+    with pytest.raises(TypeError):
+        GregorianDate(year=True, month=1, day=1)
+    with pytest.raises(TypeError):
+        GregorianDate(year=2024, month=1, day=1).add_days(True)
+
+
+def test_add_days_round_trip_and_weekday_periodicity():
+    start = GregorianDate(year=2000, month=2, day=29)
+    for delta in range(-800, 801):
+        moved = start.add_days(delta)
+        assert moved.add_days(-delta) == start
+        assert moved.weekday_monday_zero == (
+            start.weekday_monday_zero + delta
+        ) % 7
