@@ -665,7 +665,12 @@ theorem stationary_point_unique (x t : ℝ) (hx : 0 < x)
     rcases mul_eq_zero.mp hExponent with hzero | hzero
     · exact (False.elim (ne_of_gt hG hzero))
     · exact hzero
-  have hxone : x = 1 := (Real.log_eq_zero.mp hlog)
+  have hxone : x = 1 := by
+    rcases Real.log_eq_zero.mp hlog with hzero | hone | hneg
+    · exact False.elim (ne_of_gt hx hzero)
+    · exact hone
+    · rw [hneg] at hx
+      norm_num at hx
   constructor
   · exact hxone
   · subst x
