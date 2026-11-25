@@ -1045,16 +1045,18 @@ theorem signedOrthant_disjoint_of_ne {n : Nat}
     nlinarith [hprod_sq]
   have hpos : 0 < ε i * x i := hx i
   have hpos' : 0 < η i * x i := hy i
+  have hmul : (ε i * x i) * (η i * x i) =
+      (ε i * η i) * (x i * x i) := by ring
+  have hxne : x i ≠ 0 := by
+    intro hz
+    rw [hz] at hpos
+    norm_num at hpos
+  have hxx : 0 < x i * x i := mul_self_pos.mpr hxne
   have hprodpos : 0 < ε i * η i := by
-    have hmul : (ε i * x i) * (η i * x i) =
-        (ε i * η i) * (x i * x i) := by ring
-    have hxne : x i ≠ 0 := by
-      intro hz
-      rw [hz] at hpos
-      norm_num at hpos
-    have hxx : 0 < x i * x i := mul_self_pos.mpr hxne
-    rw [← hmul]
-    exact mul_pos hpos hpos'
+    have hscaled : 0 < (ε i * η i) * (x i * x i) := by
+      rw [← hmul]
+      exact mul_pos hpos hpos'
+    nlinarith
   rcases mul_eq_zero.mp hfactor with hplus | hminus
   · have : ε i * η i = 1 := by linarith
     exact hprod_ne this
