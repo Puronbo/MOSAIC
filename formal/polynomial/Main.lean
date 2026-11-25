@@ -911,8 +911,13 @@ theorem booleanSignVector_surjective_onto_signs {n : Nat}
   funext i
   by_cases h : ε i = 1
   · simp [booleanSignVector, b, h, boolSign]
-  · have hneg : ε i = -1 := by nlinarith [hε i, h]
-    simp [booleanSignVector, b, h, boolSign, hneg]
+  · have hfactor : (ε i - 1) * (ε i + 1) = 0 := by
+      nlinarith [hε i]
+    have hneg : ε i = -1 := by
+      rcases mul_eq_zero.mp hfactor with hone | hminus
+      · exact (h h one)
+      · linarith
+    simp [booleanSignVector, b, boolSign, hneg]
 
 
 /-- An open orthant specified by a vector of coordinate signs. -/
