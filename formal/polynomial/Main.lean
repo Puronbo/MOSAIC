@@ -885,7 +885,8 @@ theorem booleanSignVector_injective {n : Nat} :
   funext i
   have hi := congrFun h i
   cases hb : b i <;> cases hc : c i <;>
-    simp [booleanSignVector, boolSign, hb, hc] at hi ⊢
+    simp [booleanSignVector, boolSign, hb, hc] at hi ⊢ <;>
+    norm_num at hi
 
 /-- There are exactly 2^n Boolean sign patterns in dimension n. -/
 theorem boolean_sign_pattern_cardinality (n : Nat) :
