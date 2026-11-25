@@ -1379,6 +1379,8 @@ theorem sum_region_measures
       simp
 
 
+open scoped MeasureTheory NNReal
+
 /-- A finite union of sets with a common strict Hausdorff-dimension bound
 has zero Hausdorff measure in every larger dimension. -/
 theorem hausdorffMeasure_iUnion_zero_of_uniform_dimH_bound
