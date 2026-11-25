@@ -919,7 +919,7 @@ theorem booleanSignVector_surjective_onto_signs {n : Nat}
         exfalso
         exact h heq
       · linarith
-    simp [booleanSignVector, b, boolSign, hneg]
+    simp [booleanSignVector, b, boolSign, h, hneg]
 
 
 /-- An open orthant specified by a vector of coordinate signs. -/
