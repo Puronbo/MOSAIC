@@ -649,4 +649,28 @@ theorem mixed_partials_equal (x t : ℝ) (hx : 0 < x) :
   field_simp [ne_of_gt hx]
   <;> ring
 
+
+/-- The two first-partial stationarity equations have exactly one solution
+on the positive-base domain. -/
+theorem stationary_point_unique (x t : ℝ) (hx : 0 < x)
+    (hExponent : jointValue x t * Real.log x = 0)
+    (hBase :
+      (x + t) * x ^ (x + t - 1) +
+        jointValue x t * Real.log x = 0) :
+    x = 1 ∧ t = -1 := by
+  have hG : 0 < jointValue x t := by
+    unfold jointValue
+    exact Real.rpow_pos_of_pos hx _
+  have hlog : Real.log x = 0 := by
+    rcases mul_eq_zero.mp hExponent with hzero | hzero
+    · exact (False.elim (ne_of_gt hG hzero))
+    · exact hzero
+  have hxone : x = 1 := (Real.log_eq_zero.mp hlog)
+  constructor
+  · exact hxone
+  · subst x
+    have ht : 1 + t = 0 := by
+      simpa [jointValue] using hBase
+    linarith
+
 end MosaicRealExponentShift
