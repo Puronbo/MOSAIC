@@ -830,4 +830,18 @@ theorem sign_change_involutive {n : Nat}
   rw [← mul_assoc, hε i]
   ring
 
+
+/-- Coordinatewise sign changes preserve Euclidean squared distance, not
+just distance from the origin. -/
+theorem sign_change_preserves_squared_distance {n : Nat}
+    (ε x y : Fin n → ℝ) (hε : ∀ i, ε i ^ 2 = 1) :
+    (∑ i : Fin n, (signChange ε x i - signChange ε y i) ^ 2) =
+      ∑ i : Fin n, (x i - y i) ^ 2 := by
+  unfold signChange
+  apply Finset.sum_congr rfl
+  intro i hi
+  rw [show ε i * x i - ε i * y i = ε i * (x i - y i) by ring]
+  rw [mul_pow, hε i]
+  ring
+
 end MosaicSphericalGeometry
