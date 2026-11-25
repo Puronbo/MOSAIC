@@ -517,6 +517,33 @@ theorem exponent_partial_base_derivative (x t : ℝ) (hx : 0 < x) :
 
 
 
+/-- Differentiate the base partial once more. This product-rule form is
+algebraically equivalent to the compact logarithmic Hessian formula. -/
+theorem base_second_derivative (x t : ℝ) (hx : 0 < x) :
+    HasDerivAt
+      (fun s : ℝ =>
+        (s + t) * s ^ (s + t - 1) + jointValue s t * Real.log s)
+      ((x + t) * ((x + t - 1) * x ^ (x + t - 2) +
+          x ^ (x + t - 1) * Real.log x) +
+        x ^ (x + t - 1) +
+        ((x + t) * x ^ (x + t - 1) +
+          jointValue x t * Real.log x) * Real.log x +
+        jointValue x t * x⁻¹) x := by
+  have hlinear : HasDerivAt (fun s : ℝ => s + t) 1 x := by
+    simpa using (hasDerivAt_id x).add_const t
+  have hexponent : HasDerivAt (fun s : ℝ => s + t - 1) 1 x := by
+    convert hlinear.sub_const 1 using 1 <;> ring
+  have hpower : HasDerivAt (fun s : ℝ => s ^ (s + t - 1))
+      ((x + t - 1) * x ^ (x + t - 2) +
+        x ^ (x + t - 1) * Real.log x) x := by
+    simpa [mul_comm, mul_left_comm, mul_assoc] using
+      (hasDerivAt_id x).rpow hexponent hx
+  have hfirst := hlinear.mul hpower
+  have hmixed := exponent_partial_base_derivative x t hx
+  have hsum := hfirst.add hmixed
+  convert hsum using 1 <;> simp [jointValue] <;> ring
+
+
 /-- Evaluate the joint exponent family along a differentiable base path. -/
 noncomputable def alongBasePath (u : ℝ → ℝ) (t : ℝ) : ℝ :=
   u t ^ (u t + t)
