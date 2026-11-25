@@ -1125,6 +1125,34 @@ theorem boolean_spherical_orthants_cover_complement {n : Nat} :
     exact ⟨b, hx, horth⟩
 
 
+/-- The coordinate-hyperplane boundary of the unit sphere. -/
+def sphericalCoordinateBoundary {n : Nat} : Set (Fin n → ℝ) :=
+  {x | x ∈ coordinateUnitSphere ∧ ∃ i, x i = 0}
+
+/-- The unit sphere is the disjoint union of its open Boolean orthants
+and the coordinate-hyperplane boundary. -/
+theorem boolean_spherical_orthants_cover_with_boundary {n : Nat} :
+    coordinateUnitSphere =
+      (⋃ b : Fin n → Bool,
+        coordinateUnitSphere ∩ signedOrthant (booleanSignVector b)) ∪
+      sphericalCoordinateBoundary := by
+  ext x
+  constructor
+  · intro hx
+    by_cases hcoords : ∀ i, x i ≠ 0
+    · left
+      rw [boolean_spherical_orthants_cover_complement]
+      exact ⟨hx, hcoords⟩
+    · right
+      push_neg at hcoords
+      exact ⟨hx, hcoords⟩
+  · intro hx
+    rcases hx with hregions | hboundary
+    · obtain ⟨b, hb⟩ := Set.mem_iUnion.mp hregions
+      exact hb.1
+    · exact hboundary.1
+
+
 /-- Distinct Boolean-indexed spherical orthants are disjoint. -/
 theorem boolean_spherical_orthants_disjoint {n : Nat}
     (b c : Fin n → Bool) (hbc : b ≠ c) :
