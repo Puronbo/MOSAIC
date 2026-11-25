@@ -61,7 +61,6 @@ theorem leap_year_day_count (year : Nat)
   by_cases h : isLeapYear year <;> simp [h]
 
 /-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
-/-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
 theorem daysBeforeYear_weekday_period_400 (y : Nat) :
     daysBeforeYear (y + 400) % 7 = daysBeforeYear y % 7 := by
   rw [daysBeforeYear_period_400]
