@@ -965,17 +965,28 @@ theorem signedOrthant_ne_of_ne {n : Nat}
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hne
   have hmem : ε ∈ signedOrthant ε := by
     intro j
-    have hsq := hε j
-    dsimp [signedOrthant]
-    nlinarith
+    change 0 < ε j * ε j
+    nlinarith [hε j]
   have hmem' : ε ∈ signedOrthant η := by
     rw [← hsets]
     exact hmem
+  have hprod_sq : (ε i * η i) ^ 2 = 1 := by
+    rw [mul_pow, hε i, hη i]
+    norm_num
+  have hprod_ne : ε i * η i ≠ 1 := by
+    intro h
+    apply hi
+    calc
+      ε i = ε i * 1 := by ring
+      _ = ε i * (η i * η i) := by rw [hη i]
+      _ = (ε i * η i) * η i := by ring
+      _ = 1 * η i := by rw [h]
+      _ = η i := by ring
   have hprod : ε i * η i = -1 := by
-    nlinarith [hε i, hη i, hi]
+    nlinarith [hprod_sq, hprod_ne]
   have hpos := hmem' i
-  dsimp [signedOrthant] at hpos
-  rw [hprod] at hpos
+  change 0 < η i * ε i at hpos
+  rw [mul_comm, hprod] at hpos
   norm_num at hpos
 
 end MosaicSphericalGeometry
