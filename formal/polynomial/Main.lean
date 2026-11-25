@@ -919,9 +919,11 @@ theorem booleanSignVector_surjective_onto_signs {n : Nat}
         exfalso
         exact h heq
       · linarith
+    have hb : b i = false := by
+      simp [b, h]
     change boolSign (b i) = ε i
-    rw [show b i = false by simp [b, hneg], boolSign]
-    exact hneg
+    rw [hb, boolSign]
+    exact hneg.symm
 
 
 /-- An open orthant specified by a vector of coordinate signs. -/
