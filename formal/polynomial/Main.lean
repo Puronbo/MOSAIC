@@ -1106,6 +1106,25 @@ theorem spherical_orthant_cover_iff {n : Nat}
   exact exists_boolean_orthant_iff_all_coordinates_ne_zero x
 
 
+/-- The finite family of spherical orthants partitions the unit sphere
+after removing the coordinate-hyperplane boundaries. -/
+theorem boolean_spherical_orthants_cover_complement {n : Nat} :
+    (⋃ b : Fin n → Bool,
+      coordinateUnitSphere ∩ signedOrthant (booleanSignVector b)) =
+      {x | x ∈ coordinateUnitSphere ∧ ∀ i, x i ≠ 0} := by
+  ext x
+  simp only [Set.mem_iUnion, Set.mem_inter_iff, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨b, hx, horth⟩
+    exact ⟨hx,
+      (exists_boolean_orthant_iff_all_coordinates_ne_zero x).mp
+        ⟨b, horth⟩⟩
+  · rintro ⟨hx, hcoords⟩
+    obtain ⟨b, horth⟩ :=
+      (exists_boolean_orthant_iff_all_coordinates_ne_zero x).mpr hcoords
+    exact ⟨b, hx, horth⟩
+
+
 /-- Distinct Boolean-indexed spherical orthants are disjoint. -/
 theorem boolean_spherical_orthants_disjoint {n : Nat}
     (b c : Fin n → Bool) (hbc : b ≠ c) :
