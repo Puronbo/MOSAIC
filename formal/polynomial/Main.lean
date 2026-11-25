@@ -819,4 +819,15 @@ theorem sign_change_compose {n : Nat} (ε δ x : Fin n → ℝ) :
   funext i
   simp [signChange, mul_assoc]
 
+
+/-- A sign change is an involution whenever every sign entry squares to
+one. -/
+theorem sign_change_involutive {n : Nat}
+    (ε x : Fin n → ℝ) (hε : ∀ i, ε i ^ 2 = 1) :
+    signChange ε (signChange ε x) = x := by
+  funext i
+  change ε i * (ε i * x i) = x i
+  rw [← mul_assoc, hε i]
+  ring
+
 end MosaicSphericalGeometry
