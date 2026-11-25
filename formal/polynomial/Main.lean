@@ -643,7 +643,7 @@ theorem mixed_partials_equal (x t : ℝ) (hx : 0 < x) :
   have hpow : x ^ (x + t) = x * x ^ (x + t - 1) := by
     rw [show x + t = (x + t - 1) + 1 by ring,
       Real.rpow_add hx]
-    simp
+    ring
   rw [jointValue, hpow]
   field_simp [ne_of_gt hx]
   <;> ring
