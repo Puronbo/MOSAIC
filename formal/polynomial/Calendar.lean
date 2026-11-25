@@ -84,6 +84,25 @@ theorem div_succ_400 (n : Nat) :
     rw [Nat.dvd_iff_mod_eq_zero, Nat.succ_mod_succ_eq_zero_iff]
   simp only [h]
 
+
+/-- Advancing the year index adds the exact length of the next Gregorian year. -/
+theorem daysBeforeYear_succ (y : Nat)
+    [Decidable (isLeapYear (y + 1))] :
+    daysBeforeYear (y + 1) =
+      daysBeforeYear y +
+        (if isLeapYear (y + 1) then 366 else 365) := by
+  unfold daysBeforeYear
+  have q4 := div_succ_4 y
+  have q100 := div_succ_100 y
+  have q400 := div_succ_400 y
+  have r4 : (y + 1) % 4 = 0 ↔ y % 4 = 3 := by omega
+  have r100 : (y + 1) % 100 = 0 ↔ y % 100 = 99 := by omega
+  have r400 : (y + 1) % 400 = 0 ↔ y % 400 = 399 := by omega
+  have hsub : y / 100 ≤ 365 * y + y / 4 := by omega
+  have hsub' : (y + 1) / 100 ≤ 365 * (y + 1) + (y + 1) / 4 := by omega
+  unfold isLeapYear
+  omega
+
 /-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
 theorem daysBeforeYear_weekday_period_400 (y : Nat) :
     daysBeforeYear (y + 400) % 7 = daysBeforeYear y % 7 := by
