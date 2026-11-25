@@ -1064,6 +1064,31 @@ theorem signedOrthant_disjoint_of_ne {n : Nat}
     linarith
 
 
+/-- The union of all Boolean-indexed open orthants is exactly the
+set of vectors with no zero coordinate. -/
+theorem exists_boolean_orthant_iff_all_coordinates_ne_zero {n : Nat}
+    (x : Fin n → ℝ) :
+    (∃ b : Fin n → Bool,
+      x ∈ signedOrthant (booleanSignVector b)) ↔
+      ∀ i, x i ≠ 0 := by
+  constructor
+  · rintro ⟨b, hb⟩ i hzero
+    have hpos := hb i
+    rw [hzero] at hpos
+    simp [booleanSignVector, boolSign] at hpos
+  · intro hx
+    let b : Fin n → Bool := fun i => decide (0 < x i)
+    refine ⟨b, ?_⟩
+    intro i
+    by_cases hpos : 0 < x i
+    · simp [booleanSignVector, b, hpos, boolSign]
+      exact hpos
+    · have hle : x i ≤ 0 := le_of_not_gt hpos
+      have hneg : x i < 0 := lt_of_le_of_ne hle (hx i)
+      simp [booleanSignVector, b, hpos, boolSign]
+      nlinarith
+
+
 /-- Boolean patterns enumerate distinct open orthants: the map from
 Boolean coordinate choices to their corresponding open orthant is injective. -/
 theorem boolean_orthant_injective {n : Nat} :
