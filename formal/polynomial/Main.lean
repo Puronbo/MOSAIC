@@ -1135,6 +1135,27 @@ def sphericalCoordinateSection {n : Nat} (i : Fin n) :
     Set (Fin n → ℝ) :=
   {x | x ∈ coordinateUnitSphere ∧ x i = 0}
 
+/-- Restricting coordinates away from a fixed zero coordinate is injective
+on the corresponding spherical section. -/
+def sphericalSectionCoordinates {n : Nat} (i : Fin n)
+    (x : Fin n → ℝ) : {j : Fin n // j ≠ i} → ℝ :=
+  fun j => x j.1
+
+theorem sphericalSectionCoordinates_injective {n : Nat}
+    (i : Fin n) :
+    Function.Injective
+      (fun x : sphericalCoordinateSection (n := n) i =>
+        sphericalSectionCoordinates i x.1) := by
+  intro x y h
+  apply Subtype.ext
+  funext j
+  by_cases hj : j = i
+  · subst j
+    rw [x.2.2, y.2.2]
+  · have hcoord := congrFun h ⟨j, hj⟩
+    exact hcoord
+
+
 /-- The coordinate boundary is a finite union of its individual
 coordinate-hyperplane sections. -/
 theorem sphericalCoordinateBoundary_eq_iUnion {n : Nat} :
