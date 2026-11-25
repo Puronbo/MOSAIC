@@ -81,4 +81,11 @@ theorem daysBeforeYear_succ (y : Nat)
   have b400' : (y + 1) % 400 < 400 := Nat.mod_lt (y + 1) (by omega)
   omega
 
+
+/-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
+theorem daysBeforeYear_weekday_period_400 (y : Nat) :
+    daysBeforeYear (y + 400) % 7 = daysBeforeYear y % 7 := by
+  rw [daysBeforeYear_period_400]
+  simp [Nat.add_mod]
+
 end MosaicCalendar
