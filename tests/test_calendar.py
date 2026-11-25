@@ -129,7 +129,7 @@ def test_calendar_integer_inputs_reject_booleans():
         days_in_month(2024, False)
     with pytest.raises(TypeError):
         GregorianDate.from_ordinal(True)
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         GregorianDate(year=True, month=1, day=1)
     with pytest.raises(TypeError):
         GregorianDate(year=2024, month=1, day=1).add_days(True)
