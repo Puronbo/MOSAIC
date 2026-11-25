@@ -9,15 +9,24 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+def _require_plain_int(value: int, name: str) -> None:
+    # bool is an int subclass in Python, but is never a valid calendar integer.
+    if type(value) is not int:
+        raise TypeError(f"{name} must be an integer (not bool)")
+
+
 def is_gregorian_leap_year(year: int) -> bool:
     """Return whether a positive Gregorian year has 366 days."""
-    if year < 1:
+    _require_plain_int(year, "year")
+    if not 1 <= year <= 9999:
         raise ValueError("year must be in the supported range 1..9999")
     return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
 
 
 def days_in_month(year: int, month: int) -> int:
     """Number of days in a Gregorian month."""
+    _require_plain_int(year, "year")
+    _require_plain_int(month, "month")
     if not 1 <= year <= 9999:
         raise ValueError("year must be in the supported range 1..9999")
     if not 1 <= month <= 12:
@@ -41,9 +50,9 @@ class GregorianDate(BaseModel):
     """A valid proleptic Gregorian date, independent of any time zone."""
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    year: int = Field(ge=1, le=9999)
-    month: int = Field(ge=1, le=12)
-    day: int = Field(ge=1, le=31)
+    year: int = Field(ge=1, le=9999, strict=True)
+    month: int = Field(ge=1, le=12, strict=True)
+    day: int = Field(ge=1, le=31, strict=True)
 
     @model_validator(mode="after")
     def validate_day(self):
@@ -68,29 +77,36 @@ class GregorianDate(BaseModel):
         """Monday=0 through Sunday=6; 0001-01-01 is Monday."""
         return (self.ordinal - 1) % 7
 
-    def add_days(self, amount: int) -> GregorianDate:
-        """Add an integer number of calendar days, rejecting range overflow."""
-        target = self.ordinal + amount
-        if target < 1:
-            raise ValueError("result precedes supported year 1")
-        # Invert the ordinal by bounded binary search over supported years.
+    @classmethod
+    def from_ordinal(cls, ordinal: int) -> GregorianDate:
+        """Construct the date with the given one-based Gregorian ordinal."""
+        _require_plain_int(ordinal, "ordinal")
+        maximum = cls(year=9999, month=12, day=31).ordinal
+        if not 1 <= ordinal <= maximum:
+            raise ValueError("ordinal is outside the supported Gregorian range")
+        # Locate the containing year in O(log 9999), then its month in O(12).
         lo, hi = 1, 9999
         while lo <= hi:
-            mid = (lo + hi) // 2
-            first = GregorianDate(year=mid, month=1, day=1).ordinal
-            after = first + days_in_year(mid)
-            if target < first:
-                hi = mid - 1
-            elif target >= after:
-                lo = mid + 1
+            year = (lo + hi) // 2
+            first = cls(year=year, month=1, day=1).ordinal
+            after = first + days_in_year(year)
+            if ordinal < first:
+                hi = year - 1
+            elif ordinal >= after:
+                lo = year + 1
             else:
-                day_of_year = target - first + 1
+                day_of_year = ordinal - first + 1
                 month = 1
-                while day_of_year > days_in_month(mid, month):
-                    day_of_year -= days_in_month(mid, month)
+                while day_of_year > days_in_month(year, month):
+                    day_of_year -= days_in_month(year, month)
                     month += 1
-                return GregorianDate(year=mid, month=month, day=day_of_year)
-        raise ValueError("result exceeds supported year 9999")
+                return cls(year=year, month=month, day=day_of_year)
+        raise AssertionError("bounded ordinal search failed")
+
+    def add_days(self, amount: int) -> GregorianDate:
+        """Add an integer number of calendar days, rejecting range overflow."""
+        _require_plain_int(amount, "amount")
+        return GregorianDate.from_ordinal(self.ordinal + amount)
 
     def add_months(
         self, amount: int, policy: str = MonthAdditionPolicy.CLAMP
@@ -119,10 +135,10 @@ class CivilTime(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     date: GregorianDate
-    hour: int = Field(ge=0, le=23)
-    minute: int = Field(ge=0, le=59)
-    second: int = Field(ge=0, le=59)
-    utc_offset_minutes: int = Field(ge=-14 * 60, le=14 * 60)
+    hour: int = Field(ge=0, le=23, strict=True)
+    minute: int = Field(ge=0, le=59, strict=True)
+    second: int = Field(ge=0, le=59, strict=True)
+    utc_offset_minutes: int = Field(ge=-14 * 60, le=14 * 60, strict=True)
 
     @property
     def local_seconds_of_day(self) -> int:
