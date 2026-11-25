@@ -1135,6 +1135,27 @@ def sphericalCoordinateSection {n : Nat} (i : Fin n) :
     Set (Fin n → ℝ) :=
   {x | x ∈ coordinateUnitSphere ∧ x i = 0}
 
+/-- Every coordinate sign change preserves each spherical coordinate section. -/
+theorem sign_change_maps_spherical_coordinate_section {n : Nat}
+    (ε : Fin n → ℝ) (hε : ∀ j, ε j ^ 2 = 1) (i : Fin n) :
+    signChange ε '' sphericalCoordinateSection (n := n) i =
+      sphericalCoordinateSection (n := n) i := by
+  apply Set.Subset.antisymm
+  · rintro y ⟨x, hx, rfl⟩
+    refine ⟨?_, ?_⟩
+    · exact sign_change_preserves_unit_sphere ε x hε hx.1
+    · change ε i * x i = 0
+      rw [hx.2]
+      ring
+  · intro y hy
+    refine ⟨signChange ε y, ?_, sign_change_involutive ε y hε⟩
+    refine ⟨?_, ?_⟩
+    · exact sign_change_preserves_unit_sphere ε y hε hy.1
+    · change ε i * y i = 0
+      rw [hy.2]
+      ring
+
+
 /-- Restricting coordinates away from a fixed zero coordinate is injective
 on the corresponding spherical section. -/
 def sphericalSectionCoordinates {n : Nat} (i : Fin n)
