@@ -1384,7 +1384,8 @@ open scoped MeasureTheory NNReal
 /-- A finite union of sets with a common strict Hausdorff-dimension bound
 has zero Hausdorff measure in every larger dimension. -/
 theorem hausdorffMeasure_iUnion_zero_of_uniform_dimH_bound
-    {α : Type*} [EMetricSpace α] {ι : Type*} [Fintype ι]
+    {α : Type*} [EMetricSpace α] [MeasurableSpace α] [BorelSpace α]
+    {ι : Type*} [Fintype ι]
     (A : ι → Set α) (d' d : ℝ≥0)
     (hbound : ∀ i, dimH (A i) ≤ (d' : ENNReal))
     (hlt : d' < d) :
