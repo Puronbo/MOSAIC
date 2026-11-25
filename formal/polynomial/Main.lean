@@ -900,6 +900,58 @@ theorem boolean_sign_pattern_cardinality (n : Nat) :
     Fintype.card (Fin n → Bool) = 2 ^ n := by
   simp
 
+
+/-- An open orthant specified by a vector of coordinate signs. -/
+def signedOrthant {n : Nat} (ε : Fin n → ℝ) : Set (Fin n → ℝ) :=
+  {x | ∀ i, 0 < ε i * x i}
+
+/-- Coordinate sign changes carry a signed orthant onto the orthant
+whose sign vector is multiplied coordinatewise by the acting signs. -/
+theorem sign_change_maps_signed_orthant {n : Nat}
+    (ε δ : Fin n → ℝ) (hδ : ∀ i, δ i ^ 2 = 1) :
+    signChange δ '' signedOrthant ε =
+      signedOrthant (fun i => ε i * δ i) := by
+  apply Set.Subset.antisymm
+  · rintro y ⟨x, hx, rfl⟩
+    intro i
+    have heq : (ε i * δ i) * (δ i * x i) = ε i * x i := by
+      calc
+        (ε i * δ i) * (δ i * x i) =
+            ε i * ((δ i) ^ 2 * x i) := by ring
+        _ = ε i * (1 * x i) := by rw [hδ i]
+        _ = ε i * x i := by ring
+    rw [heq]
+    exact hx i
+  · intro y hy
+    refine ⟨signChange δ y, ?_, sign_change_involutive δ y hδ⟩
+    intro i
+    have heq : ε i * (δ i * y i) = (ε i * δ i) * y i := by ring
+    rw [heq]
+    exact hy i
+
+/-- Any two signed orthants are related by a coordinate sign change.
+This is the transitivity statement needed for equal-measure arguments. -/
+theorem signed_orthants_transitive {n : Nat}
+    (ε η : Fin n → ℝ)
+    (hε : ∀ i, ε i ^ 2 = 1) (hη : ∀ i, η i ^ 2 = 1) :
+    ∃ δ : Fin n → ℝ, (∀ i, δ i ^ 2 = 1) ∧
+      signChange δ '' signedOrthant ε = signedOrthant η := by
+  let δ : Fin n → ℝ := fun i => ε i * η i
+  have hδ : ∀ i, δ i ^ 2 = 1 := by
+    intro i
+    simp only [δ, mul_pow, hε i, hη i]
+    norm_num
+  refine ⟨δ, hδ, ?_⟩
+  rw [sign_change_maps_signed_orthant ε δ hδ]
+  have hsign : (fun i => ε i * δ i) = η := by
+    funext i
+    dsimp [δ]
+    calc
+      ε i * (ε i * η i) = (ε i) ^ 2 * η i := by ring
+      _ = 1 * η i := by rw [hε i]
+      _ = η i := by ring
+  rw [hsign]
+
 end MosaicSphericalGeometry
 
 
