@@ -929,4 +929,18 @@ theorem measure_eq_of_measure_preserving_equiv
   rw [hpre] at hmap
   exact hmap
 
+/-- Transitivity by measure-preserving measurable equivalences forces all
+regions in a finite family to have equal measure. -/
+theorem all_regions_equal_measure
+    {α : Type*} [MeasurableSpace α] (μ : Measure α)
+    {ι : Type*} (A : ι → Set α)
+    (hmeas : ∀ i, MeasurableSet (A i))
+    (htrans : ∀ i j, ∃ e : α ≃ᵐ α,
+      MeasurePreserving (fun x => e x) μ μ ∧ e '' A i = A j) :
+    ∀ i j, μ (A i) = μ (A j) := by
+  intro i j
+  obtain ⟨e, hpres, himage⟩ := htrans i j
+  exact measure_eq_of_measure_preserving_equiv μ (A i) (A j)
+    (hmeas i) (hmeas j) e hpres himage
+
 end MosaicMeasureSymmetry
