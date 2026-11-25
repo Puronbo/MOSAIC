@@ -1129,6 +1129,21 @@ theorem boolean_spherical_orthants_cover_complement {n : Nat} :
 def sphericalCoordinateBoundary {n : Nat} : Set (Fin n → ℝ) :=
   {x | x ∈ coordinateUnitSphere ∧ ∃ i, x i = 0}
 
+/-- The section of the unit sphere cut out by the i-th coordinate
+hyperplane. -/
+def sphericalCoordinateSection {n : Nat} (i : Fin n) :
+    Set (Fin n → ℝ) :=
+  {x | x ∈ coordinateUnitSphere ∧ x i = 0}
+
+/-- The coordinate boundary is a finite union of its individual
+coordinate-hyperplane sections. -/
+theorem sphericalCoordinateBoundary_eq_iUnion {n : Nat} :
+    sphericalCoordinateBoundary (n := n) =
+      ⋃ i : Fin n, sphericalCoordinateSection (n := n) i := by
+  ext x
+  simp [sphericalCoordinateBoundary, sphericalCoordinateSection]
+
+
 /-- The unit sphere is the disjoint union of its open Boolean orthants
 and the coordinate-hyperplane boundary. -/
 theorem boolean_spherical_orthants_cover_with_boundary {n : Nat} :
