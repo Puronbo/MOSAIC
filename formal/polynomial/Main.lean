@@ -916,7 +916,8 @@ theorem booleanSignVector_surjective_onto_signs {n : Nat}
     have hneg : ε i = -1 := by
       rcases mul_eq_zero.mp hfactor with hone | hminus
       · have heq : ε i = 1 := by linarith
-        exact (h heq).elim
+        exfalso
+        exact h heq
       · linarith
     simp [booleanSignVector, b, boolSign, hneg]
 
@@ -1051,7 +1052,7 @@ theorem boolean_orthant_cardinality (n : Nat) :
         (Equiv.ofInjective
           (fun b : Fin n → Bool =>
             signedOrthant (booleanSignVector b))
-          boolean_orthant_injective)
+          boolean_orthant_injective).symm
     _ = 2 ^ n := boolean_sign_pattern_cardinality n
 
 
