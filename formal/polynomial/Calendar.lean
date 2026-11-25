@@ -100,8 +100,13 @@ theorem daysBeforeYear_succ (y : Nat)
   have r400 : (y + 1) % 400 = 0 ↔ y % 400 = 399 := by omega
   have hsub : y / 100 ≤ 365 * y + y / 4 := by omega
   have hsub' : (y + 1) / 100 ≤ 365 * (y + 1) + (y + 1) / 4 := by omega
-  unfold isLeapYear
-  omega
+  by_cases hl : isLeapYear (y + 1)
+  · simp only [if_pos hl]
+    unfold isLeapYear at hl
+    omega
+  · simp only [if_neg hl]
+    unfold isLeapYear at hl
+    omega
 
 /-- A complete Gregorian cycle preserves the weekday residue modulo seven. -/
 theorem daysBeforeYear_weekday_period_400 (y : Nat) :
