@@ -811,6 +811,16 @@ theorem sign_change_preserves_sum_squares {n : Nat}
   rw [mul_pow, hε i]
   ring
 
+
+/-- Coordinatewise sign changes preserve the unit sphere in every finite
+dimension. -/
+theorem sign_change_preserves_unit_sphere {n : Nat}
+    (ε x : Fin n → ℝ) (hε : ∀ i, ε i ^ 2 = 1)
+    (hx : (∑ i : Fin n, (x i) ^ 2) = 1) :
+    (∑ i : Fin n, (signChange ε x i) ^ 2) = 1 := by
+  rw [sign_change_preserves_sum_squares ε x hε]
+  exact hx
+
 /-- Applying two coordinatewise sign changes is multiplication by their
 pointwise product. -/
 theorem sign_change_compose {n : Nat} (ε δ x : Fin n → ℝ) :
