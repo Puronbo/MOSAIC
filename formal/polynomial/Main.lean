@@ -1153,6 +1153,22 @@ theorem boolean_spherical_orthants_cover_with_boundary {n : Nat} :
     · exact hboundary.1
 
 
+/-- The open spherical orthants are disjoint from the coordinate boundary. -/
+theorem boolean_spherical_orthants_disjoint_boundary {n : Nat} :
+    Disjoint
+      (⋃ b : Fin n → Bool,
+        coordinateUnitSphere ∩ signedOrthant (booleanSignVector b))
+      (sphericalCoordinateBoundary (n := n)) := by
+  apply Set.disjoint_left.mpr
+  intro x hx hy
+  obtain ⟨b, hb⟩ := Set.mem_iUnion.mp hx
+  obtain ⟨i, hi⟩ := hy.2
+  have hpos := hb.2 i
+  change 0 < booleanSignVector b i * x i at hpos
+  rw [hi] at hpos
+  norm_num at hpos
+
+
 /-- Distinct Boolean-indexed spherical orthants are disjoint. -/
 theorem boolean_spherical_orthants_disjoint {n : Nat}
     (b c : Fin n → Bool) (hbc : b ≠ c) :
